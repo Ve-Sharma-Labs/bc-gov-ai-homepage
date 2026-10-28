@@ -1,0 +1,23 @@
+Unsplash Photo License
+Source: https://unsplash.com/license
+Retrieved: 24 October 2026 (Pacific time)
+
+Longform license, as published by Unsplash:
+
+Unsplash grants you an irrevocable, nonexclusive, worldwide copyright license to download, copy, modify, distribute, perform, and use images from Unsplash for free, including for commercial purposes, without permission from or attributing the photographer or Unsplash. This license does not include the right to compile images from Unsplash to replicate a similar or competing service.
+
+The source page also states:
+- Images cannot be sold without significant modification.
+- Compiling images from Unsplash to replicate a similar or competing service is not permitted.
+
+Scope of this copy:
+The five photographs listed in apps/web/ASSETS.md, by Aditya Chinchure,
+Vlad Namashko, Frederic Leblanc, Robbie Down, and Vlad D. Their original
+photo and profile URLs are retained in that report and in hero-images.ts.
+Copyright remains with the respective rights holders. These are not
+public-domain images and are not Unsplash+ assets.
+
+The copyright license does not provide model, property, trademark,
+privacy, publicity, access, or other third-party permissions.
+See https://help.unsplash.com/en/articles/2612329-releases-and-trademarks
+and the release limitations in apps/web/ASSETS.md.

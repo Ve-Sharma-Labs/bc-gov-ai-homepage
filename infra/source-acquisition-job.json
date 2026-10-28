@@ -1,0 +1,175 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "12852134628334615363"
+    }
+  },
+  "parameters": {
+    "acquisitionJobName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 32,
+      "metadata": {
+        "description": "Existing replacement acquisition job name."
+      }
+    },
+    "location": {
+      "type": "string"
+    },
+    "environmentName": {
+      "type": "string"
+    },
+    "registryName": {
+      "type": "string"
+    },
+    "acquisitionIdentityName": {
+      "type": "string"
+    },
+    "storageAccountName": {
+      "type": "string"
+    },
+    "imageName": {
+      "type": "string",
+      "metadata": {
+        "description": "Reviewed Linux amd64 acquisition image pinned by registry digest."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {}
+    },
+    "candidateContainerName": {
+      "type": "string",
+      "defaultValue": "bc-ingestion-candidates"
+    },
+    "runPrefix": {
+      "type": "string"
+    },
+    "acquisitionEnabled": {
+      "type": "bool"
+    },
+    "rightsContainerName": {
+      "type": "string",
+      "defaultValue": "bc-ingestion-rights"
+    },
+    "rightsBlob": {
+      "type": "string"
+    },
+    "rightsSha256": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "requestBudget": {
+      "type": "int",
+      "defaultValue": 50000,
+      "minValue": 1
+    },
+    "byteBudget": {
+      "type": "int",
+      "defaultValue": 10000000000,
+      "minValue": 1
+    },
+    "maxCandidates": {
+      "type": "int",
+      "defaultValue": 100000,
+      "minValue": 1
+    }
+  },
+  "variables": {
+    "accountUrl": "[format('https://{0}.blob.{1}', parameters('storageAccountName'), environment().suffixes.storage)]",
+    "commonArgs": [
+      "programme",
+      "--catalog",
+      "/app/data/pilot-catalog.json",
+      "--programme",
+      "/app/data/source-programme.json",
+      "--programme-store",
+      "azure-blob",
+      "--blob-account-url",
+      "[variables('accountUrl')]",
+      "--candidate-container",
+      "[parameters('candidateContainerName')]",
+      "--run-prefix",
+      "[parameters('runPrefix')]",
+      "--credential",
+      "managed-identity"
+    ],
+    "runArgs": "[if(parameters('acquisitionEnabled'), createArray('--acquire', '--resume', '--rights-container', parameters('rightsContainerName'), '--rights-blob', parameters('rightsBlob'), '--rights-sha256', parameters('rightsSha256'), '--batch-requests', '25', '--run-seconds', '120'), createArray('--initialize', '--request-budget', string(parameters('requestBudget')), '--byte-budget', string(parameters('byteBudget')), '--max-candidates', string(parameters('maxCandidates')), '--max-retries', '2'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/jobs",
+      "apiVersion": "2025-01-01",
+      "name": "[parameters('acquisitionJobName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "SystemAssigned, UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('acquisitionIdentityName')))]": {}
+        }
+      },
+      "properties": {
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('environmentName'))]",
+        "workloadProfileName": "Consumption",
+        "configuration": {
+          "triggerType": "Manual",
+          "replicaTimeout": 300,
+          "replicaRetryLimit": 0,
+          "manualTriggerConfig": {
+            "parallelism": 1,
+            "replicaCompletionCount": 1
+          },
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), '2025-04-01').loginServer]",
+              "identity": "system"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "acquisition",
+              "image": "[parameters('imageName')]",
+              "command": [
+                "python",
+                "-m",
+                "bc_ingestion"
+              ],
+              "args": "[concat(variables('commonArgs'), variables('runArgs'))]",
+              "env": [
+                {
+                  "name": "AZURE_CLIENT_ID",
+                  "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('acquisitionIdentityName')), '2024-11-30').clientId]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "jobName": {
+      "type": "string",
+      "value": "[parameters('acquisitionJobName')]"
+    },
+    "jobArguments": {
+      "type": "array",
+      "value": "[concat(variables('commonArgs'), variables('runArgs'))]"
+    },
+    "acquisitionIdentityClientId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('acquisitionIdentityName')), '2024-11-30').clientId]"
+    }
+  }
+}

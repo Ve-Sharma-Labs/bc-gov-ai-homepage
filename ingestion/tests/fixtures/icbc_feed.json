@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "renewal-guide",
+      "canonicalUrl": "https://www.icbc.com/driver-licensing/getting-licensed/renew-your-licence-or-id",
+      "title": "Renew your licence or ID",
+      "contentComplete": true,
+      "publisherUpdatedAt": "2026-10-18",
+      "contentHtml": "<p>This approved publisher-feed fixture contains complete preparation guidance rather than a client-rendered shell. It does not expose a booking, payment, account or personal-information workflow.</p><h2>Prepare before visiting</h2><p>Review the current identification guidance and confirm the appropriate licensing office before a visit. This record does not claim live appointment availability and does not accept a licence number or payment.</p><p>The bounded item contains enough complete main content to exercise exact hashing, section extraction and candidate review without contacting ICBC.</p>"
+    }
+  ]
+}

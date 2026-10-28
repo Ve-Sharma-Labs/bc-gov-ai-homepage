@@ -1,0 +1,154 @@
+name: Pilot checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm --prefix apps/web ci
+      - run: npm run test:tooling
+      - run: npm --prefix apps/web run typecheck
+      - run: npm --prefix apps/web test
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - component: apps/api
+            extra: dev
+            python: "3.14"
+            check: pytest -q
+          - component: ingestion
+            extra: azure
+            python: "3.14"
+            check: unittest discover -s tests -q
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: |
+          if [ -f requirements-dev.lock ]; then
+            python -m pip install -r requirements-dev.lock -e .
+          elif [ -f requirements.lock ]; then
+            python -m pip install -r requirements.lock
+            python -m pip install --no-build-isolation --no-deps -e .
+          else
+            python -m pip install -e ".[${{ matrix.extra }}]"
+          fi
+        working-directory: ${{ matrix.component }}
+      - run: python -m ${{ matrix.check }}
+        working-directory: ${{ matrix.component }}
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: |
+          python -m venv apps/api/.venv
+          apps/api/.venv/bin/python -m pip install -r apps/api/requirements.lock -e apps/api
+          npm ci
+          npm --prefix apps/web ci
+          npx --no-install playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-evidence
+          path: test-results
+          retention-days: 7
+  containers:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - component: api
+            dockerfile: apps/api/Dockerfile
+          - component: web
+            dockerfile: apps/web/Dockerfile
+          - component: ingestion
+            dockerfile: ingestion/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the Azure target architecture
+        run: docker build --platform linux/amd64 --tag "bc-pilot-${{ matrix.component }}:check" --file "${{ matrix.dockerfile }}" .
+      - name: Check API package and disconnected safety
+        if: matrix.component == 'api'
+        run: |
+          docker run --rm --network none --entrypoint python -i bc-pilot-api:check - <<'PY'
+          import os
+          import platform
+          from fastapi.testclient import TestClient
+          from bc_api.config import Settings
+          from bc_api.main import create_app
+          assert os.getuid() == 10001
+          assert platform.machine() == "x86_64"
+          with TestClient(create_app(Settings(app_env="production")), base_url="http://localhost") as client:
+              assert client.get("/healthz").status_code == 200
+              assert client.get("/api/catalog").status_code == 503
+          with TestClient(create_app(Settings(app_env="development")), base_url="http://localhost") as client:
+              assert len(client.get("/api/catalog").json()["journeys"]) == 5
+              assert client.get("/api/capabilities").json()["aiConfigured"] is False
+          PY
+      - name: Check web runtime dependencies
+        if: matrix.component == 'web'
+        run: |
+          docker run --rm --network none --entrypoint node bc-pilot-web:check --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import { ManagedIdentityCredential } from "@azure/identity";
+            import sharp from "sharp";
+            assert.equal(process.getuid(), 1001);
+            assert.equal(process.arch, "x64");
+            assert.equal(typeof ManagedIdentityCredential, "function");
+            for (const path of ["server.js", ".next/static", "public"]) assert.ok(fs.existsSync(path));
+            const image = await sharp({ create: { width: 1, height: 1, channels: 3, background: "#ffffff" } }).png().toBuffer();
+            assert.ok(image.length > 0);
+          '
+      - name: Check offline ingestion and identity-only storage support
+        if: matrix.component == 'ingestion'
+        run: |
+          docker run --rm --network none --entrypoint python -i bc-pilot-ingestion:check - <<'PY'
+          import contextlib
+          import io
+          import json
+          import os
+          import platform
+          from bc_ingestion.cli import main
+          from bc_ingestion.azure_blob import BlobManifestStore
+          assert os.getuid() == 10001
+          assert platform.machine() == "x86_64"
+          output = io.StringIO()
+          with contextlib.redirect_stdout(output):
+              assert main(["programme"]) == 0
+          report = json.loads(output.getvalue())
+          assert report["programmeStore"] == "local"
+          assert report["status"] == "review-only"
+          assert report["publishedDocuments"] == 0
+          PY

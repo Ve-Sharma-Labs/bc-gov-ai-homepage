@@ -1,0 +1,538 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-28T04:33:08Z",
+  "sources": [
+    {
+      "id": "bc-content",
+      "title": "B.C. government services",
+      "publisher": "Government of British Columbia",
+      "url": "https://www2.gov.bc.ca/gov/content/home",
+      "description": "Official starting point for provincial information. This curated snapshot covers selected public guidance, not the whole government website or live service availability.",
+      "checkedAt": "2026-10-25T00:21:12Z",
+      "publisherUpdatedAt": null,
+      "status": "available",
+      "topics": ["government", "services"]
+    },
+    {
+      "id": "service-bc",
+      "title": "Service BC",
+      "publisher": "Government of British Columbia",
+      "url": "https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc",
+      "description": "Official service guidance and office directory. Seven office rows were reviewed for this snapshot; the supplied outdated seed was replaced with this canonical page.",
+      "checkedAt": "2026-10-25T00:21:15Z",
+      "publisherUpdatedAt": "2026-10-23",
+      "status": "available",
+      "topics": ["in-person-help", "identification", "locations"]
+    },
+    {
+      "id": "housing-tenancy",
+      "title": "Housing and tenancy",
+      "publisher": "Government of British Columbia",
+      "url": "https://www2.gov.bc.ca/gov/content/housing-tenancy",
+      "description": "Navigation to renting, tenancy, home ownership and housing support. Tenancy rights and disputes are distinct from BC Housing rent-assistance applications.",
+      "checkedAt": "2026-10-25T00:21:18Z",
+      "publisherUpdatedAt": null,
+      "status": "available",
+      "topics": ["housing", "renting", "tenancy"]
+    },
+    {
+      "id": "health",
+      "title": "Health and drug coverage",
+      "publisher": "Government of British Columbia",
+      "url": "https://www2.gov.bc.ca/gov/content/health",
+      "description": "Selected MSP enrolment and Fair PharmaCare guidance was reviewed. These are separate coverage programs; this pilot does not determine eligibility, treatment or benefits.",
+      "checkedAt": "2026-10-25T00:22:39Z",
+      "publisherUpdatedAt": null,
+      "status": "available",
+      "topics": ["health", "msp", "pharmacare"]
+    },
+    {
+      "id": "family-social-supports",
+      "title": "Family and social supports",
+      "publisher": "Government of British Columbia",
+      "url": "https://www2.gov.bc.ca/gov/content/family-social-supports",
+      "description": "Reviewed topic landing page linking to family, disability, seniors and income-assistance information. Detailed program rules and changing payment dates are outside this pilot sample.",
+      "checkedAt": "2026-10-25T00:21:20Z",
+      "publisherUpdatedAt": null,
+      "status": "limited",
+      "topics": ["families", "disability", "income-assistance"]
+    },
+    {
+      "id": "employment-business",
+      "title": "Employment and business",
+      "publisher": "Government of British Columbia",
+      "url": "https://www2.gov.bc.ca/gov/content/employment-business",
+      "description": "Reviewed topic landing page for jobs, employers and business guidance. Child-page extraction and any broader employment coverage still require review.",
+      "checkedAt": "2026-10-25T00:21:21Z",
+      "publisherUpdatedAt": null,
+      "status": "limited",
+      "topics": ["employment", "business"]
+    },
+    {
+      "id": "taxes",
+      "title": "Taxes and tax credits",
+      "publisher": "Government of British Columbia",
+      "url": "https://www2.gov.bc.ca/gov/content/taxes",
+      "description": "Reviewed tax-information landing page only. No tax filing, payment, personal tax advice or verification of current deadlines is included.",
+      "checkedAt": "2026-10-25T00:21:22Z",
+      "publisherUpdatedAt": null,
+      "status": "limited",
+      "topics": ["taxes", "tax-credits"]
+    },
+    {
+      "id": "bc-housing",
+      "title": "BC Housing",
+      "publisher": "BC Housing",
+      "url": "https://www.bchousing.org/",
+      "description": "RAP and SAFER guidance was reviewed. The publisher says website updates are paused and content is current to September 22, 2026; confirm requirements directly before applying.",
+      "checkedAt": "2026-10-25T00:19:52Z",
+      "publisherUpdatedAt": null,
+      "status": "limited",
+      "topics": ["housing", "rental-assistance", "seniors"]
+    },
+    {
+      "id": "icbc",
+      "title": "ICBC driver licensing",
+      "publisher": "ICBC",
+      "url": "https://www.icbc.com/",
+      "description": "Visible renewal, accepted-ID and road-test guidance was reviewed, but complete automated acquisition remains pending. Preparation and official handoffs are provided; renewal, booking and payment stay on ICBC's services.",
+      "checkedAt": "2026-10-28T04:33:08Z",
+      "publisherUpdatedAt": null,
+      "status": "limited",
+      "topics": ["driving", "licensing", "identification"]
+    },
+    {
+      "id": "workbc",
+      "title": "WorkBC",
+      "publisher": "WorkBC",
+      "url": "https://www.workbc.ca/",
+      "description": "Acquisition is on hold: robots.txt returned maintenance HTML rather than a valid policy. No WorkBC content was acquired for this catalogue; an approved access route is required.",
+      "checkedAt": "2026-10-25T00:19:55Z",
+      "publisherUpdatedAt": null,
+      "status": "blocked",
+      "topics": ["employment", "training"]
+    },
+    {
+      "id": "healthlink-bc",
+      "title": "HealthLink BC",
+      "publisher": "HealthLink BC",
+      "url": "https://www.healthlinkbc.ca/",
+      "description": "Reviewed Health Connect Registry guidance explains primary-care registration and human help. The pilot does not collect health information or promise a provider or appointment.",
+      "checkedAt": "2026-10-25T00:19:55Z",
+      "publisherUpdatedAt": null,
+      "status": "available",
+      "topics": ["health", "primary-care", "health-connect-registry"]
+    },
+    {
+      "id": "bc-laws",
+      "title": "BC Laws",
+      "publisher": "Government of British Columbia",
+      "url": "https://www.bclaws.gov.bc.ca/",
+      "description": "General crawling is disallowed. No legal content was scraped; an approved CiviX feed or publisher export and licence review remain pending.",
+      "checkedAt": "2026-10-25T00:19:56Z",
+      "publisherUpdatedAt": null,
+      "status": "pending",
+      "topics": ["legislation", "legal-reference"]
+    }
+  ],
+  "journeys": [
+    {
+      "id": "licence-renewal",
+      "title": "Renew a driver's licence or BCID",
+      "prompt": "Help me prepare to renew my driver's licence.",
+      "summary": "Check the ID you will need, find an office offering driver licensing, and continue on ICBC's official website.",
+      "category": "Driving and ID",
+      "notice": "Curated snapshot checked October 24, 2026 in B.C., not a live service or AI response. ICBC extraction is incomplete, so confirm all details with ICBC. This pilot cannot renew, book, take payment or confirm appointment availability.",
+      "sourceIds": ["icbc", "service-bc"],
+      "steps": [
+        {
+          "id": "check-renewal-guidance",
+          "title": "Start with the official renewal guide",
+          "description": "ICBC's visible renewal guidance directs people to a driver licensing office with accepted identification. Review its current instructions for your licence or BCID before planning a visit; no online-renewal transaction was verified.",
+          "sourceIds": ["icbc"]
+        },
+        {
+          "id": "prepare-identification",
+          "title": "Check your two pieces of accepted ID",
+          "description": "The reviewed ID guide asks for one primary and one secondary identification document. Check the official guide for originals or issuer-certified copies, name-change proof and any translation requirements. Do not enter licence numbers or upload ID here.",
+          "sourceIds": ["icbc"]
+        },
+        {
+          "id": "find-licensing-office",
+          "title": "Choose an office that offers licensing",
+          "description": "Filter the seven-office Service BC snapshot by ICBC licensing and municipality, not distance alone. Nanaimo's reviewed row includes licensing; several other sampled offices explicitly exclude it. Use the full official directory if your municipality is not covered.",
+          "sourceIds": ["service-bc"]
+        },
+        {
+          "id": "confirm-before-visiting",
+          "title": "Confirm the visit with the official service",
+          "description": "Use ICBC's guidance to check the appropriate office and any appointment instructions. Published office hours are not live availability. Any booking, renewal or payment takes place outside this pilot.",
+          "sourceIds": ["icbc", "service-bc"]
+        }
+      ],
+      "handoffs": [
+        {
+          "label": "Open ICBC renewal guidance",
+          "url": "https://www.icbc.com/driver-licensing/getting-licensed/Renew-your-licence-or-ID",
+          "description": "Read the official renewal page and continue to ICBC's own service channels.",
+          "sourceIds": ["icbc"]
+        },
+        {
+          "label": "Check accepted identification",
+          "url": "https://www.icbc.com/driver-licensing/visit-dl-office/Accepted-ID",
+          "description": "Confirm which primary and secondary ID documents apply to your situation.",
+          "sourceIds": ["icbc"]
+        }
+      ]
+    },
+    {
+      "id": "road-test-booking",
+      "title": "Prepare to book a road test",
+      "prompt": "Help me prepare to book an ICBC road test.",
+      "summary": "Check the test route, what to bring and the official ICBC booking channel without sharing licence details here.",
+      "category": "Driving and ID",
+      "notice": "Curated ICBC guidance checked October 27, 2026 in B.C.; not live appointment availability or an AI response. This pilot cannot authenticate, book, reschedule, cancel or take payment. Confirm current requirements and available times with ICBC.",
+      "sourceIds": ["icbc"],
+      "steps": [
+        {
+          "id": "choose-road-test",
+          "title": "Choose the road-test route",
+          "description": "ICBC's booking page supports online booking for listed car and motorcycle road tests and skills tests. Check the page for the class or test you need; the earliest eligible test date may be shown on your licence. Do not enter licence details in this pilot.",
+          "sourceIds": ["icbc"]
+        },
+        {
+          "id": "prepare-identification-and-payment",
+          "title": "Prepare identification and the current test fee",
+          "description": "The reviewed appointment guidance says to bring one primary and one secondary piece of accepted ID and payment for the road-test fee. Use ICBC's current ID and fee pages rather than relying on a saved amount.",
+          "sourceIds": ["icbc"]
+        },
+        {
+          "id": "prepare-test-vehicle",
+          "title": "Check the vehicle before the appointment",
+          "description": "Bring a safe, reliable and insured vehicle with a Canadian licence plate. Review ICBC's vehicle checklist and any authorization-letter requirement if the vehicle belongs to a car-share or company.",
+          "sourceIds": ["icbc"]
+        },
+        {
+          "id": "book-with-icbc",
+          "title": "Continue to ICBC's booking service",
+          "description": "Open ICBC's official booking page to view live availability and book, reschedule or cancel. Appointment availability can change and is never known to this pilot.",
+          "sourceIds": ["icbc"]
+        }
+      ],
+      "handoffs": [
+        {
+          "label": "Open ICBC road-test booking",
+          "url": "https://www.icbc.com/driver-licensing/visit-dl-office/Book-a-road-test",
+          "description": "Use ICBC's official page to view live availability and continue to its booking service.",
+          "sourceIds": ["icbc"]
+        },
+        {
+          "label": "Review the appointment checklist",
+          "url": "https://www.icbc.com/driver-licensing/visit-dl-office/Prepare-road-test-appointment",
+          "description": "Confirm accepted ID, payment and vehicle requirements before attending.",
+          "sourceIds": ["icbc"]
+        }
+      ]
+    },
+    {
+      "id": "rental-assistance",
+      "title": "Explore help with rent",
+      "prompt": "What should I prepare to apply for rental assistance?",
+      "summary": "Compare BC Housing's Rental Assistance Program and SAFER, review exclusions, and prepare documents privately before applying.",
+      "category": "Housing",
+      "notice": "Curated snapshot, not an eligibility decision or AI response. BC Housing reports an update pause with content current to September 22, 2026. Ask BC Housing to confirm current rules. This pilot does not collect financial documents or submit an application.",
+      "sourceIds": ["bc-housing", "housing-tenancy"],
+      "steps": [
+        {
+          "id": "choose-rental-program",
+          "title": "Find the program to investigate",
+          "description": "RAP supports eligible lower-income families with dependent children renting in the private market. SAFER is a rent supplement for eligible people aged 60 or older. These are starting points, not confirmation that you qualify; tenancy disputes use separate government guidance.",
+          "sourceIds": ["bc-housing", "housing-tenancy"]
+        },
+        {
+          "id": "review-eligibility-exclusions",
+          "title": "Read both criteria and exclusions",
+          "description": "Review the chosen program's household, income, residence and housing rules. The sampled guidance excludes subsidized housing and shareholder co-operative housing. Income or disability assistance can exclude applicants, with a stated Medical Services Only exception when assistance has ended. Read the complete current rules rather than treating this as a full eligibility checklist.",
+          "sourceIds": ["bc-housing"]
+        },
+        {
+          "id": "prepare-rental-evidence",
+          "title": "Gather the official checklist privately",
+          "description": "The reviewed checklists describe proof of income, status or identification, rent and direct-deposit information; RAP also asks for applicable asset and dependent-child evidence. Check each program's exact document options, including the consent or tax-document route. Keep these documents off this pilot.",
+          "sourceIds": ["bc-housing"]
+        },
+        {
+          "id": "continue-with-bc-housing",
+          "title": "Confirm details and apply through BC Housing",
+          "description": "Download the application and checklist from the official program page. BC Housing lists ways to obtain and submit forms and says to provide copies rather than original supporting documents. Call 604-433-2218 or 1-800-257-7756 if you need help. BC Housing, not this pilot, decides applications.",
+          "sourceIds": ["bc-housing"]
+        }
+      ],
+      "handoffs": [
+        {
+          "label": "Review Rental Assistance Program",
+          "url": "https://www.bchousing.org/housing-assistance/rental-assistance-programs/RAP",
+          "description": "Open RAP's complete criteria, exceptions, checklist and official application instructions.",
+          "sourceIds": ["bc-housing"]
+        },
+        {
+          "label": "Review SAFER",
+          "url": "https://www.bchousing.org/housing-assistance/rental-assistance-programs/SAFER",
+          "description": "Open SAFER's criteria and checklist for eligible older renters.",
+          "sourceIds": ["bc-housing"]
+        }
+      ]
+    },
+    {
+      "id": "health-coverage",
+      "title": "Prepare to enrol in MSP",
+      "prompt": "Help me prepare to enrol in MSP.",
+      "summary": "Prepare for B.C. medical insurance enrolment and understand how MSP differs from Fair PharmaCare.",
+      "category": "Health coverage",
+      "notice": "Curated MSP guidance checked October 24, 2026 in B.C.; not live coverage, medical advice or an AI response. Eligibility, coverage start dates and benefits must be confirmed with Health Insurance BC. Never enter PHNs or identity details here.",
+      "sourceIds": ["health", "icbc"],
+      "steps": [
+        {
+          "id": "separate-coverage-programs",
+          "title": "Understand the two programs",
+          "description": "MSP is B.C.'s provincial medical insurance program. Fair PharmaCare is a separate income-based drug coverage program with its own registration and consent steps. Use the dedicated Fair PharmaCare plan when that is your goal.",
+          "sourceIds": ["health"]
+        },
+        {
+          "id": "check-msp-enrolment",
+          "title": "Review MSP enrolment for your situation",
+          "description": "Use the official MSP application guide for residency documents, enrolment options and any coverage wait period. Group-plan applicants should contact their plan administrator. If you already have MSP and received a card-renewal letter, follow that letter rather than assuming you need a new MSP application.",
+          "sourceIds": ["health"]
+        },
+        {
+          "id": "prepare-health-card-step",
+          "title": "Check whether a card-office visit is needed",
+          "description": "The MSP guide says most adults need a driver licensing office visit to complete the photo-card steps, with exceptions for younger people and temporary-document holders. Check the official instructions and accepted-ID requirements before visiting; digital-account verification alone is not photo-card issuance.",
+          "sourceIds": ["health", "icbc"]
+        },
+        {
+          "id": "ask-health-insurance-bc",
+          "title": "Continue with Health Insurance BC",
+          "description": "The official guidance provides online, telephone and paper routes. For questions about your circumstances or coverage, contact Health Insurance BC at 604-683-7151 in the Lower Mainland or 1-800-663-7100 elsewhere in B.C. This pilot does not enrol you or confirm coverage.",
+          "sourceIds": ["health"]
+        }
+      ],
+      "handoffs": [
+        {
+          "label": "Open MSP application guidance",
+          "url": "https://www2.gov.bc.ca/gov/content/health/health-drug-coverage/msp/bc-residents/eligibility-and-enrolment/how-to-enrol",
+          "description": "Read official enrolment, identification and coverage-wait instructions before using an application channel.",
+          "sourceIds": ["health"]
+        }
+      ]
+    },
+    {
+      "id": "pharmacare-registration",
+      "title": "Register for Fair PharmaCare",
+      "prompt": "Help me prepare to register for Fair PharmaCare.",
+      "summary": "Understand B.C.'s income-based drug coverage and prepare the information needed for the official registration and consent steps.",
+      "category": "Drug coverage",
+      "notice": "Curated Fair PharmaCare guidance checked October 27, 2026 in B.C.; not an eligibility or coverage decision and not an AI response. Keep PHNs, SINs and tax information out of this pilot and enter them only through official channels.",
+      "sourceIds": ["health"],
+      "steps": [
+        {
+          "id": "understand-fair-pharmacare",
+          "title": "Confirm Fair PharmaCare is the program you mean",
+          "description": "Fair PharmaCare helps B.C. families with many eligible prescription-drug, dispensing-fee and medical-supply costs based on income. It is separate from MSP, although current MSP enrolment is part of the official eligibility requirements.",
+          "sourceIds": ["health"]
+        },
+        {
+          "id": "prepare-registration-information",
+          "title": "Prepare registration information privately",
+          "description": "The official page lists family PHNs, adult SINs, net income from the CRA Notice of Assessment from two years earlier and applicable RDSP income. Do not enter any of those identifiers or financial details in this chat.",
+          "sourceIds": ["health"]
+        },
+        {
+          "id": "complete-income-consent",
+          "title": "Plan for the income-consent step",
+          "description": "After registration, PharmaCare sends a consent form so it can verify income with the CRA. The reviewed guidance says to return it within 30 days for full registration; use the official page for current instructions or a replacement form.",
+          "sourceIds": ["health"]
+        },
+        {
+          "id": "register-with-pharmacare",
+          "title": "Continue through the official service",
+          "description": "Use the official online or telephone registration channel. Health Insurance BC can answer circumstance-specific questions; this pilot cannot register a family, verify income or calculate coverage.",
+          "sourceIds": ["health"]
+        }
+      ],
+      "handoffs": [
+        {
+          "label": "Open Fair PharmaCare guidance",
+          "url": "https://www2.gov.bc.ca/gov/content/health/health-drug-coverage/pharmacare-for-bc-residents/who-we-cover/fair-pharmacare-plan",
+          "description": "Review current eligibility, registration, consent and coverage guidance.",
+          "sourceIds": ["health"]
+        }
+      ]
+    },
+    {
+      "id": "primary-care",
+      "title": "Find a family doctor or nurse practitioner",
+      "prompt": "How can I register to find a family doctor?",
+      "summary": "Learn how the Health Connect Registry works and where to get human help while waiting for a primary-care provider.",
+      "category": "Finding care",
+      "notice": "Curated navigation snapshot checked October 24, 2026 in B.C., not live availability, medical advice or an AI response. Registration does not guarantee a provider or appointment. Do not share health details or a PHN in this pilot.",
+      "sourceIds": ["healthlink-bc"],
+      "steps": [
+        {
+          "id": "check-registry-purpose",
+          "title": "Check whether the registry is the right route",
+          "description": "HealthLink BC directs B.C. residents who need a family doctor or nurse practitioner to the Health Connect Registry. If you already have a primary-care provider, its guidance says you do not need to register.",
+          "sourceIds": ["healthlink-bc"]
+        },
+        {
+          "id": "prepare-registry-information",
+          "title": "Prepare information for the official service only",
+          "description": "The registry guidance lists your PHN, home address, email address and phone number. Keep those details private here and enter them only in the official registration service reached from HealthLink BC. Do not upload identification or describe medical history to this pilot.",
+          "sourceIds": ["healthlink-bc"]
+        },
+        {
+          "id": "understand-registry-follow-up",
+          "title": "Understand what happens after registration",
+          "description": "The registry connects people with community teams working to match residents to providers who can accept patients. The team contacts you when a provider becomes available. Keep your official registration information current; this pilot cannot see your place in a queue or predict a wait.",
+          "sourceIds": ["healthlink-bc"]
+        },
+        {
+          "id": "get-registry-help",
+          "title": "Use human help when needed",
+          "description": "Call 8-1-1 for registration help or help in another language; the reviewed page also lists 7-1-1 for TTY. HealthLink BC links to its Services Directory for community care while you wait. Use those official channels rather than assuming registry registration provides immediate care.",
+          "sourceIds": ["healthlink-bc"]
+        }
+      ],
+      "handoffs": [
+        {
+          "label": "Open Health Connect Registry guidance",
+          "url": "https://www.healthlinkbc.ca/find-care/health-connect-registry",
+          "description": "Read HealthLink BC's guidance, then choose its official Register link or human-help options yourself.",
+          "sourceIds": ["healthlink-bc"]
+        }
+      ]
+    },
+    {
+      "id": "service-bc",
+      "title": "Find the right Service BC office",
+      "prompt": "Which Service BC office can help with my service?",
+      "summary": "Filter a small verified office snapshot by the service you need and your municipality, with explicit exclusions and published hours.",
+      "category": "In-person help",
+      "notice": "Curated seven-office snapshot checked October 24, 2026 in B.C.; not every office, live hours or an AI response. Missing service information never means available, and exclusions override inclusions. BC Services Card support here means digital account setup or ID verification, not guaranteed photo-card issuance.",
+      "sourceIds": ["service-bc"],
+      "steps": [
+        {
+          "id": "choose-required-service",
+          "title": "Choose the service before the office",
+          "description": "Select ICBC licensing, income assistance, BC Services Card digital-account verification or BCeID support. The publisher lists office-specific differences; an office being nearby is not evidence that it provides the service.",
+          "sourceIds": ["service-bc"]
+        },
+        {
+          "id": "filter-office-snapshot",
+          "title": "Check the municipality and exclusions",
+          "description": "This sample covers Burns Lake, Kamloops, Kelowna, Nanaimo, Surrey, Vancouver and Victoria. Vancouver and Surrey have limited-only service lists. If your service or municipality has no match, use the full official directory rather than treating that as a province-wide absence.",
+          "sourceIds": ["service-bc"]
+        },
+        {
+          "id": "review-office-hours",
+          "title": "Check the published hours and breaks",
+          "description": "Review the selected office's hours, midday closures and other notes. The reviewed Vancouver and Surrey rows say appointments are not available; do not assume a booking option applies to every office. Recheck the official page before travelling.",
+          "sourceIds": ["service-bc"]
+        },
+        {
+          "id": "contact-service-bc",
+          "title": "Confirm what to bring",
+          "description": "Use the official directory's office contact details or call Service BC at 1-800-663-7867 to confirm the service and preparation required. This pilot finds information only; it does not make an appointment or complete government transactions.",
+          "sourceIds": ["service-bc"]
+        }
+      ],
+      "handoffs": [
+        {
+          "label": "Open the full Service BC directory",
+          "url": "https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc",
+          "description": "Review current office details, service exclusions and contact information on the canonical official page.",
+          "sourceIds": ["service-bc"]
+        }
+      ]
+    }
+  ],
+  "locations": [
+    {
+      "id": "service-bc-burns-lake",
+      "name": "Service BC Centre Burns Lake",
+      "municipality": "Burns Lake",
+      "address": "161 Hwy 16, Burns Lake",
+      "hours": "Monday to Friday 9 am to 4:30 pm. Closed from 12 pm to 1 pm.",
+      "services": ["bc-services-card", "bceid", "income-assistance"],
+      "excludedServices": ["icbc-licensing"],
+      "sourceIds": ["service-bc"],
+      "checkedAt": "2026-10-25T00:21:15Z"
+    },
+    {
+      "id": "service-bc-kamloops",
+      "name": "Service BC Centre Kamloops",
+      "municipality": "Kamloops",
+      "address": "250 - 455 Columbia St, Kamloops, BC V2C 6K4",
+      "hours": "Monday to Friday 9 am to 4:30 pm.",
+      "services": ["bc-services-card", "bceid"],
+      "excludedServices": ["icbc-licensing", "income-assistance"],
+      "sourceIds": ["service-bc"],
+      "checkedAt": "2026-10-25T00:21:15Z"
+    },
+    {
+      "id": "service-bc-kelowna",
+      "name": "Service BC Centre Kelowna",
+      "municipality": "Kelowna",
+      "address": "305 - 478 Bernard Ave, Kelowna, BC V1Y 6N7",
+      "hours": "Monday to Friday 9 am to 4:30 pm.",
+      "services": ["bc-services-card", "bceid"],
+      "excludedServices": ["icbc-licensing", "income-assistance"],
+      "sourceIds": ["service-bc"],
+      "checkedAt": "2026-10-25T00:21:15Z"
+    },
+    {
+      "id": "service-bc-nanaimo",
+      "name": "Service BC Centre Nanaimo",
+      "municipality": "Nanaimo",
+      "address": "460 Selby St, Nanaimo, BC V9R 2R7",
+      "hours": "Monday to Friday 9 am to 4:30 pm.",
+      "services": ["bc-services-card", "bceid", "icbc-licensing"],
+      "excludedServices": ["income-assistance"],
+      "sourceIds": ["service-bc"],
+      "checkedAt": "2026-10-25T00:21:15Z"
+    },
+    {
+      "id": "service-bc-surrey",
+      "name": "Service BC Centre Surrey",
+      "municipality": "Surrey",
+      "address": "200 - 10470 152nd Street, Surrey, BC V3R 0Y3",
+      "hours": "Monday to Friday 9 am to 4:30 pm. Closed 10 am to 10:15 am, 12 pm to 1 pm and 3 pm to 3:15 pm. Appointments are not available at this location.",
+      "services": ["bc-services-card", "bceid"],
+      "excludedServices": ["icbc-licensing", "income-assistance"],
+      "sourceIds": ["service-bc"],
+      "checkedAt": "2026-10-25T00:21:15Z"
+    },
+    {
+      "id": "service-bc-vancouver",
+      "name": "Service BC Centre Vancouver",
+      "municipality": "Vancouver",
+      "address": "7th Floor - 865 Hornby Street, Vancouver, BC V6Z 2G3",
+      "hours": "Monday to Friday 9 am to 4:30 pm. Closed 10 am to 10:15 am, 12 pm to 1 pm and 3 pm to 3:15 pm. Appointments are not available at this location.",
+      "services": ["bc-services-card", "bceid"],
+      "excludedServices": ["icbc-licensing", "income-assistance"],
+      "sourceIds": ["service-bc"],
+      "checkedAt": "2026-10-25T00:21:15Z"
+    },
+    {
+      "id": "service-bc-victoria",
+      "name": "Service BC Centre Victoria",
+      "municipality": "Victoria",
+      "address": "403-771 Vernon Ave, Victoria",
+      "hours": "Monday to Friday 9 am to 4:30 pm.",
+      "services": ["bc-services-card", "bceid", "income-assistance"],
+      "excludedServices": ["icbc-licensing"],
+      "sourceIds": ["service-bc"],
+      "checkedAt": "2026-10-25T00:21:15Z"
+    }
+  ]
+}

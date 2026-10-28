@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "coverageTarget": "all-permitted-public-pages",
+  "catalog": "pilot-catalog.json",
+  "historicalDiscovery": "../docs/source-discovery.json",
+  "publicationPolicy": "exact-hash-human-review",
+  "scopeNotice": "Target scope is not publication approval or proof of coverage. Recheck access policy during acquisition; keep candidates separate from approved snapshots.",
+  "deduplication": "Canonical document identity across overlapping seeds; preserve all matching source and topic tags.",
+  "excludedContent": [
+    "Authenticated or personal records",
+    "Submission, payment, booking, login and account flows",
+    "Robots-disallowed URLs or restricted feeds",
+    "Unrelated media and executable assets",
+    "Incomplete dynamic, maintenance or footer-only extraction",
+    "Unapproved live job-listing feeds"
+  ],
+  "accessObservations": [
+    {
+      "host": "www2.gov.bc.ca",
+      "robotsUrl": "https://www2.gov.bc.ca/robots.txt",
+      "observation": "Valid text policy fetched during general-chat implementation. Wildcard agent allows public content except listed paths and patterns; search, feedback, DownloadAsset and designated assets are excluded.",
+      "sitemaps": ["https://www2.gov.bc.ca/sitemap/sitemap_index.xml"],
+      "accessState": "path-review-required",
+      "rightsReview": null
+    },
+    {
+      "host": "www.bchousing.org",
+      "robotsUrl": "https://www.bchousing.org/robots.txt",
+      "observation": "Valid text policy fetched. Admin, account, search, core and other paths are excluded. This does not clear the earlier content-freshness hold.",
+      "sitemaps": [],
+      "accessState": "freshness-review-required",
+      "rightsReview": null
+    },
+    {
+      "host": "www.icbc.com",
+      "robotsUrl": "https://www.icbc.com/robots.txt",
+      "observation": "Valid robots policy does not grant reuse rights. ICBC Terms-and-conditions section 16(f),(g),(j) prohibits non-ICBC automation, bulk collection and copying/reuse. Its Open Data Licence applies only to expressly designated resources, not general licensing webpages. Both hosts serve the site without redirecting to each other.",
+      "sitemaps": ["https://www.icbc.com/sitemap.xml", "https://icbc.com/sitemap.xml"],
+      "accessState": "blocked-publisher-terms",
+      "rightsReview": null
+    },
+    {
+      "host": "www.workbc.ca",
+      "robotsUrl": "https://www.workbc.ca/robots.txt",
+      "observation": "Recheck still returned an HTML WorkBC Offline page rather than a valid robots policy.",
+      "sitemaps": [],
+      "accessState": "blocked-invalid-robots",
+      "rightsReview": null
+    },
+    {
+      "host": "www.healthlinkbc.ca",
+      "robotsUrl": "https://www.healthlinkbc.ca/robots.txt",
+      "observation": "Valid text policy fetched. Admin, account, search, core and other listed paths are excluded.",
+      "sitemaps": [],
+      "accessState": "path-review-required",
+      "rightsReview": null
+    },
+    {
+      "host": "www.bclaws.gov.bc.ca",
+      "robotsUrl": "https://www.bclaws.gov.bc.ca/robots.txt",
+      "observation": "Recheck confirms wildcard Disallow: /. Named Googlebot and Bingbot permissions do not apply to this programme.",
+      "sitemaps": [],
+      "accessState": "blocked-general-crawl",
+      "rightsReview": null
+    }
+  ],
+  "sources": [
+    {
+      "id": "bc-content",
+      "host": "www2.gov.bc.ca",
+      "seedUrl": "https://www2.gov.bc.ca/gov/content/",
+      "targetPathPrefixes": ["/gov/content"],
+      "topics": ["government-programmes", "benefits", "eligibility-guidance", "fees", "contacts"],
+      "acquisitionRoutes": ["sitemap", "permitted-public-links"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "The historical 17688 sitemap entries are discovery only, not acquired or approved coverage."
+    },
+    {
+      "id": "service-bc",
+      "host": "www2.gov.bc.ca",
+      "seedUrl": "https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc",
+      "targetPathPrefixes": ["/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc"],
+      "topics": ["service-navigation", "locations", "office-capabilities"],
+      "acquisitionRoutes": ["sitemap", "permitted-public-links", "approved-location-feed"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Use the corrected canonical branch. Preserve capabilities, exclusions, hours and office-specific provenance."
+    },
+    {
+      "id": "housing-tenancy",
+      "host": "www2.gov.bc.ca",
+      "seedUrl": "https://www2.gov.bc.ca/gov/content/housing-tenancy",
+      "targetPathPrefixes": ["/gov/content/housing-tenancy"],
+      "topics": ["housing", "tenancy", "dispute-resolution"],
+      "acquisitionRoutes": ["sitemap", "permitted-public-links"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Separate administrative guidance from legal interpretation and financial assistance."
+    },
+    {
+      "id": "health",
+      "host": "www2.gov.bc.ca",
+      "seedUrl": "https://www2.gov.bc.ca/gov/content/health",
+      "targetPathPrefixes": ["/gov/content/health"],
+      "topics": ["msp", "pharmacare", "public-health", "accessing-care"],
+      "acquisitionRoutes": ["sitemap", "permitted-public-links"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Preserve programme distinctions and medical-safety boundaries."
+    },
+    {
+      "id": "family-social-supports",
+      "host": "www2.gov.bc.ca",
+      "seedUrl": "https://www2.gov.bc.ca/gov/content/family-social-supports",
+      "targetPathPrefixes": ["/gov/content/family-social-supports"],
+      "topics": ["income-assistance", "disability-support", "childcare", "family-services"],
+      "acquisitionRoutes": ["sitemap", "permitted-public-links"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Retain programme and payment-date distinctions; never infer individual eligibility."
+    },
+    {
+      "id": "employment-business",
+      "host": "www2.gov.bc.ca",
+      "seedUrl": "https://www2.gov.bc.ca/gov/content/employment-business",
+      "targetPathPrefixes": ["/gov/content/employment-business"],
+      "topics": ["employment-standards", "business-guidance", "employer-responsibilities"],
+      "acquisitionRoutes": ["sitemap", "permitted-public-links"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Reject the footer-only extraction observed in the earlier employer-page sample."
+    },
+    {
+      "id": "taxes",
+      "host": "www2.gov.bc.ca",
+      "seedUrl": "https://www2.gov.bc.ca/gov/content/taxes",
+      "targetPathPrefixes": ["/gov/content/taxes"],
+      "topics": ["taxes", "credits", "exemptions", "payment-guidance"],
+      "acquisitionRoutes": ["sitemap", "permitted-public-links"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Preserve tax year and effective dates separately from publisher and fetch dates."
+    },
+    {
+      "id": "bc-housing",
+      "host": "www.bchousing.org",
+      "seedUrl": "https://www.bchousing.org/",
+      "targetPathPrefixes": ["/"],
+      "topics": ["housing-assistance", "rental-assistance", "application-requirements"],
+      "acquisitionRoutes": ["permitted-public-links", "publisher-feed"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Earlier notice said updates paused and content current to 2026-09-22. Current freshness requires review before publication; valid robots does not lift this hold."
+    },
+    {
+      "id": "icbc",
+      "host": "www.icbc.com",
+      "seedUrl": "https://www.icbc.com/",
+      "targetPathPrefixes": ["/"],
+      "candidateAliases": ["icbc.com"],
+      "topics": ["driver-licensing", "identification", "vehicle-registration", "insurance"],
+      "acquisitionRoutes": ["sitemap", "approved-rendered-public-pages", "publisher-feed"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Do not acquire general website content without an explicit ICBC permission exception. The open-data licence is opt-in for designated resources only. Canonical aliases and complete dynamic extraction still require validation after permission; never scrape accounts."
+    },
+    {
+      "id": "workbc",
+      "host": "www.workbc.ca",
+      "seedUrl": "https://www.workbc.ca/",
+      "targetPathPrefixes": ["/"],
+      "topics": ["employment-services", "training", "careers"],
+      "acquisitionRoutes": ["publisher-approved-feed", "public-crawl-after-access-resolution"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Acquisition remains blocked on valid robots or an explicit publisher-approved route."
+    },
+    {
+      "id": "healthlink-bc",
+      "host": "www.healthlinkbc.ca",
+      "seedUrl": "https://www.healthlinkbc.ca/",
+      "targetPathPrefixes": ["/"],
+      "topics": ["health-navigation", "public-health-information", "health-connect-registry"],
+      "acquisitionRoutes": ["permitted-public-links", "approved-service-feed"],
+      "formats": ["html", "approved-public-documents"],
+      "reviewNotes": "Separate administrative service navigation from clinical advice and sensitive registration."
+    },
+    {
+      "id": "bc-laws",
+      "host": "www.bclaws.gov.bc.ca",
+      "seedUrl": "https://www.bclaws.gov.bc.ca/",
+      "targetPathPrefixes": ["/"],
+      "topics": ["statutes", "regulations", "effective-versions"],
+      "acquisitionRoutes": ["publisher-approved-civix-xml", "licensed-export"],
+      "formats": ["xml", "approved-legal-export"],
+      "reviewNotes": "No general crawl. Verify licence and route permissions first. Retain consolidation date, effective interval, amendments, repeal, section identity and historical status."
+    }
+  ]
+}

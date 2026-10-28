@@ -1,0 +1,280 @@
+{
+  "kind": "curated-public-guidance-snapshot",
+  "asOf": "2026-10-28T04:33:08Z",
+  "localReviewDate": "2026-10-27",
+  "localTimeZone": "America/Vancouver",
+  "scope": "Seventeen selected public HTML documents, not a complete crawl, live service, AI response, eligibility decision or transaction.",
+  "acquisition": {
+    "origin": "direct-publisher",
+    "userAgent": "BCPilotIngest/0.1 (reviewed-public-source-pilot; no transactions)",
+    "documentRequests": 17,
+    "successfulDocuments": 17,
+    "distinctRobotsEndpoints": 6,
+    "robotsRequests": 10,
+    "minimumSecondsBetweenHostRequests": 1,
+    "methods": ["GET"],
+    "bulkCrawlApproved": false,
+    "azurePublished": false,
+    "webIqUsed": false,
+    "portalOrAccountContentCollected": false,
+    "reviewScope": "User-approved bounded local preparation and concise original paraphrases. Robots checks are not publisher permission to republish a full corpus. Full-text promotion requires a separate accountable review and publisher-permission confirmation.",
+    "handoffVerification": "Every shipped journey handoff URL was directly requested and returned HTTP 200. Dynamic completeness is separately limited for ICBC. No forms, registration portals, bookings, payments or submissions were invoked.",
+    "robotsParserNote": "The government policy's wildcard-leading SWF exclusion initially failed the conservative parser. Standards-compatible wildcard support was added and regression tested before government content was requested."
+  },
+  "robots": [
+    {
+      "url": "https://www2.gov.bc.ca/robots.txt",
+      "checkedAt": "2026-10-25T00:22:36Z",
+      "httpStatus": 200,
+      "result": "Parsed text policy; the selected public paths were permitted.",
+      "responseSha256": "da805691c61824de1e18ab7cfcfd339eb881fcca06f116d200ae1f03adeaae83"
+    },
+    {
+      "url": "https://www.bchousing.org/robots.txt",
+      "checkedAt": "2026-10-25T00:19:48Z",
+      "httpStatus": 200,
+      "result": "Parsed text policy; selected program paths permitted. Publisher update-pause notice retained separately.",
+      "responseSha256": "8e8cb58d810473a52cce903be5ffb73d948eef981bbd101cffbf8dc2c02fcf4e"
+    },
+    {
+      "url": "https://www.icbc.com/robots.txt",
+      "checkedAt": "2026-10-25T00:22:39Z",
+      "httpStatus": 200,
+      "result": "Parsed text policy; selected public paths permitted. Dynamic extraction remains incomplete.",
+      "responseSha256": "435e16597b73fb9a546dd4facc6548cb65129db21d649de5b1aa9d476e737263"
+    },
+    {
+      "url": "https://www.healthlinkbc.ca/robots.txt",
+      "checkedAt": "2026-10-25T00:19:53Z",
+      "httpStatus": 200,
+      "result": "Parsed text policy; Health Connect Registry information page permitted.",
+      "responseSha256": "1c69a1475e8169efe608cee5eccbc4406c637d2dfa11e30609303dd65751b5cd"
+    },
+    {
+      "url": "https://www.workbc.ca/robots.txt",
+      "checkedAt": "2026-10-25T00:19:55Z",
+      "httpStatus": 200,
+      "result": "Invalid text/html policy response, consistent with the inventory's maintenance finding. Failed closed; no WorkBC document requests.",
+      "responseSha256": "9008256acf2496381890732f4e040f3f297db07d6ebdf4beda8153cf86a2a050"
+    },
+    {
+      "url": "https://www.bclaws.gov.bc.ca/robots.txt",
+      "checkedAt": "2026-10-25T00:19:56Z",
+      "httpStatus": 200,
+      "result": "Parsed text policy denies the general crawler. No legal content requests; approved CiviX/XML or export and licence terms pending.",
+      "responseSha256": "5bf5d269f0454b901d1c294ab1e67819b725cfd549b222dac7218811e8a582a1"
+    }
+  ],
+  "documents": [
+    {
+      "id": "bc-content",
+      "sourceId": "bc-content",
+      "url": "https://www2.gov.bc.ca/gov/content/home",
+      "checkedAt": "2026-10-25T00:21:12Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "103aba1e3ea4037b2317a4529d201ef80ac692e8041b3d6862586b65506191ac",
+      "extractionStatus": "quarantined-missing-main-region",
+      "catalogueUse": "Reviewed topic-navigation description only; not full-text index content."
+    },
+    {
+      "id": "service-bc",
+      "sourceId": "service-bc",
+      "url": "https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc",
+      "checkedAt": "2026-10-25T00:21:15Z",
+      "publisherUpdatedAt": "2026-10-23",
+      "httpStatus": 200,
+      "responseSha256": "5ffaac39ce8772dd7ae63c27e90a0944d2a7294849a3872c7325e42542084295",
+      "extractionStatus": "review-required",
+      "catalogueUse": "Reviewed canonical-page guidance and seven office rows; preserves service-group references, exclusions and hours."
+    },
+    {
+      "id": "housing-tenancy",
+      "sourceId": "housing-tenancy",
+      "url": "https://www2.gov.bc.ca/gov/content/housing-tenancy",
+      "checkedAt": "2026-10-25T00:21:18Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "9c55348ad16441a925f5e48c0fe14899c23144612935eeafe3dcb90be2013ba5",
+      "extractionStatus": "quarantined-missing-main-region",
+      "catalogueUse": "Topic navigation only; distinguishes tenancy guidance from BC Housing financial support."
+    },
+    {
+      "id": "health",
+      "sourceId": "health",
+      "url": "https://www2.gov.bc.ca/gov/content/health/health-drug-coverage",
+      "checkedAt": "2026-10-25T00:21:19Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "d4bd4fc9504b7755ab87ef76682c73470a26da8639a0ae735bbab975aeda6e1f",
+      "extractionStatus": "quarantined-missing-main-region",
+      "catalogueUse": "Navigation to the independently verified MSP and PharmaCare guides."
+    },
+    {
+      "id": "family-social-supports",
+      "sourceId": "family-social-supports",
+      "url": "https://www2.gov.bc.ca/gov/content/family-social-supports",
+      "checkedAt": "2026-10-25T00:21:20Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "909ba86dcb0da80c00caca3b8f370f1d4f4b3bf1fc39d1e6d4f13c04731ce0b0",
+      "extractionStatus": "quarantined-missing-main-region",
+      "catalogueUse": "Topic description only; no detailed rules or payment dates."
+    },
+    {
+      "id": "employment-business",
+      "sourceId": "employment-business",
+      "url": "https://www2.gov.bc.ca/gov/content/employment-business",
+      "checkedAt": "2026-10-25T00:21:21Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "2c5b3d2df5b8170e21bedb28550e79df305120eec656d2d7797fd1c691413461",
+      "extractionStatus": "quarantined-missing-main-region",
+      "catalogueUse": "Topic description only; no employer-page or job-listing ingestion."
+    },
+    {
+      "id": "taxes",
+      "sourceId": "taxes",
+      "url": "https://www2.gov.bc.ca/gov/content/taxes",
+      "checkedAt": "2026-10-25T00:21:22Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "23d08ae013e72207efff24aabd5d77d5ac05da0590d28a5bba0707cb8f049823",
+      "extractionStatus": "quarantined-missing-main-region",
+      "catalogueUse": "Topic description only; no tax deadlines, amounts or personal advice."
+    },
+    {
+      "id": "bc-housing",
+      "sourceId": "bc-housing",
+      "url": "https://www.bchousing.org/",
+      "checkedAt": "2026-10-25T00:19:50Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "ba6435c50657f82f09f9890cc36e4994aec05a44f58807c94596649fdaf9329d",
+      "extractionStatus": "quarantined-incomplete-and-freshness-notice",
+      "catalogueUse": "Publisher identity and visible update-pause notice only.",
+      "publisherStatedContentCurrentTo": "2026-09-22"
+    },
+    {
+      "id": "rap",
+      "sourceId": "bc-housing",
+      "url": "https://www.bchousing.org/housing-assistance/rental-assistance-programs/RAP",
+      "checkedAt": "2026-10-25T00:19:51Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "aa15e8dc7735ce1048aa095a850301b6cc84c83aa68d8aad5c18da1098651a3a",
+      "extractionStatus": "quarantined-publisher-freshness-notice",
+      "catalogueUse": "Concise program purpose, selected exclusions, document categories and official handoff. Full eligibility not asserted.",
+      "publisherStatedContentCurrentTo": "2026-09-22"
+    },
+    {
+      "id": "safer",
+      "sourceId": "bc-housing",
+      "url": "https://www.bchousing.org/housing-assistance/rental-assistance-programs/SAFER",
+      "checkedAt": "2026-10-25T00:19:52Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "7f4bb5340321114679d6b569cd30e9ef92973577135b70cd66d836017d67fb1e",
+      "extractionStatus": "quarantined-publisher-freshness-notice",
+      "catalogueUse": "Concise program purpose, age-navigation distinction, selected exclusions, document categories and official handoff.",
+      "publisherStatedContentCurrentTo": "2026-09-22"
+    },
+    {
+      "id": "icbc",
+      "sourceId": "icbc",
+      "url": "https://www.icbc.com/driver-licensing/getting-licensed/Renew-your-licence-or-ID",
+      "checkedAt": "2026-10-25T00:19:53Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "47f560d147cbaf9c74aee681a3b80fc6443709549722b9bbf58cb2d657868e06",
+      "extractionStatus": "quarantined-incomplete-dynamic-content",
+      "catalogueUse": "Only visible office-visit/accepted-ID direction and an explicitly limited handoff. No complete renewal rules, fees or API verified."
+    },
+    {
+      "id": "healthlink-bc",
+      "sourceId": "healthlink-bc",
+      "url": "https://www.healthlinkbc.ca/find-care/health-connect-registry",
+      "checkedAt": "2026-10-25T00:19:55Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "c76e33c98b3b3e10af633efacd09f4261e0e3171286767c377da6ad4ac0e1c69",
+      "extractionStatus": "review-required",
+      "catalogueUse": "Registry purpose, private preparation, waiting/follow-up and telephone help. Registration portal was not requested."
+    },
+    {
+      "id": "msp-enrol",
+      "sourceId": "health",
+      "url": "https://www2.gov.bc.ca/gov/content/health/health-drug-coverage/msp/bc-residents/eligibility-and-enrolment/how-to-enrol",
+      "checkedAt": "2026-10-25T00:22:38Z",
+      "publisherUpdatedAt": "2026-06-04",
+      "httpStatus": 200,
+      "responseSha256": "1894537dd413d99851315e6f3edc58715179f56468c7f1004a2ab15274712ab6",
+      "extractionStatus": "review-required",
+      "catalogueUse": "Enrolment versus card renewal, group-plan exception, card-visit exception, official options and HIBC contact."
+    },
+    {
+      "id": "fair-pharmacare",
+      "sourceId": "health",
+      "url": "https://www2.gov.bc.ca/gov/content/health/health-drug-coverage/pharmacare-for-bc-residents/who-we-cover/fair-pharmacare-plan",
+      "checkedAt": "2026-10-25T00:22:39Z",
+      "publisherUpdatedAt": "2026-10-08",
+      "httpStatus": 200,
+      "responseSha256": "d96ee03cce13b9e35a98260502a82c5144996c00bde4d8bd22dd763042bb3138",
+      "extractionStatus": "review-required",
+      "catalogueUse": "Separate income-based program, information categories and required consent follow-up; no individual coverage determination."
+    },
+    {
+      "id": "icbc-id",
+      "sourceId": "icbc",
+      "url": "https://www.icbc.com/driver-licensing/visit-dl-office/Accepted-ID",
+      "checkedAt": "2026-10-25T00:22:41Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "3b6b9f8db3ccac0849bd9413d5f1ff40fa7aa2f6e49713f5e515879b883a8f72",
+      "extractionStatus": "quarantined-incomplete-dynamic-content",
+      "catalogueUse": "Only visible two-ID, document authenticity, name-change and translation preparation. Dynamic accepted-ID selector not evaluated."
+    },
+    {
+      "id": "icbc-road-test-booking",
+      "sourceId": "icbc",
+      "url": "https://www.icbc.com/driver-licensing/visit-dl-office/Book-a-road-test",
+      "checkedAt": "2026-10-28T04:33:05Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "4713c998c235b58aa1010e0748a6ef2234da628c45d912a08654d0f1832ec7b7",
+      "extractionStatus": "review-required",
+      "catalogueUse": "Road-test route selection, earliest-date navigation and official booking/rescheduling/cancellation handoff. No booking was invoked."
+    },
+    {
+      "id": "icbc-road-test-preparation",
+      "sourceId": "icbc",
+      "url": "https://www.icbc.com/driver-licensing/visit-dl-office/Prepare-road-test-appointment",
+      "checkedAt": "2026-10-28T04:33:08Z",
+      "publisherUpdatedAt": null,
+      "httpStatus": 200,
+      "responseSha256": "b7a0e4f605f78d0f934fdb26f27193690d61f9f342871c8ec4f9c6f7ae21009f",
+      "extractionStatus": "review-required",
+      "catalogueUse": "Accepted-ID, current-fee navigation and vehicle-preparation checklist. Linked PDF tip sheets were not acquired."
+    }
+  ],
+  "journeyEvidence": {
+    "licence-renewal": ["icbc", "icbc-id", "service-bc"],
+    "road-test-booking": ["icbc-road-test-booking", "icbc-road-test-preparation", "icbc-id"],
+    "rental-assistance": ["rap", "safer", "housing-tenancy"],
+    "health-coverage": ["msp-enrol", "icbc-id"],
+    "pharmacare-registration": ["fair-pharmacare"],
+    "primary-care": ["healthlink-bc"],
+    "service-bc": ["service-bc"]
+  },
+  "locationCoverage": {
+    "evidenceDocumentId": "service-bc",
+    "locator": "Find an office table; rows identified by municipality",
+    "checkedAt": "2026-10-25T00:21:15Z",
+    "municipalities": ["Burns Lake", "Kamloops", "Kelowna", "Nanaimo", "Surrey", "Vancouver", "Victoria"],
+    "completeProvincialCoverage": false,
+    "serviceDerivation": "Only direct row capabilities or an explicit #services Popular services reference to definitions on the same page. Explicit unavailable lists override that group. Vancouver and Surrey explicitly say only the listed services are offered; this closed list excludes the other tracked service keys.",
+    "bcServicesCardMeaning": "Digital account setup or identity verification, not universal photo-card issuance.",
+    "unknownMeans": "Unknown, not available by assumption.",
+    "omitted": "Unreviewed offices, map coordinates, travel distances, inferred capabilities, live opening status, appointment availability and personal data."
+  }
+}
