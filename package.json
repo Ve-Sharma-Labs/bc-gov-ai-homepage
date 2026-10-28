@@ -1,0 +1,24 @@
+{
+  "name": "bc-government-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "node scripts/dev.mjs --production",
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:api": "node scripts/run-api.mjs",
+    "build": "npm --prefix apps/web run build && node scripts/prepare-web.mjs",
+    "test:tooling": "node --test scripts/tests/*.test.mjs",
+    "test:e2e": "playwright test",
+    "check": "node scripts/check.mjs",
+    "azure:preflight": "node scripts/azure-preflight.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1"
+  }
+}

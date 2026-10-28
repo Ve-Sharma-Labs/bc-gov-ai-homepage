@@ -1,0 +1,473 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "15422933630914736345"
+    }
+  },
+  "parameters": {
+    "name": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 20,
+      "metadata": {
+        "description": "Existing pilot prefix, without creating a replacement environment."
+      }
+    },
+    "location": {
+      "type": "string"
+    },
+    "storageAccountName": {
+      "type": "string"
+    },
+    "environmentName": {
+      "type": "string"
+    },
+    "virtualNetworkName": {
+      "type": "string"
+    },
+    "registryName": {
+      "type": "string"
+    },
+    "publisherIdentityName": {
+      "type": "string"
+    },
+    "imageName": {
+      "type": "string",
+      "metadata": {
+        "description": "Reviewed Linux amd64 image pinned by registry digest."
+      }
+    },
+    "publicationImageName": {
+      "type": "string",
+      "defaultValue": "[parameters('imageName')]",
+      "metadata": {
+        "description": "Existing publisher validation image pinned independently so acquisition-only deployments do not alter it."
+      }
+    },
+    "acquisitionJobName": {
+      "type": "string",
+      "defaultValue": "[format('job-{0}-ingest', parameters('name'))]",
+      "minLength": 3,
+      "maxLength": 32,
+      "metadata": {
+        "description": "Manual acquisition job name. Override only to replace a failed job resource without deleting it."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {}
+    },
+    "privateSubnetName": {
+      "type": "string",
+      "defaultValue": "private-endpoints"
+    },
+    "candidateContainerName": {
+      "type": "string",
+      "defaultValue": "bc-ingestion-candidates"
+    },
+    "rightsContainerName": {
+      "type": "string",
+      "defaultValue": "bc-ingestion-rights"
+    },
+    "runPrefix": {
+      "type": "string",
+      "defaultValue": "bc-full-v1"
+    },
+    "acquisitionEnabled": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "False provisions a manual initialization job. Actual acquisition needs reviewed rights."
+      }
+    },
+    "rightsBlob": {
+      "type": "string",
+      "defaultValue": "reviews/bc-full-v1.json"
+    },
+    "rightsSha256": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "requestBudget": {
+      "type": "int",
+      "defaultValue": 50000,
+      "minValue": 1
+    },
+    "byteBudget": {
+      "type": "int",
+      "defaultValue": 10000000000,
+      "minValue": 1
+    },
+    "maxCandidates": {
+      "type": "int",
+      "defaultValue": 100000,
+      "minValue": 1
+    }
+  },
+  "variables": {
+    "blobContributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+    "blobReader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')]",
+    "acrPull": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+    "accountUrl": "[format('https://{0}.blob.{1}', parameters('storageAccountName'), environment().suffixes.storage)]",
+    "commonArgs": [
+      "programme",
+      "--catalog",
+      "/app/data/pilot-catalog.json",
+      "--programme",
+      "/app/data/source-programme.json",
+      "--programme-store",
+      "azure-blob",
+      "--blob-account-url",
+      "[variables('accountUrl')]",
+      "--candidate-container",
+      "[parameters('candidateContainerName')]",
+      "--run-prefix",
+      "[parameters('runPrefix')]",
+      "--credential",
+      "managed-identity"
+    ],
+    "runArgs": "[if(parameters('acquisitionEnabled'), createArray('--acquire', '--resume', '--rights-container', parameters('rightsContainerName'), '--rights-blob', parameters('rightsBlob'), '--rights-sha256', parameters('rightsSha256'), '--batch-requests', '25', '--run-seconds', '120'), createArray('--initialize', '--request-budget', string(parameters('requestBudget')), '--byte-budget', string(parameters('byteBudget')), '--max-candidates', string(parameters('maxCandidates')), '--max-retries', '2'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', parameters('candidateContainerName'))]",
+      "properties": {
+        "publicAccess": "None"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', parameters('rightsContainerName'))]",
+      "properties": {
+        "publicAccess": "None"
+      }
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2024-11-30",
+      "name": "[format('id-{0}-acquisition', parameters('name'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]"
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2024-05-01",
+      "name": "[format('pe-blob-{0}', parameters('name'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "subnet": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('privateSubnetName'))]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "blob",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+              "groupIds": [
+                "blob"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2024-06-01",
+      "name": "[format('privatelink.blob.{0}', environment().suffixes.storage)]",
+      "location": "global",
+      "tags": "[parameters('tags')]"
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2024-06-01",
+      "name": "[format('{0}/{1}', format('privatelink.blob.{0}', environment().suffixes.storage), format('link-{0}-blob', parameters('name')))]",
+      "location": "global",
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "apiVersion": "2024-05-01",
+      "name": "[format('{0}/{1}', format('pe-blob-{0}', parameters('name')), 'default')]",
+      "properties": {
+        "privateDnsZoneConfigs": [
+          {
+            "name": "blob",
+            "properties": {
+              "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateEndpoints', format('pe-blob-{0}', parameters('name')))]",
+        "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "candidateAccess",
+        "count": "[length(createArray('acquisition', 'publication'))]"
+      },
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('candidateContainerName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('candidateContainerName')), if(equals(createArray('acquisition', 'publication')[copyIndex()], 'acquisition'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName'))), variables('blobContributor'))]",
+      "properties": {
+        "principalId": "[if(equals(createArray('acquisition', 'publication')[copyIndex()], 'acquisition'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), '2024-11-30').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName')), '2024-11-30').principalId)]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('blobContributor')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name')))]",
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('candidateContainerName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), variables('blobReader'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), '2024-11-30').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('blobReader')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name')))]",
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName')), variables('blobContributor'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName')), '2024-11-30').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('blobContributor')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "imagePull",
+        "count": "[length(createArray('acquisition', 'publication'))]"
+      },
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName'))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), if(equals(createArray('acquisition', 'publication')[copyIndex()], 'acquisition'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName'))), 'acrpull')]",
+      "properties": {
+        "principalId": "[if(equals(createArray('acquisition', 'publication')[copyIndex()], 'acquisition'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), '2024-11-30').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName')), '2024-11-30').principalId)]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('acrPull')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/jobs",
+      "apiVersion": "2025-01-01",
+      "name": "[parameters('acquisitionJobName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "SystemAssigned, UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))))]": {}
+        }
+      },
+      "properties": {
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('environmentName'))]",
+        "workloadProfileName": "Consumption",
+        "configuration": {
+          "triggerType": "Manual",
+          "replicaTimeout": 300,
+          "replicaRetryLimit": 0,
+          "manualTriggerConfig": {
+            "parallelism": 1,
+            "replicaCompletionCount": 1
+          },
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), '2025-04-01').loginServer]",
+              "identity": "system"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "acquisition",
+              "image": "[parameters('imageName')]",
+              "command": [
+                "python",
+                "-m",
+                "bc_ingestion"
+              ],
+              "args": "[concat(variables('commonArgs'), variables('runArgs'))]",
+              "env": [
+                {
+                  "name": "AZURE_CLIENT_ID",
+                  "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), '2024-11-30').clientId]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name')))]",
+        "candidateAccess",
+        "imagePull",
+        "[resourceId('Microsoft.Network/privateDnsZones/virtualNetworkLinks', format('privatelink.blob.{0}', environment().suffixes.storage), format('link-{0}-blob', parameters('name')))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), variables('blobReader')))]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('pe-blob-{0}', parameters('name')), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName'))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), parameters('acquisitionJobName'), 'acrpull-system')]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.App/jobs', parameters('acquisitionJobName')), '2025-01-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[variables('acrPull')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/jobs', parameters('acquisitionJobName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/jobs",
+      "apiVersion": "2025-01-01",
+      "name": "[format('job-{0}-publish', parameters('name'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName')))]": {}
+        }
+      },
+      "properties": {
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('environmentName'))]",
+        "workloadProfileName": "Consumption",
+        "configuration": {
+          "triggerType": "Manual",
+          "replicaTimeout": 300,
+          "replicaRetryLimit": 0,
+          "manualTriggerConfig": {
+            "parallelism": 1,
+            "replicaCompletionCount": 1
+          },
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), '2025-04-01').loginServer]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName'))]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "publication",
+              "image": "[parameters('publicationImageName')]",
+              "command": [
+                "python",
+                "-m",
+                "bc_ingestion"
+              ],
+              "args": [
+                "validate",
+                "--catalog",
+                "/app/data/pilot-catalog.json"
+              ],
+              "env": [
+                {
+                  "name": "AZURE_CLIENT_ID",
+                  "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName')), '2024-11-30').clientId]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "candidateAccess",
+        "imagePull",
+        "[resourceId('Microsoft.Network/privateDnsZones/virtualNetworkLinks', format('privatelink.blob.{0}', environment().suffixes.storage), format('link-{0}-blob', parameters('name')))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('rightsContainerName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('publisherIdentityName')), variables('blobContributor')))]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', format('pe-blob-{0}', parameters('name')), 'default')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "acquisitionJobName": {
+      "type": "string",
+      "value": "[parameters('acquisitionJobName')]"
+    },
+    "publicationJobName": {
+      "type": "string",
+      "value": "[format('job-{0}-publish', parameters('name'))]"
+    },
+    "acquisitionIdentityClientId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), '2024-11-30').clientId]"
+    },
+    "acquisitionIdentityPrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('id-{0}-acquisition', parameters('name'))), '2024-11-30').principalId]"
+    },
+    "acquisitionSystemIdentityPrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/jobs', parameters('acquisitionJobName')), '2025-01-01', 'full').identity.principalId]"
+    },
+    "storageUrl": {
+      "type": "string",
+      "value": "[variables('accountUrl')]"
+    },
+    "candidateContainer": {
+      "type": "string",
+      "value": "[parameters('candidateContainerName')]"
+    },
+    "rightsContainer": {
+      "type": "string",
+      "value": "[parameters('rightsContainerName')]"
+    },
+    "jobArguments": {
+      "type": "array",
+      "value": "[concat(variables('commonArgs'), variables('runArgs'))]"
+    }
+  }
+}

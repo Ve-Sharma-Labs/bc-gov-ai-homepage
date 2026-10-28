@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<act xmlns="urn:bc-laws:test" xml:lang="en-CA"
+     documentId="SBC-2020-c-9"
+     status="historical"
+     historical="true"
+     consolidationDate="2021-12-31"
+     effectiveFrom="2020-01-01"
+     effectiveTo="2022-01-01"
+     canonicalUrl="https://www.bclaws.gov.bc.ca/civix/document/id/historical/statreg/20009">
+  <actTitle>Synthetic Historical Act</actTitle>
+  <content>
+    <section id="section-1">
+      <num>1</num>
+      <marginalNote>Historical provision</marginalNote>
+      <text>This explicitly historical section is accepted only when the caller disables the current-version requirement. It can never be mistaken for current in-force law.</text>
+    </section>
+  </content>
+</act>

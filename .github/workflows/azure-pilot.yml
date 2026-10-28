@@ -1,0 +1,98 @@
+name: Reviewed Azure pilot deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [provision, deploy]
+        required: true
+        description: Reviewed operation; public exposure is separately gated
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: azure-pilot
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: pilot
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_PROVISIONING_APPROVED: ${{ vars.AZURE_PROVISIONING_APPROVED }}
+      AZURE_DEPLOYMENT_REVIEWED: ${{ vars.AZURE_DEPLOYMENT_REVIEWED }}
+      AZURE_MODEL_DEPLOYMENTS: ${{ vars.AZURE_MODEL_DEPLOYMENTS }}
+      FOUNDRY_AGENTS: ${{ vars.FOUNDRY_AGENTS }}
+      FOUNDRY_GENERAL_AGENT: ${{ vars.FOUNDRY_GENERAL_AGENT }}
+      AZURE_SEARCH_SKU: ${{ vars.AZURE_SEARCH_SKU }}
+      AZURE_REDIS_SKU: ${{ vars.AZURE_REDIS_SKU }}
+      AZURE_API_APPLICATION_CLIENT_ID: ${{ vars.AZURE_API_APPLICATION_CLIENT_ID }}
+      AZURE_API_IMAGE_NAME: ${{ vars.AZURE_API_IMAGE_NAME }}
+      AZURE_WEB_IMAGE_NAME: ${{ vars.AZURE_WEB_IMAGE_NAME }}
+      AZURE_SEARCH_INDEX: ${{ vars.AZURE_SEARCH_INDEX }}
+      AZURE_SEARCH_METADATA_ENABLED: ${{ vars.AZURE_SEARCH_METADATA_ENABLED }}
+      AZURE_SEARCH_METADATA_REVIEWED: ${{ vars.AZURE_SEARCH_METADATA_REVIEWED }}
+      AZURE_PILOT_CONTROLS: ${{ vars.AZURE_PILOT_CONTROLS }}
+      AZURE_NETWORK_PREFIX: ${{ vars.AZURE_NETWORK_PREFIX }}
+      AZURE_APPS_SUBNET_PREFIX: ${{ vars.AZURE_APPS_SUBNET_PREFIX }}
+      AZURE_PRIVATE_SUBNET_PREFIX: ${{ vars.AZURE_PRIVATE_SUBNET_PREFIX }}
+      AZURE_DEPLOYMENT_STAGE: ${{ vars.AZURE_DEPLOYMENT_STAGE }}
+      AZURE_VALIDATION_CIDRS: ${{ vars.AZURE_VALIDATION_CIDRS }}
+      AZURE_PRIVATE_ORIGIN_APPROVED: ${{ vars.AZURE_PRIVATE_ORIGIN_APPROVED }}
+      AZURE_PUBLIC_PREVIEW_APPROVED: ${{ vars.AZURE_PUBLIC_PREVIEW_APPROVED }}
+      AZURE_LIVE_EVALUATION_APPROVED: ${{ vars.AZURE_LIVE_EVALUATION_APPROVED }}
+      AZURE_SOURCE_PUBLICATION_APPROVED: ${{ vars.AZURE_SOURCE_PUBLICATION_APPROVED }}
+      AZURE_BC_BRAND_APPROVED: ${{ vars.AZURE_BC_BRAND_APPROVED }}
+      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}
+      AZURE_OPENAI_EMBEDDING_DIMENSIONS: ${{ vars.AZURE_OPENAI_EMBEDDING_DIMENSIONS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Refuse unreviewed context or exposure
+        run: node scripts/azure-preflight.mjs
+      - uses: Azure/setup-azd@v2
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: Authenticate azd without stored credentials
+        run: azd auth login --client-id "$AZURE_CLIENT_ID" --tenant-id "$AZURE_TENANT_ID" --federated-credential-provider github
+      - name: Load the reviewed environment
+        run: |
+          azd env new "$AZURE_ENV_NAME" --no-prompt
+          for key in AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_MODEL_DEPLOYMENTS FOUNDRY_AGENTS FOUNDRY_GENERAL_AGENT AZURE_SEARCH_INDEX AZURE_SEARCH_METADATA_ENABLED AZURE_SEARCH_METADATA_REVIEWED AZURE_SEARCH_SKU AZURE_REDIS_SKU AZURE_API_APPLICATION_CLIENT_ID AZURE_API_IMAGE_NAME AZURE_WEB_IMAGE_NAME AZURE_PILOT_CONTROLS AZURE_NETWORK_PREFIX AZURE_APPS_SUBNET_PREFIX AZURE_PRIVATE_SUBNET_PREFIX AZURE_DEPLOYMENT_STAGE AZURE_VALIDATION_CIDRS AZURE_OPENAI_EMBEDDING_DEPLOYMENT AZURE_OPENAI_EMBEDDING_DIMENSIONS; do
+            if [ -n "${!key}" ]; then azd env set "$key" "${!key}"; fi
+          done
+      - name: Provision the reviewed candidate
+        if: inputs.operation == 'provision'
+        run: azd provision --no-prompt
+      - name: Resolve the existing environment
+        if: inputs.operation == 'deploy'
+        run: azd env refresh --no-prompt
+      - name: Refuse image replacement while traffic is enabled
+        if: inputs.operation == 'deploy'
+        run: |
+          group=$(azd env get-value AZURE_RESOURCE_GROUP)
+          profile=$(azd env get-value AZURE_FRONT_DOOR_PROFILE_NAME)
+          endpoint=$(azd env get-value AZURE_FRONT_DOOR_ENDPOINT_NAME)
+          endpoint_id="/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$group/providers/Microsoft.Cdn/profiles/$profile/afdEndpoints/$endpoint"
+          state=$(az resource show --ids "$endpoint_id" --api-version 2025-06-01 \
+            --query properties.enabledState --output tsv)
+          if [ "$state" != "Disabled" ]; then
+            echo "Close the actual Front Door endpoint before deploying unvalidated candidate images."
+            exit 1
+          fi
+      - name: Deploy candidate images
+        if: inputs.operation == 'deploy'
+        run: azd deploy --no-prompt

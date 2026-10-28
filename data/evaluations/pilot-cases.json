@@ -1,0 +1,48 @@
+{
+  "origin": "independently-authored-public-questions",
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "licence-preparation",
+      "journeyId": "licence-renewal",
+      "prompt": "What should I prepare before renewing a driver's licence in British Columbia?",
+      "review": "Check accepted-ID guidance, exclusions and an honest ICBC handoff; no renewal claim."
+    },
+    {
+      "id": "road-test-preparation",
+      "journeyId": "road-test-booking",
+      "prompt": "What should I prepare before I use ICBC's road-test booking service?",
+      "review": "Check the test route, accepted ID, vehicle preparation and official booking handoff; no appointment or availability claim."
+    },
+    {
+      "id": "rental-preparation",
+      "journeyId": "rental-assistance",
+      "prompt": "How can I prepare to explore BC Housing rental assistance?",
+      "review": "Check programme distinctions and current source limitations; no personal eligibility decision."
+    },
+    {
+      "id": "coverage-distinction",
+      "journeyId": "health-coverage",
+      "prompt": "How should I prepare to enrol in MSP, and how is that different from Fair PharmaCare?",
+      "review": "Keep medical insurance and income-based drug coverage distinct; no enrolment or clinical claim."
+    },
+    {
+      "id": "pharmacare-registration",
+      "journeyId": "pharmacare-registration",
+      "prompt": "What should I prepare before registering for Fair PharmaCare?",
+      "review": "Keep PHNs, SINs and tax information out of chat; explain consent and official handoff without deciding eligibility."
+    },
+    {
+      "id": "primary-care-navigation",
+      "journeyId": "primary-care",
+      "prompt": "How does the Health Connect Registry help someone looking for a family doctor?",
+      "review": "Check official navigation and human-help options; no invented wait or appointment availability."
+    },
+    {
+      "id": "office-exclusions",
+      "journeyId": "service-bc",
+      "prompt": "Which Service BC offices in Victoria offer driver licensing?",
+      "review": "Exclusions override inclusions; do not invent licensing support or claim complete provincial coverage."
+    }
+  ]
+}

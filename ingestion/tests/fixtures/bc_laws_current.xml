@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<act xmlns="urn:bc-laws:test" xml:lang="en-CA"
+     documentId="SBC-2024-c-1"
+     status="in-force"
+     historical="false"
+     consolidationDate="2026-10-01"
+     effectiveFrom="2024-01-01"
+     canonicalUrl="https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/24001">
+  <actTitle>Synthetic Public Guidance Act</actTitle>
+  <amendments>
+    <amendment amendmentId="SBC-2025-c-2" />
+  </amendments>
+  <content>
+    <section id="section-1">
+      <num>1</num>
+      <marginalNote>Purpose</marginalNote>
+      <text>This synthetic section exists only as an offline parser fixture. It states the purpose and preserves the complete legal wording associated with the section locator.</text>
+    </section>
+    <section id="section-2">
+      <num>2</num>
+      <marginalNote>Exception</marginalNote>
+      <text>This synthetic rule applies unless an explicit exception in this section says otherwise. The exception wording must remain beside the section locator.</text>
+    </section>
+  </content>
+</act>

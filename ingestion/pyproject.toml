@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bc-pilot-ingestion"
+version = "0.1.0"
+description = "Bounded, reviewed public-publisher ingestion for the read-only BC pilot"
+requires-python = ">=3.11"
+dependencies = ["beautifulsoup4>=4.13,<5"]
+
+[project.optional-dependencies]
+azure = [
+  "azure-identity>=1.21,<2",
+  "azure-search-documents>=11.6,<13",
+  "azure-storage-blob>=12.25,<13",
+  "requests>=2.32,<3",
+]
+
+[project.scripts]
+bc-ingest = "bc_ingestion.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bc_ingestion*"]

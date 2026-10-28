@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "training-guide",
+      "contentType": "training",
+      "canonicalUrl": "https://www.workbc.ca/explore-training-and-education/training-options",
+      "title": "Explore training options",
+      "contentComplete": true,
+      "publisherUpdatedAt": "2026-10-15",
+      "contentHtml": "<p>This approved static publisher-feed record explains how readers can compare training paths and prepare questions for an official education or employment service. It contains no vacancy or live job-board record.</p><h2>Plan the next step</h2><p>Readers can review programme descriptions, entry requirements and official contacts before continuing. This guidance does not promise admission, funding, employment or an individual outcome.</p><p>The bounded complete record supports offline section extraction and exact-hash review without using WorkBC's currently blocked public crawl route.</p>"
+    },
+    {
+      "id": "job-123",
+      "recordType": "job-posting",
+      "canonicalUrl": "https://www.workbc.ca/job-search/job-123",
+      "title": "Excluded live vacancy",
+      "contentComplete": true,
+      "contentHtml": "<p>This live vacancy must never become a grounding document.</p>"
+    }
+  ]
+}

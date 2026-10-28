@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "inspected_on": "2026-10-24",
+  "scope": "Bounded public-source discovery for a specification; not a full crawl or production index.",
+  "government_sitemap_discovery": {
+    "index_url": "https://www2.gov.bc.ca/sitemap/sitemap_index.xml",
+    "page_sitemaps": [
+      {
+        "url": "https://www2.gov.bc.ca/sitemap/sitemap_pages_1.xml",
+        "observed_url_entries": 10000
+      },
+      {
+        "url": "https://www2.gov.bc.ca/sitemap/sitemap_pages_2.xml",
+        "observed_url_entries": 7688
+      }
+    ],
+    "total_observed_url_entries": 17688,
+    "interpretation": "Discovery entries only. Not deduplicated, approved, fetched in full, or indexed. Asset sitemaps were not crawled."
+  },
+  "sources": [
+    {
+      "id": "bc-content",
+      "seed_url": "https://www2.gov.bc.ca/gov/content/",
+      "canonical_url": "https://www2.gov.bc.ca/gov/content/home",
+      "observation": "Redirect followed; topic landing content sampled.",
+      "robots_url": "https://www2.gov.bc.ca/robots.txt",
+      "crawl_status": "Candidate public paths subject to robots exclusions and publisher approval.",
+      "acquisition": "Government sitemaps and approved page/asset paths.",
+      "priority": "Pilot discovery root",
+      "notes": "Topic seeds overlap this root. Deduplicate canonical documents and preserve multiple category tags."
+    },
+    {
+      "id": "service-bc",
+      "seed_url": "https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/servicebc",
+      "canonical_url": "https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc",
+      "observation": "Original seed returned 404. Replacement found in official sitemap and fetched.",
+      "robots_url": "https://www2.gov.bc.ca/robots.txt",
+      "crawl_status": "Candidate canonical page, subject to approval.",
+      "acquisition": "Canonical page or publisher-maintained location feed.",
+      "priority": "Pilot",
+      "notes": "Preserve office-specific services, unavailable services, published hours, and exceptions. Geographic proximity alone is insufficient."
+    },
+    {
+      "id": "housing-tenancy",
+      "seed_url": "https://www2.gov.bc.ca/gov/content/housing-tenancy",
+      "canonical_url": "https://www2.gov.bc.ca/gov/content/housing-tenancy",
+      "observation": "Topic page and residential-tenancies child sampled successfully.",
+      "sample_url": "https://www2.gov.bc.ca/gov/content/housing-tenancy/residential-tenancies",
+      "robots_url": "https://www2.gov.bc.ca/robots.txt",
+      "crawl_status": "Candidate selected public paths, subject to approval.",
+      "acquisition": "Section-aware HTML and approved referenced documents.",
+      "priority": "Pilot selected service guidance",
+      "notes": "Separate tenancy guidance from housing financial support and statutory interpretation."
+    },
+    {
+      "id": "health",
+      "seed_url": "https://www2.gov.bc.ca/gov/content/health",
+      "canonical_url": "https://www2.gov.bc.ca/gov/content/health",
+      "observation": "Topic and health-drug-coverage pages sampled successfully.",
+      "sample_url": "https://www2.gov.bc.ca/gov/content/health/health-drug-coverage",
+      "robots_url": "https://www2.gov.bc.ca/robots.txt",
+      "crawl_status": "Candidate administrative service guidance, subject to approval.",
+      "acquisition": "MSP, PharmaCare, and accessing-care page subsets.",
+      "priority": "Pilot",
+      "notes": "Do not infer individualized medical advice or combine MSP and PharmaCare eligibility rules."
+    },
+    {
+      "id": "family-social-supports",
+      "seed_url": "https://www2.gov.bc.ca/gov/content/family-social-supports",
+      "canonical_url": "https://www2.gov.bc.ca/gov/content/family-social-supports",
+      "observation": "Topic and income-assistance pages sampled successfully.",
+      "sample_url": "https://www2.gov.bc.ca/gov/content/family-social-supports/income-assistance",
+      "robots_url": "https://www2.gov.bc.ca/robots.txt",
+      "crawl_status": "Candidate selected programme pages, subject to approval.",
+      "acquisition": "Reviewed programme guidance and dated payment/service notices.",
+      "priority": "Wave 2",
+      "notes": "Payment dates change. Programme summaries are not binding eligibility decisions."
+    },
+    {
+      "id": "employment-business",
+      "seed_url": "https://www2.gov.bc.ca/gov/content/employment-business",
+      "canonical_url": "https://www2.gov.bc.ca/gov/content/employment-business",
+      "observation": "Topic page sampled. Simplified employers-page extraction returned footer content rather than adequate service guidance.",
+      "sample_url": "https://www2.gov.bc.ca/gov/content/employment-business/employers",
+      "robots_url": "https://www2.gov.bc.ca/robots.txt",
+      "crawl_status": "Candidate topic discovery; child extraction needs validation.",
+      "acquisition": "Sitemap-derived approved business/employment paths with extraction checks.",
+      "priority": "Wave 2",
+      "notes": "Do not promote footer-only, draft, promotional, or incomplete content to programme guidance."
+    },
+    {
+      "id": "taxes",
+      "seed_url": "https://www2.gov.bc.ca/gov/content/taxes",
+      "canonical_url": "https://www2.gov.bc.ca/gov/content/taxes",
+      "observation": "Topic and tax-updates pages sampled successfully.",
+      "sample_url": "https://www2.gov.bc.ca/gov/content/taxes/tax-updates",
+      "robots_url": "https://www2.gov.bc.ca/robots.txt",
+      "crawl_status": "Candidate selected tax guidance, subject to approval.",
+      "acquisition": "Versioned tax programme pages and update notices.",
+      "priority": "Wave 2",
+      "notes": "Preserve tax year, effective dates, exceptions, and disruption notices. Do not invent filing/payment capabilities."
+    },
+    {
+      "id": "bc-housing",
+      "seed_url": "https://www.bchousing.org/",
+      "canonical_url": "https://www.bchousing.org/",
+      "observation": "Homepage and RAP guidance sampled; root states content updates paused with content current to September 22, 2026.",
+      "sample_url": "https://www.bchousing.org/housing-assistance/rental-assistance-programs/RAP",
+      "robots_url": "https://www.bchousing.org/robots.txt",
+      "crawl_status": "Public paths appear eligible subject to exclusions and approval; freshness notice requires review.",
+      "acquisition": "Selected programme HTML and approved application-document descriptions.",
+      "priority": "Pilot",
+      "notes": "Simplified RAP extraction emphasized FAQ content. Confirm complete eligibility and exclusion extraction before indexing."
+    },
+    {
+      "id": "icbc",
+      "seed_url": "https://www.icbc.com/",
+      "canonical_url": "https://www.icbc.com/",
+      "observation": "Homepage links and renewal delivered HTML inspected; some dynamic modules remained Loading. Simplified extraction selected footer text.",
+      "sample_url": "https://www.icbc.com/driver-licensing/getting-licensed/Renew-your-licence-or-ID",
+      "robots_url": "https://www.icbc.com/robots.txt",
+      "crawl_status": "Candidate public guidance, subject to exclusions, rendering validation, and approval.",
+      "acquisition": "Approved rendered extraction or publisher feed; no authenticated account scraping.",
+      "priority": "Pilot",
+      "notes": "Observed renewal guidance directs users to bring accepted identification to a driver licensing office. No online-renewal API or delegated transaction was verified."
+    },
+    {
+      "id": "workbc",
+      "seed_url": "https://www.workbc.ca/",
+      "canonical_url": "https://www.workbc.ca/",
+      "observation": "Homepage returned 200 with work/career/training content. Robots endpoint returned 200 text/html containing a temporary maintenance notice.",
+      "robots_url": "https://www.workbc.ca/robots.txt",
+      "crawl_status": "Bulk crawl on hold until robots policy or publisher-approved acquisition is resolved.",
+      "acquisition": "Approved service/training subset or publisher feed after access check.",
+      "priority": "Wave 2",
+      "notes": "Do not parse maintenance content as robots rules or programme guidance. Exclude accounts, application flows, and rapidly changing job listings unless a suitable feed is approved."
+    },
+    {
+      "id": "healthlink-bc",
+      "seed_url": "https://www.healthlinkbc.ca/",
+      "canonical_url": "https://www.healthlinkbc.ca/",
+      "observation": "Homepage and Health Connect Registry guidance sampled successfully.",
+      "sample_url": "https://www.healthlinkbc.ca/find-care/health-connect-registry",
+      "robots_url": "https://www.healthlinkbc.ca/robots.txt",
+      "crawl_status": "Candidate public navigation pages, subject to exclusions and approval.",
+      "acquisition": "Selected navigation/registry/service-directory guidance.",
+      "priority": "Pilot",
+      "notes": "Registry registration requires sensitive details. The pilot explains requirements and hands off without collecting them."
+    },
+    {
+      "id": "bc-laws",
+      "seed_url": "https://www.bclaws.gov.bc.ca/",
+      "canonical_url": "https://www.bclaws.gov.bc.ca/",
+      "observation": "Robots inspected; no general content scrape performed.",
+      "robots_url": "https://www.bclaws.gov.bc.ca/robots.txt",
+      "crawl_status": "General crawlers disallowed. Do not impersonate the named permitted search bots.",
+      "acquisition": "Publisher-approved CiviX/XML API or export after contract/licence verification.",
+      "api_documentation_candidate": "https://www.bclaws.gov.bc.ca/civix/template/complete/api/index.html",
+      "api_verification": "Discovered through web search only; access, licence scope, and extraction not tested.",
+      "priority": "Gated legal-reference increment",
+      "notes": "Track consolidation/currency, effective dates, section identifiers, historical versions, repeal, and publisher status separately."
+    }
+  ]
+}

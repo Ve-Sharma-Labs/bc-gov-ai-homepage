@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bc-pilot-api"
+version = "0.1.0"
+description = "Read-only BC service guidance and guarded Microsoft Foundry AG-UI adapter."
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  "agent-framework-ag-ui==1.6.0",
+  "agent-framework-core==1.22.0",
+  "agent-framework-foundry==1.15.0",
+  "anyio==4.15.1",
+  "ag-ui-protocol==0.1.22",
+  "azure-ai-projects==2.7.0",
+  "azure-identity==1.26.0",
+  "azure-search-documents==12.0.0",
+  "fastapi==0.141.1",
+  "httpx==0.28.1",
+  "openai==3.35.0",
+  "pydantic-settings==2.16.0",
+  "uvicorn==0.54.0",
+  "redis==8.1.0",
+  "redis-entraid==1.2.2",
+  "PyJWT[crypto]==2.15.1",
+  "azure-monitor-opentelemetry-exporter==1.0.0b58",
+  "opentelemetry-sdk==1.45.1",
+  "tzdata==2026.5",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.1.1",
+  "pytest-asyncio==1.4.0",
+  "ruff==0.17.1",
+  "fakeredis[lua]==2.40.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bc_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]

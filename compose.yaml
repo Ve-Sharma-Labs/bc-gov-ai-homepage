@@ -1,0 +1,37 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    environment:
+      APP_ENV: development
+      API_ALLOWED_ORIGINS: "http://127.0.0.1:${WEB_PORT:-3000},http://localhost:${WEB_PORT:-3000}"
+      API_ALLOWED_HOSTS: "localhost,127.0.0.1,::1,api"
+      CONTENT_CATALOG_PATH: /app/data/pilot-catalog.json
+      FOUNDRY_PROJECT_ENDPOINT: "${FOUNDRY_PROJECT_ENDPOINT:-}"
+      FOUNDRY_AGENT_NAME: "${FOUNDRY_AGENT_NAME:-}"
+      FOUNDRY_AGENT_VERSION: "${FOUNDRY_AGENT_VERSION:-}"
+      AZURE_SEARCH_ENDPOINT: "${AZURE_SEARCH_ENDPOINT:-}"
+      AZURE_SEARCH_INDEX: "${AZURE_SEARCH_INDEX:-}"
+      WEBIQ_ENABLED: "false"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      API_BASE_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy

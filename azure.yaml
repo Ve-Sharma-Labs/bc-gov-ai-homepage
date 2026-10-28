@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://aka.ms/azure.yaml.json
+name: bc-government-assistant
+
+infra:
+  provider: bicep
+  path: infra
+
+services:
+  api:
+    project: .
+    language: docker
+    host: containerapp
+    docker:
+      path: apps/api/Dockerfile
+      context: .
+      platform: linux/amd64
+  web:
+    project: .
+    language: docker
+    host: containerapp
+    docker:
+      path: apps/web/Dockerfile
+      context: .
+      platform: linux/amd64
+
+hooks:
+  preprovision:
+    shell: sh
+    run: node scripts/azure-preflight.mjs
+  predeploy:
+    shell: sh
+    run: node scripts/azure-preflight.mjs
