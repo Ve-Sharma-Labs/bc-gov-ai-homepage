@@ -75,7 +75,11 @@ export function Composer({ value, onChange, onSubmit, onStop, busy, inputRef, co
           event.preventDefault();
           onStop();
         }}><Square size={18} fill="currentColor" aria-hidden="true" /></Button>
-        : <Button className="send-button" size="icon" type="submit" disabled={!value.trim()} aria-label="Send question"><ArrowRight size={24} aria-hidden="true" /></Button>}
+        : <Button className="send-button" size="icon" type="submit" disabled={!value.trim()} aria-label="Send question" onClick={(event) => {
+          // Base UI normalizes press behavior; own the form action so a moved fixed composer cannot lose native submit.
+          event.preventDefault();
+          if (value.trim()) onSubmit();
+        }}><ArrowRight size={24} aria-hidden="true" /></Button>}
       <span className="sr-only" id={`${id}-privacy`}>Do not include names, ID numbers or personal details.</span>
       <span className="sr-only" id={`${id}-keyboard`}>Enter sends your question. Shift and Enter adds a new line. Maximum 4,000 characters.</span>
       {value.length > 3600 && <span className="character-count" role="status">{4000 - value.length} characters left</span>}

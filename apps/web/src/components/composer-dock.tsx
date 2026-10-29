@@ -7,6 +7,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { CircleHelp, X } from "lucide-react";
 import { Composer } from "./composer";
 import { ComposerScope } from "./composer-scope";
+import { CitizenContextControl, SyntheticContextBanner } from "./citizen-context";
 import { useAssistant } from "./assistant-provider";
 import { FooterCredit } from "./chrome";
 
@@ -75,7 +76,7 @@ export function ComposerDock() {
       window.visualViewport?.removeEventListener("scroll", schedule);
       if (isChat) document.documentElement.style.removeProperty("--chat-composer-height");
     };
-  }, [pathname, isChat, assistant.selectedId, assistant.state.messages.length, assistant.draft, focused]);
+  }, [pathname, isChat, assistant.selectedId, assistant.contextActive, assistant.state.messages.length, assistant.draft, focused]);
 
   const submit = () => {
     if (!assistant.draft.trim() || assistant.draft.trim().length > 4000 || assistant.busy) return;
@@ -112,7 +113,11 @@ export function ComposerDock() {
         {assistant.busy ? <span>Answer in progress</span> : <Link href="/about#privacy">Your privacy</Link>}<span aria-hidden="true">·</span><Link href="/how-it-works">How it works</Link>
       </div>}
       <Composer value={assistant.draft} onChange={assistant.setDraft} onSubmit={submit} onStop={assistant.stop} busy={assistant.busy} inputRef={inputRef} compact={position?.docked} />
-      <ComposerScope />
+      <SyntheticContextBanner />
+      <div className="conversation-controls">
+        <ComposerScope />
+        <CitizenContextControl />
+      </div>
       <p className="composer-privacy">Keep names, ID numbers and personal details out of your question.</p>
       {isChat && <footer className="chat-composer-footer"><div><Link href="/about#privacy">Privacy</Link><span aria-hidden="true">·</span><Link href="/how-it-works">How it works</Link></div><FooterCredit /></footer>}
       {assistant.notice && !isChat && <div className="composer-notice" role="status">

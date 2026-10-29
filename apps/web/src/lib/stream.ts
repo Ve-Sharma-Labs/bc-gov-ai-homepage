@@ -1,7 +1,17 @@
 import type { BaseEvent, Message } from "@ag-ui/core";
 import { z } from "zod";
 import { safeOfficialUrl } from "./links";
-import { artifactSchema, evidenceMetadataSchema, progressSchema, responseContextSchema, type ChatArtifact, type EvidenceMetadata, type ResponseContext } from "./contract";
+import {
+  anonymousArtifactSchema,
+  contextArtifactSchema,
+  evidenceMetadataSchema,
+  progressSchema,
+  responseContextSchema,
+  type Artifact,
+  type ChatMode,
+  type EvidenceMetadata,
+  type ResponseContext,
+} from "./contract";
 
 export interface Citation {
   sourceId?: string;
@@ -20,6 +30,7 @@ export interface Citation {
 export interface ChatMessage {
   id: string;
   runId: string;
+  mode: ChatMode;
   role: "user" | "assistant";
   content: string;
   status: "pending" | "complete" | "partial";
@@ -39,8 +50,9 @@ export interface StreamState {
   warning: string | null;
   pendingCitations: Record<string, Citation[]>;
   announcement: string;
-  artifacts: Record<string, ChatArtifact[]>;
+  artifacts: Record<string, Artifact[]>;
   response: ResponseContext | null;
+  activeMode: ChatMode | null;
 }
 
 export const initialStreamState: StreamState = {
@@ -57,17 +69,27 @@ export const initialStreamState: StreamState = {
   announcement: "",
   artifacts: {},
   response: null,
+  activeMode: null,
 };
 
 export type StreamAction =
-  | { type: "start"; runId: string; messageId: string; prompt: string; replaceRunId?: string }
+  | { type: "start"; runId: string; messageId: string; prompt: string; mode?: ChatMode; replaceRunId?: string }
   | { type: "event"; runId: string; event: BaseEvent }
   | { type: "failure"; runId: string; message: string; code?: string; retryAt?: string }
   | { type: "closed"; runId: string }
   | { type: "stop"; runId: string }
+  | { type: "clear-context" }
   | { type: "reset" };
 
 export const isStreaming = (state: StreamState) => state.status === "connecting" || state.status === "streaming";
+
+const contextArtifactOrder = [
+  "context-summary",
+  "program-matches",
+  "application-preview",
+  "consent-request",
+  "audit-receipt",
+] as const;
 
 const object = z.record(z.unknown());
 const eventSchema = z.object({ type: z.string() }).passthrough();
@@ -163,7 +185,16 @@ function recoverDialogue(state: StreamState, code?: string): StreamState | null 
     messages: [
       ...state.messages.filter((message) => message.runId !== state.runId || message.role === "user")
         .map((message) => message.runId === state.runId ? { ...message, status: "complete" as const } : message),
-      { id: `dialogue-${state.runId}`, runId: state.runId!, role: "assistant", content, status: "complete", citations: [], response },
+      {
+        id: `dialogue-${state.runId}`,
+        runId: state.runId!,
+        mode: state.activeMode ?? "general",
+        role: "assistant",
+        content,
+        status: "complete",
+        citations: [],
+        response,
+      },
     ],
   };
 }
@@ -175,10 +206,27 @@ export function needsSources(message: ChatMessage): boolean {
 
 export function streamReducer(state: StreamState, action: StreamAction): StreamState {
   if (action.type === "reset") return { ...initialStreamState };
+  if (action.type === "clear-context") {
+    const contextualRunIds = new Set(
+      state.messages
+        .filter((message) => message.mode === "contextual-demo")
+        .map((message) => message.runId),
+    );
+    return {
+      ...initialStreamState,
+      messages: state.messages.filter((message) => message.mode !== "contextual-demo"),
+      artifacts: Object.fromEntries(
+        Object.entries(state.artifacts).filter(([runId]) => !contextualRunIds.has(runId)),
+      ),
+      announcement: "Synthetic citizen context cleared.",
+    };
+  }
   if (action.type === "start") {
+    const mode = action.mode ?? "general";
     return {
       ...state,
       runId: action.runId,
+      activeMode: mode,
       status: "connecting",
       prompt: action.prompt,
       progress: "Sending your question…",
@@ -191,6 +239,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
       messages: [...state.messages.filter((message) => message.runId !== action.replaceRunId), {
         id: action.messageId,
         runId: action.runId,
+        mode,
         role: "user",
         content: action.prompt,
         status: "pending",
@@ -278,15 +327,37 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
     return { ...state, progress: label, announcement: label };
   }
   if (event.type === "CUSTOM" && event.name === "bc.artifact") {
-    const artifact = artifactSchema.safeParse(event.value);
-    if (!artifact.success) return terminate(state, "error", "The assistant returned an unsupported preparation result. Your question has been kept.");
+    const contextual = state.activeMode === "contextual-demo";
+    const artifact = contextual
+      ? contextArtifactSchema.safeParse(event.value)
+      : anonymousArtifactSchema.safeParse(event.value);
+    if (!artifact.success) return terminate(state, "error", "The assistant returned an unsupported result. Your question has been kept.");
     const previous = Object.hasOwn(state.artifacts, state.runId!) ? state.artifacts[state.runId!] : [];
+    if (
+      contextual
+      && (
+        previous.length >= contextArtifactOrder.length
+        || artifact.data.kind !== contextArtifactOrder[previous.length]
+        || previous.some((item) => item.id === artifact.data.id)
+      )
+    ) {
+      return terminate(
+        state,
+        "error",
+        "The assistant returned contextual results out of order. Your question has been kept.",
+      );
+    }
     if (previous.length >= 10 && !previous.some((item) => item.id === artifact.data.id)) {
       return terminate(state, "error", "The assistant returned too many preparation results. Please ask a more focused question.");
     }
     return {
       ...state,
-      artifacts: { ...state.artifacts, [state.runId!]: [...previous.filter((item) => item.id !== artifact.data.id), artifact.data] },
+      artifacts: {
+        ...state.artifacts,
+        [state.runId!]: contextual
+          ? [...previous, artifact.data]
+          : [...previous.filter((item) => item.id !== artifact.data.id), artifact.data],
+      },
     };
   }
   switch (event.type) {
@@ -299,6 +370,9 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
         search: "Searching official BC sources…",
         retrieve: "Retrieving source information…",
         research_public_web: "Checking public information with Web IQ…",
+        read_consented_context: "Checking the consented synthetic context…",
+        evaluate_program_rules: "Screening the fictional scenario against reviewed rules…",
+        build_application_preview: "Preparing a review-only intake preview…",
       };
       const progress = labels[stringField(event.stepName)] || "The assistant is working on your question…";
       return { ...state, progress, announcement: progress };
@@ -311,6 +385,9 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
         find_service_locations: "Checking published service locations…",
         build_preparation_plan: "Preparing source-backed next steps…",
         research_public_web: "Checking public information with Web IQ…",
+        read_consented_context: "Checking the consented synthetic context…",
+        evaluate_program_rules: "Screening the fictional scenario against reviewed rules…",
+        build_application_preview: "Preparing a review-only intake preview…",
       };
       const progress = labels[stringField(event.toolCallName)] || "Checking information…";
       return { ...state, progress, announcement: progress };
@@ -326,6 +403,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
         messages: [...state.messages, {
           id,
           runId: state.runId!,
+          mode: state.activeMode ?? "general",
           role: "assistant",
           content: "",
           status: "pending",
@@ -409,9 +487,12 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
   }
 }
 
-export function historyForAgent(messages: ChatMessage[]): Message[] {
+export function historyForAgent(messages: ChatMessage[], mode: ChatMode = "general"): Message[] {
   return messages.filter((message) => (
-    message.status === "complete"
+    (mode === "contextual-demo"
+      ? message.mode === "contextual-demo"
+      : message.mode !== "contextual-demo")
+    && message.status === "complete"
     && message.content.trim()
     && (
       message.role === "user"

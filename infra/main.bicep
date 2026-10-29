@@ -11,10 +11,15 @@ param location string
 
 @description('Explicitly selected model names, versions, SKUs and capacity; no moving defaults.')
 param modelDeploymentsJson string
-@description('Actual registry returned by the approved five-agent publication step.')
+@description('Actual registry returned by the approved seven-agent publication step.')
 param foundryAgentsJson string = '[]'
 @description('Separately published and pinned general agent. Empty only for closed bootstrap.')
 param foundryGeneralAgentJson string = ''
+@description('Separately published and pinned synthetic contextual-demo agent.')
+param foundryContextualAgentJson string = ''
+@allowed(['false', 'true'])
+@description('Enable only for the reviewed, synthetic-only citizen-context demonstration.')
+param syntheticContextEnabled string = 'false'
 param searchIndex string = 'bc-pilot-public'
 @allowed(['false', 'true'])
 @description('Enable only after the additive provenance index schema has been verified.')
@@ -65,6 +70,8 @@ module pilot './modules/pilot.bicep' = {
     modelDeployments: json(modelDeploymentsJson)
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
+    foundryContextualAgentJson: foundryContextualAgentJson
+    syntheticContextEnabled: syntheticContextEnabled
     searchIndex: searchIndex
     searchMetadataEnabled: searchMetadataEnabled
     searchMetadataReviewed: searchMetadataReviewed

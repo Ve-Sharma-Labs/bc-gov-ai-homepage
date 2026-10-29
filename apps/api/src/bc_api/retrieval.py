@@ -159,11 +159,23 @@ class AzureRetriever:
         self.client = client
         self.embeddings = embeddings
 
-    async def retrieve(self, query: str, journey_id: str | None = None) -> EvidenceBundle:
+    async def retrieve(
+        self,
+        query: str,
+        journey_id: str | None = None,
+        *,
+        source_ids: frozenset[str] | None = None,
+    ) -> EvidenceBundle:
         if not query.strip() or len(query) > 512 or "\x00" in query:
             raise ApiError(422, "INVALID_SEARCH", "Use a short public-service search question.")
         if journey_id is not None and journey_id not in JOURNEY_IDS:
             raise ApiError(422, "INVALID_JOURNEY", "Choose an approved journey.")
+        if source_ids is not None and (
+            journey_id is not None
+            or not source_ids
+            or any(type(source_id) is not str for source_id in source_ids)
+        ):
+            raise ApiError(422, "INVALID_SOURCE_SCOPE", "Choose an approved source scope.")
         catalog = self.catalog.get()
         now = datetime.now(UTC)
         day = legal_day(now) if self.settings.azure_search_metadata_enabled else None
@@ -176,9 +188,13 @@ class AzureRetriever:
         if journey_id:
             journey = self.catalog.journey(journey_id)
             allowed = {key: source for key, source in allowed.items() if key in journey.source_ids}
+        elif source_ids is not None:
+            if not source_ids <= set(allowed):
+                raise ApiError(422, "INVALID_SOURCE_SCOPE", "Choose an approved source scope.")
+            allowed = {key: source for key, source in allowed.items() if key in source_ids}
         requested_topics = (
             set(source_topics(query)) & {source.id for source in catalog.sources}
-            if journey_id is None
+            if journey_id is None and source_ids is None
             else set()
         )
         if not allowed:

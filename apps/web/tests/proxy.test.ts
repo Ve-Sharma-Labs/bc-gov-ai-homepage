@@ -8,9 +8,14 @@ describe("closed same-origin proxy boundary", () => {
     ["GET", "/api/catalog"],
     ["GET", "/healthz"],
     ["GET", "/api/capabilities"],
+    ["GET", "/api/demo/personas"],
+    ["GET", "/api/context/summary"],
     ["GET", "/api/journeys/licence-renewal"],
     ["GET", "/api/locations"],
     ["POST", "/api/agent"],
+    ["POST", "/api/demo/session"],
+    ["POST", "/api/context/consents"],
+    ["DELETE", "/api/demo/session"],
     ["POST", "/api/runs/run-123/cancel"],
   ])("allows %s %s", (method, path) => expect(allowedApiRequest(method, path, new URLSearchParams())).toBe(true));
 
@@ -20,6 +25,8 @@ describe("closed same-origin proxy boundary", () => {
     ["GET", "/api/journeys/unknown"],
     ["POST", "/api/runs/../cancel"],
     ["DELETE", "/api/agent"],
+    ["DELETE", "/api/context/summary"],
+    ["POST", "/api/context/summary"],
     ["GET", "/api/admin"],
     ["GET", "/api/http://example.com"],
     ["GET", "/api/healthz"],
@@ -62,6 +69,38 @@ describe("closed same-origin proxy boundary", () => {
     expect(response.headers.get("Retry-After")).toBe("30");
     expect(response.headers.has("X-Provider-Internal")).toBe(false);
     expect(await response.json()).toEqual({ error: { code: "RATE_LIMITED", message: "Please wait." } });
+  });
+
+  it("forwards page-bound context cleanup without a request body", async () => {
+    let upstreamMethod = "";
+    let upstreamBody: BodyInit | null | undefined;
+    let upstreamHeaders = new Headers();
+    vi.stubGlobal("fetch", vi.fn(async (_url, init: RequestInit) => {
+      upstreamMethod = init.method || "";
+      upstreamBody = init.body;
+      upstreamHeaders = new Headers(init.headers);
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Set-Cookie": "bc_synthetic_context=; Max-Age=0; HttpOnly; SameSite=Strict; Path=/api",
+        },
+      });
+    }));
+    const response = await proxyRequest(new Request("http://localhost:3000/api/demo/session", {
+      method: "DELETE",
+      headers: {
+        Cookie: "bc_synthetic_context=opaque",
+        Origin: "http://localhost:3000",
+        "X-BC-Context-Page": "context-proxy-page-00000001",
+      },
+    }));
+    expect(response.status).toBe(204);
+    expect(upstreamMethod).toBe("DELETE");
+    expect(upstreamBody).toBeUndefined();
+    expect(upstreamHeaders.get("x-bc-context-page")).toBe(
+      "context-proxy-page-00000001",
+    );
+    expect(response.headers.get("Set-Cookie")).toContain("Max-Age=0");
   });
 
   it("returns the first stream chunk without buffering and aborts upstream on consumer cancellation", async () => {

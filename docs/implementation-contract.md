@@ -71,7 +71,30 @@ Raw fetched documents belong in ignored generated directories.
 - `GET /api/locations?service=...&municipality=...`: `{"locations": Location[]}`.
 - `GET /api/capabilities`: `{"mode":"guided"|"foundry",
   "aiConfigured":boolean,"webIqEnabled":boolean,
-  "transactionsEnabled":false,"message":string,"journeys":{journeyId:boolean}}`.
+  "transactionsEnabled":false,"message":string,"journeys":{journeyId:boolean},
+  "requestVersions":[1,2,3],"syntheticContextAvailable":boolean,
+  "realIdentityIntegrated":false,"realCitizenIdentityConfigured":false}`.
+  Older responses without the optional capability additions remain readable by
+  the web client.
+- `GET /api/demo/personas`: when explicitly enabled, returns only the fixed
+  public synthetic persona summaries. It does not create an anonymous or
+  context session and never returns fixture facts.
+- `POST /api/demo/session`: accepts exactly `{"personaId": DemoPersonaId}` and
+  creates or replaces a bounded HttpOnly synthetic-context cookie. Persona
+  facts, consent receipts and arbitrary context fields are rejected. The web
+  client also sends a random `X-BC-Context-Page` value held only in page memory;
+  the server binds the grant to that page instance.
+- `DELETE /api/demo/session`: idempotently clears the synthetic persona,
+  consent metadata and contextual server state, invokes derived-state
+  invalidation hooks, and expires the synthetic-context cookie. Reload and
+  `Start over` use this route.
+- `POST /api/context/consents`: accepts
+  `{"action":"grant"|"revoke","scopes": ConsentScope[]}`. The server chooses the
+  active persona's allowlisted purpose, rejects scopes outside that flow's exact
+  required/optional contract, and returns a strict replacement or revoked
+  `ConsentReceipt`.
+- `GET /api/context/summary`: returns a redacted `ContextSummary` containing
+  only categories covered by the current, unexpired receipt.
 - `POST /api/agent`: standard AG-UI RunAgentInput and SSE output when Foundry is
   actually configured. If not configured, return 503 with the error below;
   never fake a streamed model answer.
@@ -93,6 +116,15 @@ Environment contract:
 - `AZURE_CLIENT_ID` (optional user-assigned managed identity)
 - `AZURE_SEARCH_ENDPOINT`, `AZURE_SEARCH_INDEX`
 - `FOUNDRY_GENERAL_AGENT` (separate pinned general name/version/model, no journey)
+- `FOUNDRY_CONTEXTUAL_AGENT` (separate pinned contextual-demo
+  name/version/model, no journey)
+- `SYNTHETIC_CONTEXT_ENABLED=false` by default. Enabling it exposes only the
+  fixed synthetic session, consent and contextual runtime; it does not configure
+  real identity and still requires the separate contextual binding plus reviewed
+  source retrieval before version-3 agent runs can start.
+- `SYNTHETIC_CONTEXT_SESSION_TTL_SECONDS` and
+  `SYNTHETIC_CONTEXT_CONSENT_TTL_SECONDS`; consent must not outlive the bounded
+  server session.
 - V1 keeps `AZURE_SEARCH_INDEX=bc-pilot-public`,
   `AZURE_SEARCH_METADATA_ENABLED=false`, `AZURE_SEARCH_METADATA_REVIEWED=0`.
   The future v2 revision must atomically set `bc-pilot-public-v2`, `true`, `1`;
@@ -128,13 +160,15 @@ work without Azure; AI requires both the approved agent definition and a
 nonempty reviewed index. Web IQ is planned but has no enabled HTTP transport.
 
 `API_ALLOWED_ORIGINS` and `API_ALLOWED_HOSTS` are the API's actual connection
-settings. Development session/run state is opaque and in memory, so local
-configuration uses one API process/replica. Root run tooling sets origins to the
-selected loopback web port. No session signing-secret setting is used.
-Public Azure configuration instead requires
-Redis shared controls and managed-identity service authentication; there is no
-silent local-state fallback. The web proxy verifies private Front Door context,
-uses the socket-IP header for an opaque rate identity and replaces untrusted
+settings. Development run and synthetic-context metadata are opaque and
+process-local unless Redis is configured. Synthetic facts are always reloaded
+from the reviewed repository fixture and are never copied into session state.
+Root run tooling sets origins to the selected loopback web port. No session
+signing-secret setting is used. Public Azure configuration instead requires
+Redis shared controls and managed-identity service authentication; context
+metadata uses the same replica-safe control plane and there is no silent
+local-state fallback. The web proxy verifies private Front Door context, uses
+the socket-IP header for an opaque rate identity and replaces untrusted
 forwarded identity headers.
 
 The redesigned web client now owns draft, selected journey, checklist and
@@ -211,6 +245,81 @@ ASGI-shielded cleanup persists the shared terminal outcome rather than depending
 on garbage collection. The authenticated cancellation endpoint is session-bound
 and works across replicas. A 202 acknowledgement is not itself proof of terminal
 cancellation.
+
+### Version 3 synthetic context contract
+
+The citizen-context demo uses
+`forwardedProps.bc: {"version":3,"mode":"contextual-demo"}`. Version 3 accepts no
+journey ID, facts, persona record, consent receipt, state, tool definition or
+research request. Persona and consent state are bound to the opaque anonymous
+session, the synthetic-context cookie, and the in-memory
+`X-BC-Context-Page` value. A reload creates a different page value, so the old
+grant is unusable even if best-effort unload cleanup has not completed. The
+repository stores only the fixed persona ID, consent scopes and receipt
+metadata, revision and bounded expiry; facts are reloaded by allowlisted persona
+ID. `/api/agent` routes version 3 only after the feature flag, active persona,
+purpose-bound minimum consent, distinct `FOUNDRY_CONTEXTUAL_AGENT`, reviewed
+source scope and rule versions validate. Any missing or changed authority fails
+closed; version 3 never falls through to an anonymous, general or pathway
+agent.
+
+Shared Python/Pydantic and TypeScript/Zod contracts now define:
+
+- The three opaque demo persona IDs, redacted summaries and six context
+  categories.
+- Scalar context facts with category-bound consent scopes, synthetic or citizen
+  provenance, verification time, sensitivity and correction metadata.
+- Purpose-bound consent proposals, short-lived receipts and scoped revocations.
+- Program screening results with the four approved statuses, rule versions,
+  policy dates, matching source versions and disjoint satisfied, missing and
+  disqualifying fact lists.
+- Review-only application previews whose field provenance is explicit and whose
+  `submissionEnabled:false` and `requiresHumanReview:true` values are literals.
+- Value-free context summaries, consent requests and audit receipts.
+
+The AG-UI contract keeps the existing `version`, stable `id` and `kind`
+envelope and adds strict `context-summary`, `program-matches`,
+`application-preview`, `consent-request` and `audit-receipt` payloads. Artifact,
+fact, field, program, source and audit-event identifiers are bounded and unique
+within their collections. The existing preparation and location artifacts are
+unchanged. The API builds these five artifacts deterministically, validates their
+exact order and content, buffers contextual model text until final revalidation,
+and emits them only as server-owned `CUSTOM/bc.artifact` events. A client that has
+not yet merged renderers may ignore the known events; API contract tests remain
+the authority for their wire shapes.
+
+The distinct contextual prompt agent exposes only
+`read_consented_context(scopes)`, `evaluate_program_rules(flow_id)`,
+`build_application_preview(flow_id)` and source-scoped
+`search_approved_sources()`. Its query is derived only from the allowlisted flow
+and reviewed source titles; neither the model nor context values enter Search.
+Persona, facts, rules, source IDs and consent
+receipts are derived from server state. There is no submit, sign, pay, book or
+confirmation tool or route. Revocation or persona replacement cancels a local
+in-flight run and every tool plus final artifact emission revalidates the
+session, consent, rule set and reviewed source versions.
+
+The version-3 admission categories are fixed server policy:
+
+- `guardianship-intake`: household, disability/caregiving and existing-program
+  scopes are required; region/preferences is optional.
+- `disability-support`: identity/residency, employment, disability/caregiving,
+  and existing-program scopes are required; region/preferences is optional.
+- `job-loss`: identity/residency, household, employment, existing-program and
+  region/preference scopes.
+
+The web consent proposal must grant each flow's required scopes before sending
+version 3; listed optional scopes may be deselected. Additional granted
+categories remain unavailable to contextual tools unless they are part of the
+fixed flow scope.
+
+Capabilities distinguish contract support from deployment readiness:
+`syntheticContextAvailable` reports only the fixed synthetic data path, while
+`realIdentityIntegrated` and `realCitizenIdentityConfigured` are fixed to
+`false` in this release. The synthetic capability becomes true only under
+explicit server configuration with a valid fixture. Neither request version 3
+nor a synthetic capability may be presented as evidence of BC Services Card,
+government-record or other real identity integration.
 
 Unused model reservations are released only when the runtime proves inference
 did not begin; run-count limits still apply. Unknown/post-inference work remains

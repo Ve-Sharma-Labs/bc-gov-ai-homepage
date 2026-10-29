@@ -7,14 +7,17 @@ import { useAssistant } from "./assistant-provider";
 import { Button } from "./ui/button";
 
 export function ComposerScope() {
-  const { catalog, catalogError, loading, load, selected, selectedId, selectJourney, clearJourney, busy } = useAssistant();
+  const { catalog, catalogError, loading, load, selected, selectedId, selectJourney, clearJourney, busy, contextActive } = useAssistant();
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (busy) setOpen(false); }, [busy]);
   return <div className="composer-scope" role="group" aria-label="Conversation scope">
-    <span className="composer-scope-label">{selectedId
-      ? <>Pathway: <strong>{selected?.title ?? "Selected guided pathway"}</strong></>
-      : "General B.C. chat"}</span>
+    <span className="composer-scope-label">{contextActive
+      ? <>Conversation: <strong>Contextual demo</strong></>
+      : selectedId
+        ? <>Pathway: <strong>{selected?.title ?? "Selected guided pathway"}</strong></>
+        : "General B.C. chat"}</span>
+    {!contextActive && <>
     <div className="composer-scope-actions">
       <Popover.Root open={open && !busy} onOpenChange={setOpen}>
         <Popover.Trigger
@@ -50,5 +53,6 @@ export function ComposerScope() {
         trigger.current?.focus();
       }}>Clear</Button>}
     </div>
+    </>}
   </div>;
 }

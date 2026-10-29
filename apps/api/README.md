@@ -102,12 +102,15 @@ Set all of:
   containing `journeyId`, `name`, pinned `version` and `modelDeployment`
 - `FOUNDRY_GENERAL_AGENT`: a separate JSON object containing `name`, pinned
   `version` and `modelDeployment`, with no journey scope
+- `FOUNDRY_CONTEXTUAL_AGENT`: a distinct JSON object containing the pinned
+  contextual-demo prompt-agent `name`, `version` and `modelDeployment`
 - `AZURE_SEARCH_ENDPOINT=https://<service>.search.windows.net`
 - `AZURE_SEARCH_INDEX=bc-pilot-public` with metadata mode/review disabled, or the
   reviewed v2 triple described below
 
 Without the corresponding binding, factual AI requests return HTTP 503
-`FOUNDRY_NOT_CONFIGURED` (legacy/pathway) or `GENERAL_AGENT_NOT_CONFIGURED`;
+`FOUNDRY_NOT_CONFIGURED` (legacy/pathway), `GENERAL_AGENT_NOT_CONFIGURED`, or
+`CONTEXT_AGENT_NOT_CONFIGURED`;
 all catalogue and guided routes continue to work. Version-2 greeting, thanks and
 generic-help full matches produce application-authored dialogue without Search
 or model calls. A social prefix attached to a factual question never short-circuits.
@@ -125,10 +128,20 @@ using `AZURE_CLI_PROCESS_TIMEOUT_SECONDS`. Only the development credential-unava
 plus timeout exception chain becomes `LOCAL_CREDENTIAL_TIMEOUT`; provider bodies
 and token diagnostics are not returned.
 
-Each managed agent must have its exact scoped policy and function declarations
-from `agents.py`/`agent_policy.py`. All five can search approved sources and build
-preparation plans; health-coverage and primary-care do not receive office lookup.
-To export all five definitions without authentication or network requests:
+Each managed agent must have its exact scoped policy and function declarations.
+The seven pathway agents can search approved sources and build preparation plans;
+the separate contextual agent has only consented-context read, deterministic rule,
+review-only preview and source-retrieval tools. To export the pathway definitions
+without authentication or network requests:
+
+Contextual runs also use a separate value-free audit trail. Local preview keeps
+bounded events in process; shared deployments use the existing Redis control
+plane with the same ordering, idempotency and session-aligned expiry rules.
+`SYNTHETIC_CONTEXT_AUDIT_MAX_EVENTS` and
+`SYNTHETIC_CONTEXT_AUDIT_MAX_BYTES` bound each session. Audit records contain
+only opaque references, consent scopes, actor/tool names, pinned versions and
+outcomes; context values, preview values, prompts, tokens and downstream
+payloads are not stored.
 
 ```powershell
 apps\api\.venv\Scripts\python.exe -m bc_api.publish_agents --model-deployment <reviewed-deployment-name>
@@ -136,8 +149,9 @@ apps\api\.venv\Scripts\python.exe -m bc_api.publish_agents --model-deployment <r
 
 Add `--general-only` to export only the separate general definition. Its scoped
 publication emits `FOUNDRY_GENERAL_AGENT` rather than replacing `FOUNDRY_AGENTS`.
-The general instructions request a short, independently cited opening and reuse
-of prefetched evidence; the five existing version-1 policies are unchanged.
+Add `--contextual-only` to export the separate versioned contextual definition;
+it emits `FOUNDRY_CONTEXTUAL_AGENT`. Export is review-only unless the explicit
+`--publish --approved --project-endpoint` controls are also supplied.
 
 After the target, model, permissions and bundle are reviewed, adding `--publish
 --approved --project-endpoint <approved-project-endpoint>` creates immutable

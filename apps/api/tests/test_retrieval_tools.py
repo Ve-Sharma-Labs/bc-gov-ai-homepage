@@ -58,6 +58,33 @@ async def test_retrieval_uses_server_filters_and_full_citation_metadata(
     assert not client.options["logging_enable"]
 
 
+async def test_contextual_retrieval_accepts_only_explicit_reviewed_source_ids(
+    configured,
+    repository,
+    search_row,
+):
+    client = OfflineSearch([search_row])
+    retriever = AzureRetriever(configured, repository, client)
+    result = await retriever.retrieve(
+        "How do I prepare?",
+        source_ids=frozenset({"test-source"}),
+    )
+    assert result.evidence[0].reference.source_id == "test-source"
+    assert "sourceId eq 'test-source'" in client.options["filter"]
+    assert "journeyIds/any" not in client.options["filter"]
+    with pytest.raises(ApiError, match="INVALID_SOURCE_SCOPE"):
+        await retriever.retrieve(
+            "How do I prepare?",
+            source_ids=frozenset({"unreviewed-source"}),
+        )
+    with pytest.raises(ApiError, match="INVALID_SOURCE_SCOPE"):
+        await retriever.retrieve(
+            "How do I prepare?",
+            "licence-renewal",
+            source_ids=frozenset({"test-source"}),
+        )
+
+
 async def test_retrieval_diversifies_documents_before_repeating_chunks(
     configured, repository, search_row
 ):

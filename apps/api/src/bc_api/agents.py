@@ -5,6 +5,8 @@ from ag_ui.core import RunAgentInput
 from bc_api.agent_policy import GENERAL_INSTRUCTIONS, instructions_for
 from bc_api.catalog import CatalogRepository
 from bc_api.config import Settings
+from bc_api.context_agent_policy import CONTEXTUAL_INSTRUCTIONS
+from bc_api.context_tools import create_context_tools, schema_context
 from bc_api.errors import ApiError
 from bc_api.input import parse_options
 from bc_api.models import JOURNEY_IDS, AgentBinding
@@ -26,8 +28,20 @@ def bindings_for(settings: Settings) -> list[AgentBinding]:
     return []
 
 
-def route_journey(request: RunAgentInput) -> str | None:
+def route_journey(
+    request: RunAgentInput,
+    *,
+    contextual_enabled: bool = False,
+) -> str | None:
     options = parse_options(request.forwarded_props)
+    if options.version == 3:
+        if not contextual_enabled:
+            raise ApiError(
+                503,
+                "CONTEXTUAL_DEMO_UNAVAILABLE",
+                "Synthetic citizen context is not enabled in this release.",
+            )
+        return None
     if options.version == 2:
         return options.journey_id
     matches = journey_matches(request.messages[-1].content)
@@ -51,7 +65,17 @@ def route_journey(request: RunAgentInput) -> str | None:
 
 
 def binding_for_request(settings: Settings, request: RunAgentInput) -> AgentBinding:
-    if parse_options(request.forwarded_props).mode == "general":
+    mode = parse_options(request.forwarded_props).mode
+    if mode == "contextual-demo":
+        if settings.contextual_agent_configured:
+            assert settings.foundry_contextual_agent is not None
+            return settings.foundry_contextual_agent
+        raise ApiError(
+            503,
+            "CONTEXT_AGENT_NOT_CONFIGURED",
+            "The synthetic contextual assistant is not connected.",
+        )
+    if mode == "general":
         if settings.general_agent_configured:
             assert settings.foundry_general_agent is not None
             return settings.foundry_general_agent
@@ -114,5 +138,30 @@ def general_agent_definition(
             "model": model_deployment,
             "instructions": GENERAL_INSTRUCTIONS,
             "tools": function_declarations(create_tools(context)),
+        },
+    }
+
+
+def contextual_agent_definition(
+    catalog: CatalogRepository,
+    *,
+    prefix: str,
+    model_deployment: str,
+) -> dict:
+    binding = AgentBinding(
+        name=f"{prefix}-contextual-demo",
+        version="1",
+        model_deployment=model_deployment,
+    )
+    tools = create_context_tools(schema_context(catalog))
+    return {
+        "journeyId": None,
+        "mode": "contextual-demo",
+        "name": binding.name,
+        "definition": {
+            "kind": "prompt",
+            "model": model_deployment,
+            "instructions": CONTEXTUAL_INSTRUCTIONS,
+            "tools": function_declarations(tools),
         },
     }

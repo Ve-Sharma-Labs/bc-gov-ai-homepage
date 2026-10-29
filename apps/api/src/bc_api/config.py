@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     foundry_agent_version: str = ""
     foundry_agents: list[AgentBinding] = Field(default_factory=list, max_length=7)
     foundry_general_agent: AgentBinding | None = None
+    foundry_contextual_agent: AgentBinding | None = None
     azure_client_id: str | None = None
     azure_search_endpoint: str = ""
     azure_search_index: str = ""
@@ -60,6 +61,11 @@ class Settings(BaseSettings):
     api_upstream_timeout_seconds: float = Field(default=15, ge=1, le=30)
     azure_cli_process_timeout_seconds: int = Field(default=15, ge=5, le=30)
     api_max_sessions: int = Field(default=1000, ge=1, le=10000)
+    synthetic_context_enabled: bool = False
+    synthetic_context_session_ttl_seconds: int = Field(default=1800, ge=60, le=3600)
+    synthetic_context_consent_ttl_seconds: int = Field(default=900, ge=60, le=1800)
+    synthetic_context_audit_max_events: int = Field(default=100, ge=1, le=100)
+    synthetic_context_audit_max_bytes: int = Field(default=65536, ge=512, le=262144)
     redis_endpoint: str = ""
     redis_client_id: str | None = None
     api_control_namespace: str = Field(default="bc-pilot", pattern=r"^[a-z0-9-]{1,48}$")
@@ -107,6 +113,24 @@ class Settings(BaseSettings):
                     "FOUNDRY_GENERAL_AGENT must pin a distinct general agent and model "
                     "deployment without a journey scope."
                 )
+        if self.foundry_contextual_agent is not None:
+            contextual = self.foundry_contextual_agent
+            reserved_names = {binding.name for binding in self.foundry_agents} | (
+                {self.foundry_general_agent.name}
+                if self.foundry_general_agent is not None
+                else set()
+            )
+            if self.foundry_agent_name:
+                reserved_names.add(self.foundry_agent_name)
+            if (
+                contextual.journey_id is not None
+                or not contextual.model_deployment
+                or contextual.name in reserved_names
+            ):
+                raise ValueError(
+                    "FOUNDRY_CONTEXTUAL_AGENT must pin a distinct contextual-demo agent "
+                    "and model deployment without a journey scope."
+                )
         return self
 
     @model_validator(mode="after")
@@ -129,6 +153,12 @@ class Settings(BaseSettings):
                 "The metadata-aware index, metadata mode and reviewed-schema flag "
                 "must be enabled together."
             )
+        return self
+
+    @model_validator(mode="after")
+    def bounded_synthetic_context(self) -> Self:
+        if self.synthetic_context_consent_ttl_seconds > self.synthetic_context_session_ttl_seconds:
+            raise ValueError("Synthetic context consent cannot outlive its server-owned session.")
         return self
 
     @field_validator("foundry_project_endpoint")
@@ -220,6 +250,15 @@ class Settings(BaseSettings):
     @property
     def general_agent_configured(self) -> bool:
         return bool(self.foundry_project_endpoint and self.foundry_general_agent)
+
+    @property
+    def contextual_agent_configured(self) -> bool:
+        return bool(
+            self.synthetic_context_enabled
+            and self.foundry_project_endpoint
+            and self.foundry_contextual_agent
+            and self.search_configured
+        )
 
     @property
     def search_configured(self) -> bool:

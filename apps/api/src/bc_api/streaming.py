@@ -3,7 +3,7 @@ import contextlib
 import inspect
 import logging
 import time
-from collections.abc import AsyncGenerator, Iterator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 
 from ag_ui.core import (
     BaseEvent,
@@ -23,6 +23,13 @@ from starlette.types import Receive, Scope, Send
 
 from bc_api.catalog import CatalogRepository
 from bc_api.config import Settings
+from bc_api.context_tools import (
+    CONTEXT_TOOL_NAMES,
+    ContextAgentService,
+    ContextRunPlan,
+    ContextRunTracker,
+    ContextToolContext,
+)
 from bc_api.dialogue import ApplicationReply
 from bc_api.errors import ApiError
 from bc_api.foundry import FoundryRuntime, local_credential_timeout_error
@@ -32,11 +39,17 @@ from bc_api.protocol import TOOL_PHASES, progress_event, response_context_event
 from bc_api.retrieval import EvidenceLedger
 from bc_api.security import Run
 from bc_api.telemetry import Telemetry
-from bc_api.tools import ToolContext
+from bc_api.tools import TOOL_NAMES, ToolContext
 
 
 class RunStreamingResponse(StreamingResponse):
-    def __init__(self, events: AsyncGenerator[str], run: Run):
+    def __init__(
+        self,
+        events: AsyncGenerator[str],
+        run: Run,
+        *,
+        audit_finalize: Callable[[str, str | None], Awaitable[None]] | None = None,
+    ):
         super().__init__(
             events,
             media_type="text/event-stream",
@@ -44,6 +57,7 @@ class RunStreamingResponse(StreamingResponse):
         )
         self.events = events
         self.run = run
+        self.audit_finalize = audit_finalize
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         try:
@@ -68,6 +82,20 @@ class RunStreamingResponse(StreamingResponse):
                             logging.getLogger("bc_api.controls").warning(
                                 "Response cleanup failed: %s", exc.code
                             )
+                if self.audit_finalize is not None:
+                    try:
+                        await self.audit_finalize(
+                            self.run.status,
+                            "CANCELLED"
+                            if self.run.status == "cancelled"
+                            else "STREAM_CLOSED"
+                            if self.run.status != "finished"
+                            else None,
+                        )
+                    except ApiError as exc:
+                        logging.getLogger("bc_api.context_audit").warning(
+                            "Response audit cleanup failed: %s", exc.code
+                        )
 
 
 async def stream_run(
@@ -79,16 +107,37 @@ async def stream_run(
     *,
     telemetry: Telemetry | None = None,
     reply: ApplicationReply | None = None,
+    context_plan: ContextRunPlan | None = None,
+    context_agent: ContextAgentService | None = None,
+    context_tracker: ContextRunTracker | None = None,
 ) -> AsyncGenerator[str]:
     encoder = EventEncoder(accept="text/event-stream")
-    context = ToolContext(catalog, EvidenceLedger())
+    context = (
+        ContextToolContext(
+            catalog,
+            EvidenceLedger(),
+            coordinator=context_agent,
+            authorization=context_plan.authorization,
+        )
+        if context_plan is not None
+        else ToolContext(catalog, EvidenceLedger())
+    )
     options = parse_options(request.forwarded_props)
-    gate = OutputGate(catalog, context.ledger, allow_clarification=options.mode == "general")
+    gate = OutputGate(
+        catalog,
+        context.ledger,
+        allow_clarification=options.mode == "general",
+        tool_names=CONTEXT_TOOL_NAMES if context_plan is not None else TOOL_NAMES,
+        context_artifacts=context_plan.artifacts if context_plan is not None else (),
+    )
+    if context_plan is not None and context_tracker is not None:
+        context_tracker.track(context_plan.authorization.session_ref, run)
     queue: asyncio.Queue[BaseEvent | ApplicationReply | Exception | None] = asyncio.Queue(
         maxsize=16
     )
     response_sent = False
     application_replied = False
+    terminal_error_code: str | None = None
 
     def present(events: list[BaseEvent]) -> Iterator[BaseEvent]:
         nonlocal response_sent
@@ -100,7 +149,7 @@ async def stream_run(
                 response_sent = True
                 run.response_kind = gate.response_kind
                 run.response_origin = "model"
-                if options.version == 2:
+                if options.version in (2, 3):
                     yield response_context_event(gate.response_kind, "model")
             if validated.type == "TEXT_MESSAGE_CONTENT":
                 now = time.monotonic()
@@ -123,7 +172,12 @@ async def stream_run(
                 )
                 await queue.put(None)
                 return
-            async with contextlib.aclosing(runtime.events(request, context)) as source:
+            events = (
+                runtime.events(request, context)
+                if context_plan is None
+                else runtime.events(request, context, context_plan=context_plan)
+            )
+            async with contextlib.aclosing(events) as source:
                 async for event in source:
                     await queue.put(event)
         except asyncio.CancelledError:
@@ -209,8 +263,7 @@ async def stream_run(
             elif kind == "RUN_FINISHED":
                 if context.failure is not None:
                     raise context.failure
-                for validated in present([] if application_replied else gate.finish()):
-                    yield encoder.encode(validated)
+                validated_events = [] if application_replied else gate.finish()
                 if context.model_work_started is False:
                     run.usage_tokens = 0
                 if run.finish is not None:
@@ -221,6 +274,19 @@ async def stream_run(
                     if status != "finished":
                         raise ApiError(499, "CANCELLED", "The response was stopped.")
                 run.status = "finished"
+                audit_event = None
+                if context_plan is not None:
+                    if context_agent is None:
+                        raise ApiError(
+                            503,
+                            "AUDIT_UNAVAILABLE",
+                            "The value-free context audit receipt is unavailable.",
+                        )
+                    audit_event = await context_agent.complete_run(context_plan, "finished")
+                for validated in present(validated_events):
+                    yield encoder.encode(validated)
+                if audit_event is not None:
+                    yield encoder.encode(audit_event)
                 yield encoder.encode(event)
                 return
             else:
@@ -235,9 +301,11 @@ async def stream_run(
                         run.usage_tokens = (run.usage_tokens or 0) + total
                     else:
                         run.usage_valid = False
-                for validated in present(gate.flush_sections()):
+                ready = [] if context_plan is not None else gate.flush_sections()
+                for validated in present(ready):
                     yield encoder.encode(validated)
     except ApiError as exc:
+        terminal_error_code = exc.code
         if (
             exc.code == "CRITICAL_CLAIM_UNVERIFIED"
             and response_sent
@@ -253,9 +321,7 @@ async def stream_run(
             for message_id in sorted(gate.started):
                 yield encoder.encode(TextMessageEndEvent(message_id=message_id))
             if run.finish is not None:
-                status = await run.finish(
-                    "finished", run.usage_tokens if run.usage_valid else None
-                )
+                status = await run.finish("finished", run.usage_tokens if run.usage_valid else None)
                 run.finalized = True
                 if status != "finished":
                     run.status = "cancelled"
@@ -271,6 +337,7 @@ async def stream_run(
         run.status = "cancelled" if exc.code == "CANCELLED" else "failed"
         yield encoder.encode(RunErrorEvent(code=exc.code, message=exc.message))
     except asyncio.CancelledError:
+        terminal_error_code = "CANCELLED"
         run.cancellation.set()
         run.status = "cancelled"
         raise
@@ -278,7 +345,9 @@ async def stream_run(
         run.status = "failed"
         runtime.ready_until = 0
         runtime.general_ready_until = 0
+        runtime.contextual_ready_until = 0
         mapped = local_credential_timeout_error(settings, exc)
+        terminal_error_code = mapped.code if mapped else "AGENT_UNAVAILABLE"
         yield encoder.encode(
             RunErrorEvent(
                 code=mapped.code if mapped else "AGENT_UNAVAILABLE",
@@ -327,3 +396,16 @@ async def stream_run(
             run.phase_times.update(context.phase_times)
             if telemetry is not None:
                 telemetry.finish(run)
+            if context_plan is not None and context_agent is not None:
+                try:
+                    await context_agent.record_terminal(
+                        context_plan,
+                        run.status,
+                        terminal_error_code,
+                    )
+                except ApiError as exc:
+                    logging.getLogger("bc_api.context_audit").warning(
+                        "Run audit cleanup failed: %s", exc.code
+                    )
+            if context_plan is not None and context_tracker is not None:
+                context_tracker.untrack(context_plan.authorization.session_ref, run.run_id)

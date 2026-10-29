@@ -85,7 +85,6 @@ class Telemetry:
             "status": run.status,
             "durationMs": round(duration),
             "firstValidatedContentMs": round(first) if first is not None else None,
-            "tokens": run.usage_tokens if run.usage_valid else None,
             "responseKind": run.response_kind,
             "responseOrigin": run.response_origin,
             "firstResponseMs": (

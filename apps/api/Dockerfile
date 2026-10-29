@@ -14,6 +14,8 @@ RUN --mount=type=secret,id=pip_config,target=/etc/pip.conf \
     && groupadd --gid 10001 app \
     && useradd --uid 10001 --gid 10001 --no-create-home app
 COPY data/pilot-catalog.json /app/data/pilot-catalog.json
+COPY data/demo-personas.json /app/data/demo-personas.json
+COPY data/demo-program-rules.json /app/data/demo-program-rules.json
 USER 10001:10001
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

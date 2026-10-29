@@ -5,7 +5,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -14,14 +14,43 @@ from starlette.exceptions import HTTPException
 from bc_api.agents import binding_for_request, route_journey
 from bc_api.catalog import CatalogRepository
 from bc_api.config import Settings
+from bc_api.context_audit import (
+    ContextAuditTrail,
+    InMemoryContextAuditRepository,
+    RedisContextAuditRepository,
+)
+from bc_api.context_sessions import (
+    CONTEXT_COOKIE,
+    CONTEXT_PAGE_HEADER,
+    InMemoryContextSessionRepository,
+    RedisContextSessionRepository,
+)
+from bc_api.context_tools import ContextAgentService, ContextRunPlan, ContextRunTracker
 from bc_api.controls import SharedControls
+from bc_api.demo_personas import DemoPersonaRepository
 from bc_api.dialogue import dialogue_reply
 from bc_api.errors import ApiError, unavailable
 from bc_api.foundry import FoundryRuntime, configure_safe_logging
 from bc_api.input import RUN_ID, parse_options, validate_run
-from bc_api.models import Capabilities, Catalog, Journey, LocationsResponse
+from bc_api.models import (
+    Capabilities,
+    Catalog,
+    ConsentReceipt,
+    ContextSummary,
+    DemoPersonaSummary,
+    Journey,
+    LocationsResponse,
+)
 from bc_api.security import PreviewControls, RunRegistry, SecurityMiddleware
 from bc_api.streaming import RunStreamingResponse, stream_run
+from bc_api.synthetic_context import (
+    ConsentChangeRequest,
+    DemoSessionRequest,
+    DemoSessionResponse,
+    SyntheticContextService,
+    clear_context_cookie,
+    set_context_cookie,
+)
 from bc_api.telemetry import Telemetry
 
 
@@ -30,19 +59,57 @@ def create_app(
     *,
     runtime: FoundryRuntime | None = None,
     control_store: SharedControls | None = None,
+    context_service: SyntheticContextService | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     configure_safe_logging()
     catalog = CatalogRepository(settings.catalog_path)
-    runtime = runtime or FoundryRuntime(settings, catalog)
     controls = PreviewControls(settings)
     runs = RunRegistry(settings)
     shared = control_store or (SharedControls(settings) if settings.redis_endpoint else None)
+    if context_service is None:
+        context_sessions = (
+            RedisContextSessionRepository(
+                shared.client,
+                shared.prefix,
+                settings.api_max_sessions,
+            )
+            if shared is not None
+            else InMemoryContextSessionRepository(settings.api_max_sessions)
+        )
+        context_audit = ContextAuditTrail(
+            RedisContextAuditRepository(
+                shared.client,
+                shared.prefix,
+                settings.synthetic_context_audit_max_events,
+                settings.synthetic_context_audit_max_bytes,
+            )
+            if shared is not None
+            else InMemoryContextAuditRepository(
+                settings.synthetic_context_audit_max_events,
+                settings.synthetic_context_audit_max_bytes,
+            )
+        )
+        context_service = SyntheticContextService(
+            settings,
+            DemoPersonaRepository(),
+            context_sessions,
+            audit=context_audit,
+        )
+    context_tracker = ContextRunTracker(context_service.invalidation_hook)
+    context_service.invalidation_hook = context_tracker
+    context_agent = ContextAgentService(catalog, context_service)
+    runtime = runtime or FoundryRuntime(settings, catalog)
+    runtime.context_agent = context_agent
     telemetry = Telemetry(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        warmup = asyncio.create_task(runtime.warm()) if settings.general_agent_configured else None
+        warmup = (
+            asyncio.create_task(runtime.warm())
+            if settings.general_agent_configured or settings.contextual_agent_configured
+            else None
+        )
         try:
             yield
         finally:
@@ -68,22 +135,22 @@ def create_app(
     app.state.runtime = runtime
     app.state.runs = runs
     app.state.controls = controls
+    app.state.context_service = context_service
+    app.state.context_audit = context_service.audit
+    app.state.context_agent = context_agent
+    app.state.context_tracker = context_tracker
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.origins),
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "Accept"],
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Content-Type", "Accept", CONTEXT_PAGE_HEADER],
         allow_credentials=True,
     )
     app.add_middleware(SecurityMiddleware, settings=settings, controls=controls, shared=shared)
 
     @app.exception_handler(ApiError)
     async def api_error(request: Request, exc: ApiError):
-        headers = (
-            {"Retry-After": str(exc.retry_after or 60)}
-            if exc.status == 429
-            else {}
-        )
+        headers = {"Retry-After": str(exc.retry_after or 60)} if exc.status == 429 else {}
         return JSONResponse(exc.payload(), status_code=exc.status, headers=headers)
 
     @app.exception_handler(RequestValidationError)
@@ -140,19 +207,36 @@ def create_app(
     @app.get("/api/capabilities", response_model=Capabilities)
     async def get_capabilities() -> Capabilities:
         catalog.get()
+        labels = ["pathways"]
         checks = [runtime.ensure_ready()]
         if settings.general_agent_configured:
-            checks.extend([runtime.ensure_general_ready(), runtime.ensure_sources_ready()])
+            labels.append("general")
+            checks.append(runtime.ensure_general_ready())
+        if settings.contextual_agent_configured:
+            labels.append("contextual")
+            checks.append(runtime.ensure_contextual_ready())
+        if settings.general_agent_configured or settings.contextual_agent_configured:
+            labels.append("sources")
+            checks.append(runtime.ensure_sources_ready())
         results = await asyncio.gather(*checks, return_exceptions=True)
         for result in results:
             if isinstance(result, BaseException) and not isinstance(result, ApiError):
                 raise result
-        pathways_ready = not isinstance(results[0], ApiError)
-        general_ready = settings.general_agent_configured and not isinstance(results[1], ApiError)
-        sources_ready = pathways_ready or (
-            settings.general_agent_configured and not isinstance(results[2], ApiError)
+        outcomes = dict(zip(labels, results, strict=True))
+        pathways_ready = not isinstance(outcomes["pathways"], ApiError)
+        general_ready = settings.general_agent_configured and not isinstance(
+            outcomes.get("general"), ApiError
         )
-        connected = pathways_ready or general_ready
+        sources_ready = pathways_ready or (
+            (settings.general_agent_configured or settings.contextual_agent_configured)
+            and not isinstance(outcomes.get("sources"), ApiError)
+        )
+        contextual_ready = (
+            settings.contextual_agent_configured
+            and not isinstance(outcomes.get("contextual"), ApiError)
+            and sources_ready
+        )
+        connected = pathways_ready or general_ready or contextual_ready
         return Capabilities(
             mode="foundry" if connected else "guided",
             ai_configured=connected,
@@ -160,12 +244,79 @@ def create_app(
             retrieval_ready=sources_ready,
             message=(
                 "Verified Foundry chat is connected. Answers require available reviewed evidence. "
-                "Guided pathways are optional; live web research and transactions are disabled."
+                "Guided pathways and synthetic context remain separately scoped; "
+                "live web research and transactions are disabled."
                 if connected
                 else "Curated guided plans are available. AI answers are not connected. "
                 "Live web research and transactions are disabled."
             ),
             journeys=runtime.journey_availability() if connected else {},
+            synthetic_context_available=context_service.available(),
+        )
+
+    def reject_context_query(request: Request) -> None:
+        if request.query_params:
+            raise ApiError(
+                422,
+                "INVALID_REQUEST",
+                "Synthetic context routes do not accept query parameters.",
+            )
+
+    @app.get("/api/demo/personas", response_model=list[DemoPersonaSummary])
+    async def get_demo_personas(request: Request) -> list[DemoPersonaSummary]:
+        reject_context_query(request)
+        return context_service.public_personas()
+
+    @app.post(
+        "/api/demo/session",
+        response_model=DemoSessionResponse,
+        status_code=201,
+    )
+    async def create_demo_session(
+        data: DemoSessionRequest,
+        request: Request,
+        response: Response,
+    ) -> DemoSessionResponse:
+        reject_context_query(request)
+        result, token = await context_service.create_session(
+            request.state.session.token,
+            request.headers.get(CONTEXT_PAGE_HEADER),
+            request.cookies.get(CONTEXT_COOKIE),
+            data.persona_id,
+        )
+        set_context_cookie(response, token, settings)
+        return result
+
+    @app.delete("/api/demo/session", status_code=204)
+    async def delete_demo_session(request: Request, response: Response) -> None:
+        reject_context_query(request)
+        await context_service.clear_session(
+            request.state.session.token,
+            request.headers.get(CONTEXT_PAGE_HEADER),
+            request.cookies.get(CONTEXT_COOKIE),
+        )
+        clear_context_cookie(response, settings)
+
+    @app.post("/api/context/consents", response_model=ConsentReceipt)
+    async def change_context_consent(
+        data: ConsentChangeRequest,
+        request: Request,
+    ) -> ConsentReceipt:
+        reject_context_query(request)
+        return await context_service.change_consent(
+            request.state.session.token,
+            request.headers.get(CONTEXT_PAGE_HEADER),
+            request.cookies.get(CONTEXT_COOKIE),
+            data,
+        )
+
+    @app.get("/api/context/summary", response_model=ContextSummary)
+    async def get_context_summary(request: Request) -> ContextSummary:
+        reject_context_query(request)
+        return await context_service.summary(
+            request.state.session.token,
+            request.headers.get(CONTEXT_PAGE_HEADER),
+            request.cookies.get(CONTEXT_COOKIE),
         )
 
     @app.post("/api/agent")
@@ -179,6 +330,14 @@ def create_app(
             raise ApiError(422, "INVALID_JSON", "The request is not valid JSON.") from None
         data = validate_run(raw, settings)
         options = parse_options(data.forwarded_props)
+        context_plan: ContextRunPlan | None = None
+        if options.mode == "contextual-demo":
+            context_plan = await context_agent.authorize(
+                request.state.session.token,
+                request.headers.get(CONTEXT_PAGE_HEADER),
+                request.cookies.get(CONTEXT_COOKIE),
+                run_id=data.run_id,
+            )
         if options.research_requested:
             raise ApiError(
                 503,
@@ -187,10 +346,17 @@ def create_app(
                 "Use the approved sources or official service.",
             )
         reply = dialogue_reply(data.messages[-1].content) if options.version == 2 else None
-        if reply is None and options.mode != "general" and not settings.foundry_configured:
+        if (
+            reply is None
+            and options.mode not in ("general", "contextual-demo")
+            and not settings.foundry_configured
+        ):
             raise unavailable()
         catalog.get()
-        journey_id = route_journey(data)
+        journey_id = route_journey(
+            data,
+            contextual_enabled=context_plan is not None,
+        )
         if reply is None:
             binding_for_request(settings, data)
         if shared is not None:
@@ -203,6 +369,8 @@ def create_app(
             runs.runs[run.run_id] = run
         else:
             run = runs.reserve(data.run_id, data.thread_id, request.state.session.token)
+        if context_plan is not None:
+            run.trace_ref = context_plan.authorization.trace_ref
         run.created = dispatched_at
         run.phase_times["admitted"] = time.monotonic()
         try:
@@ -233,8 +401,30 @@ def create_app(
                     )
             raise
         return RunStreamingResponse(
-            stream_run(data, run, runtime, catalog, settings, telemetry=telemetry, reply=reply),
+            stream_run(
+                data,
+                run,
+                runtime,
+                catalog,
+                settings,
+                telemetry=telemetry,
+                reply=reply,
+                context_plan=context_plan,
+                context_agent=context_agent,
+                context_tracker=context_tracker,
+            ),
             run,
+            audit_finalize=(
+                (
+                    lambda status, error_code: context_agent.record_terminal(
+                        context_plan,
+                        status,
+                        error_code,
+                    )
+                )
+                if context_plan is not None
+                else None
+            ),
         )
 
     @app.post("/api/runs/{run_id}/cancel")

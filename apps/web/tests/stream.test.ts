@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BaseEvent } from "@ag-ui/core";
 import { historyForAgent, initialStreamState, needsSources, streamReducer, type StreamState } from "@/lib/stream";
+import { contextArtifactsFixture } from "./fixtures";
 
 const start = () => streamReducer(initialStreamState, { type: "start", runId: "run-1", messageId: "user-1", prompt: "My question" });
 const event = (state: StreamState, data: Record<string, unknown>) => streamReducer(state, { type: "event", runId: "run-1", event: data as unknown as BaseEvent });
@@ -211,5 +212,95 @@ describe("AG-UI presentation reducer", () => {
     const state = event(text(), { type: "CUSTOM", name: "bc.artifact", value: { version: 1, id: "unsafe", kind: "html", html: "<script>bad</script>" } });
     expect(state.status).toBe("error");
     expect(JSON.stringify(state)).not.toContain("<script>");
+  });
+
+  it("accepts only validated context artifacts during an explicit contextual run", () => {
+    let state = streamReducer(initialStreamState, {
+      type: "start",
+      runId: "run-context",
+      messageId: "user-context",
+      prompt: "Contextual question",
+      mode: "contextual-demo",
+    });
+    for (const artifact of contextArtifactsFixture) {
+      state = streamReducer(state, {
+        type: "event",
+        runId: "run-context",
+        event: { type: "CUSTOM", name: "bc.artifact", value: artifact } as unknown as BaseEvent,
+      });
+    }
+    expect(state.artifacts["run-context"]).toEqual(contextArtifactsFixture);
+
+    let reordered = streamReducer(initialStreamState, {
+      type: "start",
+      runId: "run-context",
+      messageId: "user-context",
+      prompt: "Contextual question",
+      mode: "contextual-demo",
+    });
+    reordered = streamReducer(reordered, {
+      type: "event",
+      runId: "run-context",
+      event: {
+        type: "CUSTOM",
+        name: "bc.artifact",
+        value: contextArtifactsFixture[1],
+      } as unknown as BaseEvent,
+    });
+    expect(reordered.status).toBe("error");
+    expect(reordered.artifacts).toEqual({});
+
+    let duplicate = streamReducer(initialStreamState, {
+      type: "start",
+      runId: "run-context",
+      messageId: "user-context",
+      prompt: "Contextual question",
+      mode: "contextual-demo",
+    });
+    for (const artifact of [
+      contextArtifactsFixture[0],
+      contextArtifactsFixture[0],
+    ]) {
+      duplicate = streamReducer(duplicate, {
+        type: "event",
+        runId: "run-context",
+        event: {
+          type: "CUSTOM",
+          name: "bc.artifact",
+          value: artifact,
+        } as unknown as BaseEvent,
+      });
+    }
+    expect(duplicate.status).toBe("error");
+
+    const anonymous = event(start(), {
+      type: "CUSTOM",
+      name: "bc.artifact",
+      value: contextArtifactsFixture[0],
+    });
+    expect(anonymous.status).toBe("error");
+    expect(anonymous.artifacts).toEqual({});
+  });
+
+  it("clears contextual conversation and artifacts without removing anonymous turns", () => {
+    let state = event(text(), { type: "RUN_FINISHED" });
+    state = streamReducer(state, {
+      type: "start",
+      runId: "run-context",
+      messageId: "user-context",
+      prompt: "Contextual question",
+      mode: "contextual-demo",
+    });
+    state = streamReducer(state, {
+      type: "event",
+      runId: "run-context",
+      event: { type: "CUSTOM", name: "bc.artifact", value: contextArtifactsFixture[0] } as unknown as BaseEvent,
+    });
+    const cleared = streamReducer(state, { type: "clear-context" });
+    expect(cleared.messages.map((message) => message.content)).toEqual(["My question", "A sourced answer."]);
+    expect(cleared.messages.every((message) => message.mode === "general")).toBe(true);
+    expect(cleared.artifacts["run-context"]).toBeUndefined();
+    expect(historyForAgent(cleared.messages, "contextual-demo")).toEqual([]);
+    expect(historyForAgent(cleared.messages, "general")).toHaveLength(1);
   });
 });

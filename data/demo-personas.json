@@ -1,0 +1,557 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "citizen-context-demo-v1",
+  "synthetic": true,
+  "notice": "Synthetic demo fixture. No real government records or personal data are used.",
+  "fixtureProvenance": {
+    "origin": "hand-authored-fictional-fixture",
+    "productionDataUsed": false,
+    "intendedUse": "Public demonstration of consented service navigation, not eligibility or submission.",
+    "reviewedAt": "2026-10-28T00:00:00Z"
+  },
+  "personas": [
+    {
+      "id": "maya-caregiver",
+      "displayName": "Maya",
+      "publicSummary": "A fictional B.C. resident caring for an older parent and exploring an adult-guardianship information pathway.",
+      "categoryFacts": [
+        {
+          "category": "identity-residency",
+          "facts": [
+            {
+              "key": "identity.is-adult",
+              "value": true,
+              "category": "identity-residency",
+              "source": "synthetic-demo-identity-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "personal",
+              "consentScope": "identity.read",
+              "mutableByCitizen": false
+            },
+            {
+              "key": "residency.bc-status",
+              "value": "resident",
+              "category": "identity-residency",
+              "source": "synthetic-demo-identity-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-a",
+              "consentScope": "identity.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": []
+        },
+        {
+          "category": "household-dependants",
+          "facts": [
+            {
+              "key": "household.relationship-to-care-recipient",
+              "value": "adult-child",
+              "category": "household-dependants",
+              "source": "synthetic-demo-household-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-a",
+              "consentScope": "household.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "household.shared-residence"
+          ]
+        },
+        {
+          "category": "employment-income",
+          "facts": [],
+          "missingFactKeys": [
+            "income.legal-support-needs"
+          ]
+        },
+        {
+          "category": "disability-caregiving",
+          "facts": [
+            {
+              "key": "caregiving.care-recipient-age-years",
+              "value": 79,
+              "category": "disability-caregiving",
+              "source": "synthetic-demo-care-support-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "disability-caregiving.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "caregiving.care-recipient-bc-resident",
+              "value": true,
+              "category": "disability-caregiving",
+              "source": "synthetic-demo-care-support-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-a",
+              "consentScope": "disability-caregiving.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "caregiving.cognitive-impairment-recorded",
+              "value": true,
+              "category": "disability-caregiving",
+              "source": "synthetic-demo-care-support-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "disability-caregiving.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "caregiving.immediate-safety-event",
+              "value": false,
+              "category": "disability-caregiving",
+              "source": "synthetic-demo-care-support-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "disability-caregiving.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "caregiving.capacity-assessment-status"
+          ]
+        },
+        {
+          "category": "existing-programs",
+          "facts": [
+            {
+              "key": "authority.power-of-attorney-recorded",
+              "value": false,
+              "category": "existing-programs",
+              "source": "synthetic-demo-program-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "existing-programs.read",
+              "mutableByCitizen": false
+            },
+            {
+              "key": "authority.representation-agreement-recorded",
+              "value": false,
+              "category": "existing-programs",
+              "source": "synthetic-demo-program-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "existing-programs.read",
+              "mutableByCitizen": false
+            }
+          ],
+          "missingFactKeys": [
+            "authority.other-legal-orders"
+          ]
+        },
+        {
+          "category": "region-preferences",
+          "facts": [
+            {
+              "key": "preferences.output-format",
+              "value": "plain-language-checklist",
+              "category": "region-preferences",
+              "source": "synthetic-demo-service-preferences",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "personal",
+              "consentScope": "region-preferences.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "region.service-area",
+              "value": "Victoria service region",
+              "category": "region-preferences",
+              "source": "synthetic-demo-service-preferences",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "personal",
+              "consentScope": "region-preferences.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "preferences.communication-support"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "alex-disability-support",
+      "displayName": "Alex",
+      "publicSummary": "A fictional B.C. resident exploring disability-support, mobility, and application-preparation pathways.",
+      "categoryFacts": [
+        {
+          "category": "identity-residency",
+          "facts": [
+            {
+              "key": "identity.is-adult",
+              "value": true,
+              "category": "identity-residency",
+              "source": "synthetic-demo-identity-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "personal",
+              "consentScope": "identity.read",
+              "mutableByCitizen": false
+            },
+            {
+              "key": "residency.bc-status",
+              "value": "resident",
+              "category": "identity-residency",
+              "source": "synthetic-demo-identity-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-a",
+              "consentScope": "identity.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": []
+        },
+        {
+          "category": "household-dependants",
+          "facts": [
+            {
+              "key": "household.dependant-count",
+              "value": 0,
+              "category": "household-dependants",
+              "source": "synthetic-demo-household-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-a",
+              "consentScope": "household.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "household.living-arrangement",
+              "value": "one-adult-household",
+              "category": "household-dependants",
+              "source": "synthetic-demo-household-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-a",
+              "consentScope": "household.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "household.dependant-care-costs"
+          ]
+        },
+        {
+          "category": "employment-income",
+          "facts": [
+            {
+              "key": "employment.status",
+              "value": "part-time",
+              "category": "employment-income",
+              "source": "synthetic-demo-employment-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "employment.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "income.current-band",
+              "value": "low-to-moderate",
+              "category": "employment-income",
+              "source": "synthetic-demo-employment-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "employment.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "income.liquid-assets-band"
+          ]
+        },
+        {
+          "category": "disability-caregiving",
+          "facts": [
+            {
+              "key": "disability.duration-band",
+              "value": "long-term",
+              "category": "disability-caregiving",
+              "source": "synthetic-demo-care-support-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "disability-caregiving.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "disability.functional-capacity",
+              "value": "reduced",
+              "category": "disability-caregiving",
+              "source": "synthetic-demo-care-support-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "disability-caregiving.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "disability.mobility-support-needed",
+              "value": true,
+              "category": "disability-caregiving",
+              "source": "synthetic-demo-care-support-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "disability-caregiving.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "disability.practitioner-access",
+              "value": true,
+              "category": "disability-caregiving",
+              "source": "synthetic-demo-care-support-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "disability-caregiving.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "disability.practitioner-section-completed"
+          ]
+        },
+        {
+          "category": "existing-programs",
+          "facts": [
+            {
+              "key": "programs.provincial-disability-assistance",
+              "value": "not-receiving",
+              "category": "existing-programs",
+              "source": "synthetic-demo-program-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "existing-programs.read",
+              "mutableByCitizen": false
+            }
+          ],
+          "missingFactKeys": [
+            "applications.disability-designation-status"
+          ]
+        },
+        {
+          "category": "region-preferences",
+          "facts": [
+            {
+              "key": "preferences.accessible-transit-needed",
+              "value": true,
+              "category": "region-preferences",
+              "source": "synthetic-demo-service-preferences",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "personal",
+              "consentScope": "region-preferences.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "preferences.service-channel",
+              "value": "online-with-assisted-option",
+              "category": "region-preferences",
+              "source": "synthetic-demo-service-preferences",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "personal",
+              "consentScope": "region-preferences.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "region.service-area"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sam-job-loss",
+      "displayName": "Sam",
+      "publicSummary": "A fictional B.C. resident navigating a recent job loss, reduced household income, and service options.",
+      "categoryFacts": [
+        {
+          "category": "identity-residency",
+          "facts": [
+            {
+              "key": "identity.is-adult",
+              "value": true,
+              "category": "identity-residency",
+              "source": "synthetic-demo-identity-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "personal",
+              "consentScope": "identity.read",
+              "mutableByCitizen": false
+            },
+            {
+              "key": "residency.bc-status",
+              "value": "resident",
+              "category": "identity-residency",
+              "source": "synthetic-demo-identity-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-a",
+              "consentScope": "identity.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": []
+        },
+        {
+          "category": "household-dependants",
+          "facts": [
+            {
+              "key": "household.dependant-count",
+              "value": 2,
+              "category": "household-dependants",
+              "source": "synthetic-demo-household-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-a",
+              "consentScope": "household.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "housing.tenure",
+              "value": "renter",
+              "category": "household-dependants",
+              "source": "synthetic-demo-household-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-a",
+              "consentScope": "household.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "housing.immediate-risk-status"
+          ]
+        },
+        {
+          "category": "employment-income",
+          "facts": [
+            {
+              "key": "employment.end-date-band",
+              "value": "within-last-four-weeks",
+              "category": "employment-income",
+              "source": "synthetic-demo-employment-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "employment.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "employment.record-of-employment",
+              "value": "available",
+              "category": "employment-income",
+              "source": "synthetic-demo-employment-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "employment.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "employment.status",
+              "value": "recently-ended",
+              "category": "employment-income",
+              "source": "synthetic-demo-employment-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "employment.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "income.change",
+              "value": "material-decrease",
+              "category": "employment-income",
+              "source": "synthetic-demo-employment-system",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "employment.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "employment.insurable-hours-band",
+            "employment.separation-reason"
+          ]
+        },
+        {
+          "category": "disability-caregiving",
+          "facts": [],
+          "missingFactKeys": [
+            "caregiving.current-obligations"
+          ]
+        },
+        {
+          "category": "existing-programs",
+          "facts": [
+            {
+              "key": "programs.provincial-income-assistance",
+              "value": "not-receiving",
+              "category": "existing-programs",
+              "source": "synthetic-demo-program-registry",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "protected-b",
+              "consentScope": "existing-programs.read",
+              "mutableByCitizen": false
+            }
+          ],
+          "missingFactKeys": [
+            "applications.employment-insurance-status"
+          ]
+        },
+        {
+          "category": "region-preferences",
+          "facts": [
+            {
+              "key": "preferences.service-channel",
+              "value": "online-and-phone",
+              "category": "region-preferences",
+              "source": "synthetic-demo-service-preferences",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "personal",
+              "consentScope": "region-preferences.read",
+              "mutableByCitizen": true
+            },
+            {
+              "key": "region.service-area",
+              "value": "Interior service region",
+              "category": "region-preferences",
+              "source": "synthetic-demo-service-preferences",
+              "provenance": "synthetic-government-record",
+              "verifiedAt": "2026-10-28T00:00:00Z",
+              "sensitivity": "personal",
+              "consentScope": "region-preferences.read",
+              "mutableByCitizen": true
+            }
+          ],
+          "missingFactKeys": [
+            "preferences.accessibility-needs"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,10 +1,21 @@
-"""The shared catalogue uses camelCase on disk and on the wire."""
+"""The shared catalogue and conversation contracts use camelCase on the wire."""
 
+import math
 import re
 from datetime import date, datetime
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    model_validator,
+)
 from pydantic.alias_generators import to_camel
 
 from bc_api.urls import official_url
@@ -18,9 +29,79 @@ JourneyId = Literal[
     "primary-care",
     "service-bc",
 ]
-ChatMode = Literal["general", "pathway"]
+ChatMode = Literal["general", "pathway", "contextual-demo"]
 ResponseKind = Literal["dialogue", "grounded", "handoff"]
 ResponseOrigin = Literal["application", "model"]
+DemoPersonaId = Literal["maya-caregiver", "alex-disability-support", "sam-job-loss"]
+ContextCategory = Literal[
+    "identity-residency",
+    "household-dependants",
+    "employment-income",
+    "disability-caregiving",
+    "existing-programs",
+    "region-preferences",
+]
+FactProvenance = Literal["synthetic-government-record", "citizen-answer"]
+FactSensitivity = Literal["personal", "protected-a", "protected-b"]
+ConsentScope = Literal[
+    "identity.read",
+    "household.read",
+    "employment.read",
+    "disability-caregiving.read",
+    "existing-programs.read",
+    "region-preferences.read",
+]
+ContextFlowId = Literal["guardianship-intake", "disability-support", "job-loss"]
+ProgramMatchStatus = Literal[
+    "potential-match",
+    "needs-information",
+    "already-enrolled",
+    "not-indicated",
+]
+PreviewFieldSource = Literal["synthetic-record", "citizen-answer", "missing"]
+AuditAction = Literal[
+    "consent-granted",
+    "consent-revoked",
+    "context-category-accessed",
+    "rule-evaluated",
+    "preview-generated",
+    "approved-source-accessed",
+    "handoff-offered",
+    "handoff-opened",
+    "access-denied",
+    "session-cleared",
+    "context-run-completed",
+]
+ContextAuditTool = Literal[
+    "context-authorization",
+    "change-consent",
+    "clear-context",
+    "read_consented_context",
+    "evaluate_program_rules",
+    "build_application_preview",
+    "search_approved_sources",
+    "context-run",
+]
+AuditOutcome = Literal[
+    "active-consent",
+    "active-minimum-consent",
+    "accessed",
+    "potential-match",
+    "needs-information",
+    "already-enrolled",
+    "not-indicated",
+    "review-required",
+    "no-transfer",
+    "denied",
+    "revoked-partial",
+    "revoked-complete",
+    "citizen-request",
+    "session-reset",
+    "persona-changed",
+    "finished",
+    "cancelled",
+    "failed",
+]
 LEGACY_JOURNEY_IDS = frozenset(
     {
         "licence-renewal",
@@ -34,7 +115,19 @@ JOURNEY_IDS = LEGACY_JOURNEY_IDS | {"road-test-booking", "pharmacare-registratio
 ServiceKey = Annotated[str, Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=80)]
 Identifier = Annotated[str, Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$", max_length=100)]
 Text = Annotated[str, Field(min_length=1, max_length=8000)]
+ShortText = Annotated[str, Field(min_length=1, max_length=500)]
 OfficialUrl = Annotated[str, AfterValidator(official_url)]
+ContextValue = StrictStr | StrictInt | StrictFloat | StrictBool
+PreviewValue = ContextValue | None
+SCREENING_NOTICE = "This is a screening indicator, not an eligibility decision."
+CONTEXT_SCOPE_BY_CATEGORY: dict[ContextCategory, ConsentScope] = {
+    "identity-residency": "identity.read",
+    "household-dependants": "household.read",
+    "employment-income": "employment.read",
+    "disability-caregiving": "disability-caregiving.read",
+    "existing-programs": "existing-programs.read",
+    "region-preferences": "region-preferences.read",
+}
 
 
 def iso_date(value: str) -> str:
@@ -57,6 +150,40 @@ CalendarDate = Annotated[IsoDate, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 Sha256 = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 
 
+def iso_datetime(value: str) -> str:
+    if not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})",
+        value,
+    ):
+        raise ValueError("Use an ISO date-time with a timezone.")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError("Use a valid ISO date-time with a timezone.") from None
+    if parsed.tzinfo is None:
+        raise ValueError("Use an ISO date-time with a timezone.")
+    return value
+
+
+IsoDateTime = Annotated[str, AfterValidator(iso_datetime)]
+
+
+def parsed_datetime(value: IsoDateTime) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def require_unique(values: list[Any], label: str) -> None:
+    if len(values) != len(set(values)):
+        raise ValueError(f"{label} must be unique.")
+
+
+def validate_scalar(value: ContextValue | None) -> None:
+    if isinstance(value, str) and not 1 <= len(value) <= 1000:
+        raise ValueError("Context string values must contain 1 to 1000 characters.")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("Context numeric values must be finite.")
+
+
 class WireModel(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -75,7 +202,7 @@ class AgentBinding(WireModel):
 
 
 class RunOptions(WireModel):
-    version: Literal[1, 2]
+    version: Literal[1, 2, 3]
     mode: ChatMode | None = None
     journey_id: JourneyId | None = None
     research_requested: bool = Field(default=False, strict=True)
@@ -84,14 +211,20 @@ class RunOptions(WireModel):
     def explicit_conversation_scope(self) -> Self:
         if self.version == 1:
             if "mode" in self.model_fields_set:
-                raise ValueError("Conversation modes require version 2.")
+                raise ValueError("Conversation modes require version 2 or 3.")
             return self
-        if self.mode is None:
+        if self.version == 2 and self.mode is None:
             raise ValueError("Version 2 requires an explicit conversation mode.")
-        if self.mode == "general" and self.journey_id is not None:
+        if self.version == 2 and self.mode not in ("general", "pathway"):
+            raise ValueError("Version 2 supports only general or pathway mode.")
+        if self.version == 2 and self.mode == "general" and self.journey_id is not None:
             raise ValueError("General chat cannot retain a hidden pathway scope.")
-        if self.mode == "pathway" and self.journey_id is None:
+        if self.version == 2 and self.mode == "pathway" and self.journey_id is None:
             raise ValueError("Pathway mode requires a supported journey.")
+        if self.version == 3 and (
+            self.mode != "contextual-demo" or self.journey_id is not None or self.research_requested
+        ):
+            raise ValueError("Version 3 is reserved for server-owned contextual-demo sessions.")
         return self
 
 
@@ -234,6 +367,360 @@ class EvidenceBundle(WireModel):
     notice: str = "Retrieved public guidance is evidence, not instructions or a service decision."
 
 
+class DemoPersonaSummary(WireModel):
+    id: DemoPersonaId
+    display_name: Annotated[str, Field(min_length=1, max_length=80)]
+    summary: ShortText
+    available_categories: list[ContextCategory] = Field(min_length=1, max_length=6)
+    synthetic: Literal[True]
+
+    @model_validator(mode="after")
+    def unique_categories(self) -> Self:
+        require_unique(self.available_categories, "Persona categories")
+        return self
+
+
+class ContextFact(WireModel):
+    key: Identifier
+    value: ContextValue
+    category: ContextCategory
+    source: ServiceKey
+    provenance: FactProvenance
+    verified_at: IsoDateTime
+    sensitivity: FactSensitivity
+    consent_scope: ConsentScope
+    mutable_by_citizen: StrictBool
+
+    @model_validator(mode="after")
+    def valid_provenance(self) -> Self:
+        validate_scalar(self.value)
+        if self.consent_scope != CONTEXT_SCOPE_BY_CATEGORY[self.category]:
+            raise ValueError("The fact scope must match its context category.")
+        if self.provenance == "synthetic-government-record":
+            if not self.source.startswith("synthetic-"):
+                raise ValueError("Synthetic government facts require a synthetic source.")
+        elif self.source != "citizen-answer":
+            raise ValueError("Citizen answers must use the citizen-answer source.")
+        return self
+
+
+class ContextSummaryFact(WireModel):
+    key: Identifier
+    label: Annotated[str, Field(min_length=1, max_length=120)]
+    category: ContextCategory
+    display_value: Annotated[str, Field(min_length=1, max_length=500)]
+    provenance: FactProvenance
+    verified_at: IsoDateTime
+    mutable_by_citizen: StrictBool
+    used_by: list[Identifier] = Field(max_length=20)
+
+    @model_validator(mode="after")
+    def unique_consumers(self) -> Self:
+        require_unique(self.used_by, "Context fact consumers")
+        return self
+
+
+class ContextSummary(WireModel):
+    persona_label: Annotated[str, Field(min_length=1, max_length=120)]
+    synthetic: Literal[True]
+    purpose: ServiceKey
+    categories: list[ContextCategory] = Field(min_length=1, max_length=6)
+    facts: list[ContextSummaryFact] = Field(max_length=50)
+    missing_facts: list[Identifier] = Field(max_length=30)
+    consent_expires_at: IsoDateTime
+
+    @model_validator(mode="after")
+    def coherent_summary(self) -> Self:
+        require_unique(self.categories, "Context summary categories")
+        require_unique([fact.key for fact in self.facts], "Context summary fact keys")
+        require_unique(self.missing_facts, "Missing context facts")
+        if any(fact.category not in self.categories for fact in self.facts):
+            raise ValueError("Every displayed fact must belong to a disclosed category.")
+        if {fact.key for fact in self.facts} & set(self.missing_facts):
+            raise ValueError("A context fact cannot be both present and missing.")
+        return self
+
+
+class ConsentScopeProposal(WireModel):
+    scope: ConsentScope
+    category: ContextCategory
+    reason: Annotated[str, Field(min_length=1, max_length=300)]
+    required: StrictBool
+
+    @model_validator(mode="after")
+    def scope_matches_category(self) -> Self:
+        if self.scope != CONTEXT_SCOPE_BY_CATEGORY[self.category]:
+            raise ValueError("The proposed scope must match its context category.")
+        return self
+
+
+class ConsentProposal(WireModel):
+    proposal_id: Identifier
+    persona_id: DemoPersonaId
+    purpose: ServiceKey
+    notice_version: Identifier
+    scopes: list[ConsentScopeProposal] = Field(min_length=1, max_length=6)
+    expires_at: IsoDateTime
+    synthetic: Literal[True]
+
+    @model_validator(mode="after")
+    def unique_scopes(self) -> Self:
+        require_unique([item.scope for item in self.scopes], "Proposed consent scopes")
+        require_unique([item.category for item in self.scopes], "Proposed consent categories")
+        return self
+
+
+class ConsentReceipt(WireModel):
+    consent_id: Identifier
+    purpose: ServiceKey
+    scopes: list[ConsentScope] = Field(min_length=1, max_length=6)
+    subject_hash: Annotated[
+        str,
+        Field(min_length=8, max_length=128, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$"),
+    ]
+    notice_version: Identifier
+    granted_at: IsoDateTime
+    expires_at: IsoDateTime
+    revoked_at: IsoDateTime | None
+
+    @model_validator(mode="after")
+    def valid_receipt_window(self) -> Self:
+        require_unique(self.scopes, "Consent scopes")
+        granted = parsed_datetime(self.granted_at)
+        expires = parsed_datetime(self.expires_at)
+        if expires <= granted:
+            raise ValueError("Consent expiry must be after the grant time.")
+        if self.revoked_at is not None:
+            revoked = parsed_datetime(self.revoked_at)
+            if revoked < granted or revoked > expires:
+                raise ValueError("Consent revocation must fall within the receipt lifetime.")
+        return self
+
+
+class ConsentRevocation(WireModel):
+    revocation_id: Identifier
+    consent_id: Identifier
+    revoked_scopes: list[ConsentScope] = Field(min_length=1, max_length=6)
+    revoked_at: IsoDateTime
+    reason: Literal[
+        "citizen-request",
+        "session-reset",
+        "session-expired",
+        "persona-changed",
+    ]
+
+    @model_validator(mode="after")
+    def unique_revoked_scopes(self) -> Self:
+        require_unique(self.revoked_scopes, "Revoked consent scopes")
+        return self
+
+
+class ProgramSourceVersion(WireModel):
+    source_id: Identifier
+    version: Identifier
+
+
+class ProgramMatch(WireModel):
+    program_id: Identifier
+    status: ProgramMatchStatus
+    rule_id: Identifier | None = None
+    rule_version: Identifier
+    policy_effective_date: CalendarDate
+    satisfied_conditions: list[Identifier] = Field(max_length=30)
+    missing_facts: list[Identifier] = Field(max_length=30)
+    disqualifying_facts: list[Identifier] = Field(max_length=30)
+    source_ids: list[Identifier] = Field(min_length=1, max_length=20)
+    source_versions: list[ProgramSourceVersion] = Field(min_length=1, max_length=20)
+    notice: Literal["This is a screening indicator, not an eligibility decision."]
+
+    @model_validator(mode="after")
+    def coherent_match(self) -> Self:
+        fact_groups = (
+            self.satisfied_conditions,
+            self.missing_facts,
+            self.disqualifying_facts,
+        )
+        for label, values in zip(
+            ("Satisfied conditions", "Missing facts", "Disqualifying facts"),
+            fact_groups,
+            strict=True,
+        ):
+            require_unique(values, label)
+        if any(
+            set(left) & set(right)
+            for left, right in (
+                (fact_groups[0], fact_groups[1]),
+                (
+                    fact_groups[0],
+                    fact_groups[2],
+                ),
+                (fact_groups[1], fact_groups[2]),
+            )
+        ):
+            raise ValueError("Satisfied, missing and disqualifying facts must not overlap.")
+        require_unique(self.source_ids, "Program match source IDs")
+        version_ids = [item.source_id for item in self.source_versions]
+        require_unique(version_ids, "Program match source versions")
+        if version_ids != self.source_ids:
+            raise ValueError("Every source ID must have one matching source version.")
+        return self
+
+
+def unique_program_matches(matches: list[ProgramMatch]) -> list[ProgramMatch]:
+    require_unique([match.program_id for match in matches], "Program match IDs")
+    return matches
+
+
+ProgramMatches = Annotated[
+    list[ProgramMatch],
+    Field(min_length=1, max_length=20),
+    AfterValidator(unique_program_matches),
+]
+
+
+class PreviewField(WireModel):
+    field: Identifier
+    label: Annotated[str, Field(min_length=1, max_length=120)]
+    value: PreviewValue
+    source: PreviewFieldSource
+    source_fact_key: Identifier | None
+    editable: StrictBool
+    sensitivity: FactSensitivity
+    requires_confirmation: StrictBool
+
+    @model_validator(mode="after")
+    def valid_field_provenance(self) -> Self:
+        validate_scalar(self.value)
+        if self.source == "missing":
+            if self.value is not None or self.source_fact_key is not None:
+                raise ValueError("Missing preview fields cannot carry values or provenance.")
+        elif self.value is None or self.source_fact_key is None:
+            raise ValueError("Populated preview fields require a source fact key.")
+        return self
+
+
+class ApplicationPreview(WireModel):
+    preview_id: Identifier
+    flow_id: ContextFlowId
+    schema_version: Literal[1]
+    fields: list[PreviewField] = Field(min_length=1, max_length=50)
+    missing_items: list[ShortText] = Field(max_length=30)
+    submission_enabled: Literal[False]
+    requires_human_review: Literal[True]
+    expires_at: IsoDateTime
+
+    @model_validator(mode="after")
+    def unique_preview_fields(self) -> Self:
+        require_unique([field.field for field in self.fields], "Preview field names")
+        require_unique(self.missing_items, "Preview missing items")
+        return self
+
+
+class ConsentRequest(WireModel):
+    checkpoint_id: Identifier
+    preview_id: Identifier
+    purpose: ServiceKey
+    destination_name: Annotated[str, Field(min_length=1, max_length=160)]
+    destination_url: OfficialUrl
+    categories_to_share: list[ContextCategory] = Field(max_length=6)
+    field_names_to_share: list[Identifier] = Field(max_length=50)
+    transfer_mode: Literal["none"]
+    reviewed_by_citizen: StrictBool
+    submission_enabled: Literal[False]
+
+    @model_validator(mode="after")
+    def unique_handoff_scope(self) -> Self:
+        require_unique(self.categories_to_share, "Handoff categories")
+        require_unique(self.field_names_to_share, "Handoff field names")
+        return self
+
+
+class AuditReceiptEvent(WireModel):
+    event_id: Identifier
+    sequence: StrictInt = Field(ge=1)
+    occurred_at: IsoDateTime
+    action: AuditAction
+    trace_ref: Annotated[
+        str | None,
+        Field(
+            min_length=16,
+            max_length=128,
+            pattern=r"^[a-f0-9]+$",
+        ),
+    ] = None
+    run_ref: Annotated[
+        str | None,
+        Field(
+            min_length=64,
+            max_length=64,
+            pattern=r"^[a-f0-9]{64}$",
+        ),
+    ] = None
+    actor_label: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            max_length=160,
+            pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.:@-]*$",
+        ),
+    ] = None
+    tool: ContextAuditTool | None = None
+    consent_scopes: list[ConsentScope] = Field(default_factory=list, max_length=6)
+    flow_id: ContextFlowId | None = None
+    rule_set_version: Identifier | None = None
+    category: ContextCategory | None = None
+    rule_id: Identifier | None = None
+    rule_version: Identifier | None = None
+    source_ids: list[Identifier] = Field(default_factory=list, max_length=20)
+    source_versions: list[ProgramSourceVersion] = Field(default_factory=list, max_length=20)
+    outcome: AuditOutcome
+    error_code: Annotated[
+        str | None,
+        Field(max_length=80, pattern=r"^[A-Z][A-Z0-9_]*$"),
+    ] = None
+
+    @model_validator(mode="after")
+    def required_event_evidence(self) -> Self:
+        require_unique(self.consent_scopes, "Audit consent scopes")
+        require_unique(self.source_ids, "Audit source IDs")
+        source_ids = [item.source_id for item in self.source_versions]
+        require_unique(source_ids, "Audit source versions")
+        if source_ids and source_ids != self.source_ids:
+            raise ValueError("Every audit source ID must have one matching version.")
+        if self.action == "context-category-accessed" and self.category is None:
+            raise ValueError("Context access events require a category.")
+        if self.action == "rule-evaluated" and (
+            self.rule_id is None
+            or self.rule_version is None
+            or not self.source_ids
+            or not self.source_versions
+        ):
+            raise ValueError("Rule evaluation events require rule and source versions.")
+        if self.action == "access-denied" and self.error_code is None:
+            raise ValueError("Denied audit events require an error code.")
+        if self.action == "context-run-completed" and (
+            self.trace_ref is None or self.run_ref is None
+        ):
+            raise ValueError("Run completion audit events require opaque run and trace references.")
+        return self
+
+
+class AuditReceipt(WireModel):
+    receipt_id: Identifier
+    session_ref: Identifier
+    persona_label: Annotated[str, Field(min_length=1, max_length=120)]
+    synthetic: Literal[True]
+    events: list[AuditReceiptEvent] = Field(min_length=1, max_length=100)
+    contains_raw_context_values: Literal[False]
+
+    @model_validator(mode="after")
+    def unique_events(self) -> Self:
+        require_unique([event.event_id for event in self.events], "Audit event IDs")
+        if [event.sequence for event in self.events] != list(range(1, len(self.events) + 1)):
+            raise ValueError("Audit receipt events must use contiguous deterministic ordering.")
+        return self
+
+
 class GuidedPlan(WireModel):
     mode: Literal["guided"] = "guided"
     journey: Journey
@@ -265,6 +752,73 @@ class LocationsArtifact(WireModel):
     notice: str = Field(max_length=500)
 
 
+class ContextSummaryArtifact(WireModel):
+    version: Literal[1] = 1
+    id: Identifier
+    kind: Literal["context-summary"] = "context-summary"
+    payload: ContextSummary
+
+
+class ProgramMatchesArtifact(WireModel):
+    version: Literal[1] = 1
+    id: Identifier
+    kind: Literal["program-matches"] = "program-matches"
+    payload: ProgramMatches
+
+
+class ApplicationPreviewArtifact(WireModel):
+    version: Literal[1] = 1
+    id: Identifier
+    kind: Literal["application-preview"] = "application-preview"
+    payload: ApplicationPreview
+
+
+class ConsentRequestArtifact(WireModel):
+    version: Literal[1] = 1
+    id: Identifier
+    kind: Literal["consent-request"] = "consent-request"
+    payload: ConsentRequest
+
+
+class AuditReceiptArtifact(WireModel):
+    version: Literal[1] = 1
+    id: Identifier
+    kind: Literal["audit-receipt"] = "audit-receipt"
+    payload: AuditReceipt
+
+
+ContextArtifact = Annotated[
+    ContextSummaryArtifact
+    | ProgramMatchesArtifact
+    | ApplicationPreviewArtifact
+    | ConsentRequestArtifact
+    | AuditReceiptArtifact,
+    Field(discriminator="kind"),
+]
+Artifact = Annotated[
+    PreparationArtifact
+    | LocationsArtifact
+    | ContextSummaryArtifact
+    | ProgramMatchesArtifact
+    | ApplicationPreviewArtifact
+    | ConsentRequestArtifact
+    | AuditReceiptArtifact,
+    Field(discriminator="kind"),
+]
+
+
+def unique_artifacts(artifacts: list[Artifact]) -> list[Artifact]:
+    require_unique([artifact.id for artifact in artifacts], "Artifact IDs")
+    return artifacts
+
+
+ArtifactList = Annotated[
+    list[Artifact],
+    Field(max_length=10),
+    AfterValidator(unique_artifacts),
+]
+
+
 class Capabilities(WireModel):
     mode: Literal["guided", "foundry"]
     ai_configured: bool
@@ -274,4 +828,18 @@ class Capabilities(WireModel):
     journeys: dict[JourneyId, bool] = Field(default_factory=dict)
     general_chat_configured: bool = False
     retrieval_ready: bool = False
-    request_versions: list[Literal[1, 2]] = Field(default_factory=lambda: [1, 2])
+    request_versions: list[Literal[1, 2, 3]] = Field(
+        default_factory=lambda: [1, 2, 3],
+        min_length=1,
+        max_length=3,
+    )
+    synthetic_context_available: StrictBool = False
+    real_identity_integrated: Literal[False] = False
+    real_citizen_identity_configured: Literal[False] = False
+
+    @model_validator(mode="after")
+    def coherent_capabilities(self) -> Self:
+        require_unique(self.request_versions, "Request versions")
+        if self.synthetic_context_available and 3 not in self.request_versions:
+            raise ValueError("Synthetic context requires request version 3.")
+        return self

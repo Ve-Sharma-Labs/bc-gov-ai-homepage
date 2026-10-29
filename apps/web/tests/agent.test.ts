@@ -142,6 +142,32 @@ describe("published AG-UI HttpAgent integration", () => {
     expect(JSON.parse(fetcher.mock.calls[0][1].body).forwardedProps).toEqual({ bc: { version: 2, mode: "pathway", journeyId: "licence-renewal" } });
   });
 
+  it("uses explicit version 3 contextual mode without browser facts, state or tool payloads", async () => {
+    const fetcher = vi.fn().mockResolvedValue(eventsResponse([
+      { type: "RUN_STARTED", runId, threadId },
+      { type: "RUN_FINISHED", runId, threadId },
+    ]));
+    vi.stubGlobal("fetch", fetcher);
+    await startAgentRun({
+      runId,
+      threadId,
+      mode: "contextual-demo",
+      messages: [{ id: "user-1", role: "user", content: "What should I do next?" }],
+      onEvent: vi.fn(),
+      onFailure: vi.fn(),
+      onClose: vi.fn(),
+    }).done;
+    const body = JSON.parse(fetcher.mock.calls[0][1].body);
+    expect(body.forwardedProps).toEqual({ bc: { version: 3, mode: "contextual-demo" } });
+    expect(body.context).toEqual([]);
+    expect(body.state).toEqual({});
+    expect(body.tools).toEqual([]);
+    expect(JSON.stringify(body)).not.toMatch(/employment\.status|synthetic-government-record|contextSummary|personaId/iu);
+    expect(new Headers(fetcher.mock.calls[0][1].headers).get("x-bc-context-page")).toMatch(
+      /^[A-Za-z0-9-]{20,128}$/u,
+    );
+  });
+
   it("delivers genuine streamed text before the connection closes", async () => {
     let controller!: ReadableStreamDefaultController<Uint8Array>;
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new ReadableStream({

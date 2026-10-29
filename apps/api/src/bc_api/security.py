@@ -223,7 +223,13 @@ class SecurityMiddleware:
                 if not message.get("more_body", False):
                     break
             public_metadata = scope["method"] in ("GET", "HEAD", "OPTIONS") and (
-                path in ("/api/catalog", "/api/capabilities", "/api/locations")
+                path
+                in (
+                    "/api/catalog",
+                    "/api/capabilities",
+                    "/api/demo/personas",
+                    "/api/locations",
+                )
                 or path.startswith("/api/journeys/")
             )
             session = None

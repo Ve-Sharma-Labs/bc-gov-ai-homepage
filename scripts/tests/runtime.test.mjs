@@ -111,3 +111,33 @@ test("traffic stages preserve reviewed images rather than reverting to bootstrap
     ...validation, FOUNDRY_AGENTS: JSON.stringify([{ name: "fixture-general" }]),
   }).some((message) => message.includes("FOUNDRY_GENERAL_AGENT")));
 });
+
+test("synthetic context requires explicit approval and a distinct pinned agent", () => {
+  const contextual = {
+    ...reviewedEnvironment,
+    SYNTHETIC_CONTEXT_ENABLED: "true",
+    FOUNDRY_AGENTS: JSON.stringify([]),
+    FOUNDRY_GENERAL_AGENT: JSON.stringify({
+      name: "fixture-general", version: "1", modelDeployment: "fixture",
+    }),
+    FOUNDRY_CONTEXTUAL_AGENT: JSON.stringify({
+      name: "fixture-contextual", version: "1", modelDeployment: "fixture",
+    }),
+  };
+  assert.ok(deploymentBlockers(contextual).some((message) => message.includes("AZURE_SYNTHETIC_CONTEXT_APPROVED")));
+  assert.deepEqual(deploymentBlockers({
+    ...contextual,
+    AZURE_SYNTHETIC_CONTEXT_APPROVED: "1",
+  }), []);
+  assert.ok(deploymentBlockers({
+    ...contextual,
+    AZURE_SYNTHETIC_CONTEXT_APPROVED: "1",
+    FOUNDRY_CONTEXTUAL_AGENT: JSON.stringify({
+      name: "fixture-general", version: "1", modelDeployment: "fixture",
+    }),
+  }).some((message) => message.includes("FOUNDRY_CONTEXTUAL_AGENT")));
+  assert.ok(deploymentBlockers({
+    ...reviewedEnvironment,
+    SYNTHETIC_CONTEXT_ENABLED: "yes",
+  }).some((message) => message.includes("SYNTHETIC_CONTEXT_ENABLED")));
+});
