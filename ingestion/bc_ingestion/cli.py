@@ -10,10 +10,10 @@ from .catalog import load_catalog
 from .fetch import Fetcher, Response, utc_now
 from .manifest import JsonManifestStore, LocalResponseStore, ProgrammeLimits
 from .metadata import digest, iso_datetime
+from .paths import PROJECT_ROOT
 from .pipeline import Ledger, build_publish_plan, guarded_output, save_json
 from .policy import PUBLISHERS, AcquisitionError, canonicalize, validate_url
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG = PROJECT_ROOT / "data" / "pilot-catalog.json"
 DEFAULT_PROGRAMME = PROJECT_ROOT / "data" / "source-programme.json"
 DEFAULT_OUTPUT = PROJECT_ROOT / "ingestion" / ".generated"

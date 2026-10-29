@@ -32,6 +32,7 @@ from .metadata import (
     search_metadata,
     validate_metadata,
 )
+from .paths import PROJECT_ROOT
 from .policy import (
     PUBLICATION_HOLDS,
     PUBLISHERS,
@@ -39,8 +40,6 @@ from .policy import (
     canonicalize,
     validate_url,
 )
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def document_id(url: str) -> str:

@@ -243,6 +243,8 @@ widen `policy.py`'s manual/publication paths.
 `--programme-manifest` defaults to
 `ingestion\.generated\programme\manifest.json`; this is **separate from**
 `ingestion\.generated\state.json`, `approved-review.json` and `publish-plan.json`.
+Packaged runtimes set the absolute `BC_INGESTION_PROJECT_ROOT` so those defaults
+resolve to the copied catalogue, programme and writable output directories.
 An explicit `--url SOURCE_ID=HTTPS_URL` list may select starting candidates;
 otherwise all twelve seeds and declared sitemap URLs are inventoried. Original
 seeds, registry/catalogue identities and cumulative limits cannot change on resume.
