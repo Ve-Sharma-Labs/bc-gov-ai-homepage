@@ -103,9 +103,12 @@ test("menu retains every route, keyboard dismissal and proper link semantics", a
   await ready(page);
   const trigger = page.getByRole("button", { name: "Menu", exact: true });
   await trigger.click();
+  const dialog = page.getByRole("dialog");
   for (const name of ["Home", "How it works", "Browse services", "Our sources", "About this pilot"]) {
-    await expect(page.getByRole("dialog").getByRole("link", { name, exact: true })).toBeVisible();
+    await expect(dialog.getByRole("link", { name, exact: true })).toBeVisible();
   }
+  await expect(dialog).toHaveCSS("opacity", "1");
+  await expect(dialog.getByRole("link", { name: "About this pilot", exact: true }).locator("..")).toHaveCSS("opacity", "1");
   const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(result.violations, JSON.stringify(result.violations, null, 2)).toEqual([]);
   await page.keyboard.press("Escape");
