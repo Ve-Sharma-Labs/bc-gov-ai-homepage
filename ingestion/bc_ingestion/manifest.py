@@ -8,9 +8,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Protocol
 
+from .paths import PROJECT_ROOT
 from .policy import AcquisitionError
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class AcquisitionPaused(AcquisitionError):

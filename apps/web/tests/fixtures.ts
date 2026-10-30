@@ -1,4 +1,14 @@
-import { journeyIds, type Catalog, type Capabilities, type EvidenceMetadata } from "@/lib/contract";
+import {
+  journeyIds,
+  screeningNotice,
+  type Artifact,
+  type Catalog,
+  type Capabilities,
+  type ConsentReceipt,
+  type ContextSummary,
+  type DemoPersonaSummary,
+  type EvidenceMetadata,
+} from "@/lib/contract";
 
 const titles = {
   "licence-renewal": "Prepare a licence renewal",
@@ -87,6 +97,212 @@ export const guidedCapabilities: Capabilities = {
   transactionsEnabled: false,
   message: "TEST FIXTURE: native connection not configured.",
 };
+
+export const syntheticCapabilities: Capabilities = {
+  ...guidedCapabilities,
+  mode: "foundry",
+  aiConfigured: true,
+  generalChatConfigured: true,
+  requestVersions: [1, 2, 3],
+  syntheticContextAvailable: true,
+  realIdentityIntegrated: false,
+  message: "TEST FIXTURE: synthetic context is available.",
+};
+
+export const demoPersonasFixture: DemoPersonaSummary[] = [
+  {
+    id: "maya-caregiver",
+    displayName: "Maya",
+    summary: "TEST FIXTURE: a fictional B.C. resident caring for an older parent.",
+    availableCategories: [
+      "household-dependants",
+      "disability-caregiving",
+      "existing-programs",
+      "region-preferences",
+    ],
+    synthetic: true,
+  },
+  {
+    id: "alex-disability-support",
+    displayName: "Alex",
+    summary: "TEST FIXTURE: a fictional B.C. resident exploring disability support.",
+    availableCategories: [
+      "identity-residency",
+      "employment-income",
+      "disability-caregiving",
+      "existing-programs",
+      "region-preferences",
+    ],
+    synthetic: true,
+  },
+  {
+    id: "sam-job-loss",
+    displayName: "Sam",
+    summary: "TEST FIXTURE: a fictional B.C. resident navigating a recent job loss.",
+    availableCategories: [
+      "identity-residency",
+      "household-dependants",
+      "employment-income",
+      "existing-programs",
+      "region-preferences",
+    ],
+    synthetic: true,
+  },
+];
+
+export const consentReceiptFixture: ConsentReceipt = {
+  consentId: "consent-test-1",
+  purpose: "personalize-job-loss-navigation",
+  scopes: ["identity.read", "employment.read", "existing-programs.read"],
+  subjectHash: "non-reversible-test-reference",
+  noticeVersion: "1",
+  grantedAt: "2026-10-28T20:00:00Z",
+  expiresAt: "2099-10-28T20:30:00Z",
+  revokedAt: null,
+};
+
+export const contextSummaryFixture: ContextSummary = {
+  personaLabel: "Sam",
+  synthetic: true,
+  purpose: "personalize-job-loss-navigation",
+  categories: ["identity-residency", "employment-income", "existing-programs"],
+  facts: [
+    {
+      key: "residency.bc-status",
+      label: "B.C. residency",
+      category: "identity-residency",
+      displayValue: "Resident",
+      provenance: "synthetic-government-record",
+      verifiedAt: "2026-10-28T20:00:00Z",
+      mutableByCitizen: true,
+      usedBy: ["workbc-navigation"],
+    },
+    {
+      key: "employment.status",
+      label: "Employment status",
+      category: "employment-income",
+      displayValue: "Recently ended",
+      provenance: "synthetic-government-record",
+      verifiedAt: "2026-10-28T20:00:00Z",
+      mutableByCitizen: true,
+      usedBy: ["workbc-navigation"],
+    },
+  ],
+  missingFacts: ["preferences.service-channel"],
+  consentExpiresAt: "2099-10-28T20:30:00Z",
+};
+
+export const contextArtifactsFixture: Artifact[] = [
+  {
+    version: 1,
+    id: "context-summary-1",
+    kind: "context-summary",
+    payload: contextSummaryFixture,
+  },
+  {
+    version: 1,
+    id: "program-matches-1",
+    kind: "program-matches",
+    payload: [{
+      programId: "workbc-navigation",
+      status: "potential-match",
+      ruleId: "workbc-screening",
+      ruleVersion: "2026-10-28.1",
+      policyEffectiveDate: "2026-10-28",
+      satisfiedConditions: ["bc-resident", "employment-ended"],
+      missingFacts: ["preferred-service-channel"],
+      disqualifyingFacts: [],
+      sourceIds: ["workbc"],
+      sourceVersions: [{ sourceId: "workbc", version: "2026-10-28" }],
+      notice: screeningNotice,
+    }],
+  },
+  {
+    version: 1,
+    id: "application-preview-1",
+    kind: "application-preview",
+    payload: {
+      previewId: "preview-sam-1",
+      flowId: "job-loss",
+      schemaVersion: 1,
+      fields: [
+        {
+          field: "employment-status",
+          label: "Employment status",
+          value: "Recently ended",
+          source: "synthetic-record",
+          sourceFactKey: "employment.status",
+          editable: true,
+          sensitivity: "protected-b",
+          requiresConfirmation: true,
+        },
+        {
+          field: "preferred-channel",
+          label: "Preferred service channel",
+          value: null,
+          source: "missing",
+          sourceFactKey: null,
+          editable: true,
+          sensitivity: "personal",
+          requiresConfirmation: true,
+        },
+      ],
+      missingItems: ["Confirm the preferred service channel"],
+      submissionEnabled: false,
+      requiresHumanReview: true,
+      expiresAt: "2099-10-28T20:30:00Z",
+    },
+  },
+  {
+    version: 1,
+    id: "consent-request-1",
+    kind: "consent-request",
+    payload: {
+      checkpointId: "checkpoint-sam-1",
+      previewId: "preview-sam-1",
+      purpose: "personalize-job-loss-navigation",
+      destinationName: "WorkBC",
+      destinationUrl: "https://www.workbc.ca/",
+      categoriesToShare: ["employment-income"],
+      fieldNamesToShare: ["employment-status"],
+      transferMode: "none",
+      reviewedByCitizen: false,
+      submissionEnabled: false,
+    },
+  },
+  {
+    version: 1,
+    id: "audit-receipt-1",
+    kind: "audit-receipt",
+    payload: {
+      receiptId: "audit-sam-1",
+      sessionRef: "session-sam-1",
+      personaLabel: "Sam",
+      synthetic: true,
+      events: [{
+        eventId: "event-rule-1",
+        sequence: 1,
+        occurredAt: "2026-10-28T20:00:00Z",
+        action: "rule-evaluated",
+        traceRef: "a".repeat(32),
+        runRef: "b".repeat(64),
+        actorLabel: "test-contextual:1",
+        tool: "evaluate_program_rules",
+        consentScopes: ["employment.read"],
+        flowId: "job-loss",
+        ruleSetVersion: "2026-10-28.1",
+        category: null,
+        ruleId: "workbc-screening",
+        ruleVersion: "2026-10-28.1",
+        sourceIds: ["workbc"],
+        sourceVersions: [{ sourceId: "workbc", version: "2026-10-28" }],
+        outcome: "potential-match",
+        errorCode: null,
+      }],
+      containsRawContextValues: false,
+    },
+  },
+];
 
 export const evidenceMetadataFixture: EvidenceMetadata = {
   version: 1,

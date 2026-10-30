@@ -349,7 +349,8 @@ describe("assistant tab memory", () => {
     expect(result.current.checked.size).toBe(0);
     expect(result.current.catalog).toEqual(catalogFixture);
     expect(result.current.capabilities).toEqual(connectedCapabilities);
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher).toHaveBeenCalledWith("/api/demo/session", expect.objectContaining({ method: "DELETE", keepalive: true }));
 
     await act(async () => {
       result.current.setDraft("A fresh question");

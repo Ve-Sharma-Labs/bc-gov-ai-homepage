@@ -30,6 +30,18 @@ Later releases may complete approved transactions through agency integrations.
 Driver's licence renewal is a requested example of a future agent-led journey;
 the pilot must not claim to renew a licence or submit an application.
 
+A separate, repository-implemented but unreleased
+[citizen-context ADM validation demo](docs/citizen-context-demo.md) preserves
+anonymous mode as the default while adding three fixed synthetic personas for
+guardianship/caregiving, disability support, and job loss. It uses deterministic
+screening rules, consented fictional facts, reviewable previews, and official
+handoffs. It does not use a real BC Services Card account, access government
+records, decide eligibility, or submit anything. The specification defines a
+future production identity and Context Broker contract. The
+[ADM demonstration package](docs/citizen-context-adm-demo.md) and
+[executive brief](docs/citizen-context-executive-brief.md) support a decision
+session; neither claims deployment or authorizes activation.
+
 ## Capabilities and Constraints
 
 - Azure and Microsoft Foundry are required for the AI and application backend.
@@ -127,3 +139,7 @@ new snapshot approvals, unsupported feed/document formats, future citizen identi
 language rollout and production certification. The established pilot target,
 model, public access and billing authorization are not unresolved decisions.
 Restricted crawling, Web IQ activation and resident transactions remain unapproved.
+The synthetic citizen-context demo is implemented behind a disabled-by-default
+source flag and enabled in the reviewed public pilot environment. Any use of real citizen
+context remains separately gated by identity, privacy, security, data-steward,
+consent, and program-owner approval.

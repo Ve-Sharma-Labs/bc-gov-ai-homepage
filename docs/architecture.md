@@ -1,6 +1,6 @@
 # BC service assistant architecture
 
-**Status:** Seven-journey app release deployed and publicly verified October 28, 2026. Private full-corpus acquisition is incomplete and publication remains disabled. Platform inventory checked October 28.
+**Status:** Synthetic citizen-context ADM demo deployed and publicly verified October 29, 2026. Anonymous chat remains the default. Private full-corpus acquisition is incomplete and publication remains disabled. Platform inventory checked October 29.
 **Resource group:** `rg-bcassist-xufhsendpx`
 **Subscription:** `ME-MngEnvMCAP744360-sharmave-1`
 **Primary resource region:** Canada Central; Front Door, WAF and private DNS are global resources.
@@ -11,6 +11,20 @@ not the larger target architecture in the [original specification](pilot-specifi
 The assistant provides official information, preparation plans and handoffs.
 It does not renew licences, book appointments, submit forms, make payments or
 decide a resident's eligibility.
+
+The separately approved
+[citizen-context ADM validation demo](citizen-context-demo.md) is deployed in
+the public pilot with fixed synthetic personas. It keeps anonymous access as the default,
+uses only three fixed fictional personas, and stops at a preview, consent
+checkpoint, and official handoff. The
+[ADM demonstration package](citizen-context-adm-demo.md) and
+[executive brief](citizen-context-executive-brief.md) support a decision
+session without claiming real citizen integration. The production identity and Context Broker
+section is a future contract, not evidence of a live BC Services Card,
+government-record, or Entra Agent ID integration. The
+[production citizen identity and data-access specification](citizen-context-identity.md)
+defines that future contract's implementation boundaries and external approval
+gates; it does not describe deployed resources.
 
 The public website needs no citizen sign-in. Its backend uses Microsoft Entra
 managed identities, a private application origin and a reviewed Search corpus.
@@ -435,6 +449,8 @@ Trusted headers depend on the private-origin boundary, not on their names alone.
 | Conversation, draft, selected journey and checklist | Browser tab memory; retained during internal navigation, cleared on reload/Start over |
 | Theme preference | Browser storage; not conversation storage |
 | Session association | Secure application session cookie in production; opaque server-side ownership |
+| Synthetic context page binding | Random `X-BC-Context-Page` value in page memory only; combined with the anonymous owner and HttpOnly context cookie so reload binding loss makes the old grant unusable |
+| Synthetic persona, consent and audit metadata | Bounded server state with session-aligned expiry; fixture values are reloaded from repository data and are not copied into browser storage, Search or operational telemetry |
 | Run, rate, lease and budget state | Redis metadata with expiry/UTC-day accounting; no prompt, answer or tool bodies |
 | Curated plans/locations | Versioned catalogue packaged with the API |
 | Approved full-text evidence | Search index, with provenance/version checks |
@@ -556,15 +572,15 @@ live policy-managed settings rather than repeatedly reprovisioning a healthy
 stack to resolve an access or propagation issue.
 
 The application follow-up is deployed as API revision
-`ca-bcassist-xufhsendpx-api--0000007` and web revision
-`ca-bcassist-xufhsendpx-web--0000005`. Both are ready at 100% traffic, with
+`ca-bcassist-xufhsendpx-api--0000008` and web revision
+`ca-bcassist-xufhsendpx-web--0000006`. Both are ready at 100% traffic, with
 their existing identities and 1--2 replica limits. The API image and its
 general version-5/seven-pathway bindings were updated atomically; the
 four-document corpus was not changed.
 Their immutable image digests are
-`sha256:234651cd44e6c97b4a50b25cb574d614e2959ba7d2944266d5ac6a844335e497`
+`sha256:82b316a6ea26d6c6eb058e22600c53f6d1c2291d38c6c0c8dc6a7d8f66ccceec`
 and
-`sha256:78387f5ab99fb23c84d3dffeccc8a5d64312168d3168f7890bd759d104eeacb4`.
+`sha256:0b87d58a5795ff6e74a12b0f775d290d7ef5b386d34a6109de970cd5bb3c5ac6`.
 Their remote Linux amd64 layers, runtime configuration and non-root users match
 the tested local images. The API remains on `bc-pilot-public` with metadata
 mode disabled; incomplete v2 candidates remain private.
@@ -576,6 +592,13 @@ returned HTTP 200, two sources and first text at 2.48 seconds. The source-gap
 handoff completed in 526 ms, Stop reached server-terminal `cancelled` with no
 duplicate submission, and seven journey cards, the source drawer, mobile layout
 and explicit Dark theme passed.
+
+The synthetic-context public check then passed with Maya through the real
+Foundry agent: server-owned consent, two deterministic program indicators, a
+review-only intake preview, a no-transfer consent checkpoint, a value-free
+audit receipt, synthetic labels, responsive desktop/mobile layouts, and no
+Submit action. The complete anonymous grounded/follow-up/source-gap/Stop suite
+also passed after this deployment.
 
 A previous public health-comparison question returned cited, incrementally
 validated content in about 2.24 seconds in the warm sample, but its original
@@ -647,6 +670,13 @@ mode and reviewed-schema flag must enter one new API revision together.
 
 ## 8. Future work, not part of this release
 
+- Complete live-provider release readiness for the
+  [citizen-context ADM validation demo](citizen-context-demo.md) only through its
+  synthetic-data, deterministic-rule, consent, source-evidence, privacy,
+  security, accessibility and anonymous-regression gates. The current deployed
+  four-snapshot corpus does not cover every contextual flow source. Real citizen
+  context remains a separate future approval and integration program governed by the
+  [production identity and data-access specification](citizen-context-identity.md).
 - Expand and refresh the corpus through accountable source review, including
   the unresolved ICBC, BC Housing, WorkBC and BC Laws acquisition/freshness gates.
 - Enable Web IQ only after actual service access, reviewed transport and its
@@ -662,6 +692,8 @@ mode and reviewed-schema flag must enter one new API revision together.
 
 | Topic | Source of detail |
 |---|---|
+| Citizen-context decision and facilitation | [ADM demonstration package](citizen-context-adm-demo.md), [executive brief](citizen-context-executive-brief.md) |
+| Future citizen identity and context access | [Production identity and data-access specification](citizen-context-identity.md), [citizen-context demo](citizen-context-demo.md) |
 | Runtime and event contracts | [Implementation contract](implementation-contract.md), [API guide](../apps/api/README.md) |
 | Browser transport and service hop | [AG-UI client](../apps/web/src/lib/agent.ts), [proxy](../apps/web/src/lib/proxy.ts), [internal authentication](../apps/web/src/lib/internal-auth.ts) |
 | Agent definitions and routing | [Agents](../apps/api/src/bc_api/agents.py), [policy](../apps/api/src/bc_api/agent_policy.py), [native runtime](../apps/api/src/bc_api/foundry.py) |

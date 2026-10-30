@@ -11,7 +11,11 @@ from azure.core.exceptions import AzureError
 from azure.identity.aio import AzureCliCredential
 from pydantic import ValidationError
 
-from bc_api.agents import agent_definitions, general_agent_definition
+from bc_api.agents import (
+    agent_definitions,
+    contextual_agent_definition,
+    general_agent_definition,
+)
 from bc_api.catalog import CatalogRepository
 from bc_api.config import Settings
 from bc_api.errors import ApiError
@@ -37,8 +41,14 @@ async def publish(definitions: list[dict], endpoint: str) -> list[dict]:
                         tools=[FunctionTool(**tool) for tool in definition["tools"]],
                     ),
                     metadata={
-                        "journey": entry["journeyId"] or "general",
-                        "contract": "1" if entry["journeyId"] else "2",
+                        "journey": entry["journeyId"] or entry.get("mode", "general"),
+                        "contract": (
+                            "1"
+                            if entry["journeyId"]
+                            else "3"
+                            if entry.get("mode") == "contextual-demo"
+                            else "2"
+                        ),
                     },
                     draft=False,
                 )
@@ -61,33 +71,54 @@ def main() -> int:
     parser.add_argument("--project-endpoint")
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--approved", action="store_true")
-    parser.add_argument("--general-only", action="store_true")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--general-only", action="store_true")
+    selection.add_argument("--contextual-only", action="store_true")
     args = parser.parse_args()
     if args.publish and (not args.approved or not args.project_endpoint):
         parser.error("Publishing requires --approved and a user-confirmed --project-endpoint.")
     configure_safe_logging()
     try:
         catalog = CatalogRepository(Settings().catalog_path)
-        definitions = (
-            [
+        if args.general_only:
+            definitions = [
                 general_agent_definition(
-                    catalog, prefix=args.prefix, model_deployment=args.model_deployment
+                    catalog,
+                    prefix=args.prefix,
+                    model_deployment=args.model_deployment,
                 )
             ]
-            if args.general_only
-            else agent_definitions(
-                catalog, prefix=args.prefix, model_deployment=args.model_deployment
+        elif args.contextual_only:
+            definitions = [
+                contextual_agent_definition(
+                    catalog,
+                    prefix=args.prefix,
+                    model_deployment=args.model_deployment,
+                )
+            ]
+        else:
+            definitions = agent_definitions(
+                catalog,
+                prefix=args.prefix,
+                model_deployment=args.model_deployment,
             )
-        )
         if args.publish:
             endpoint = azure_endpoint(args.project_endpoint, service="foundry")
-            label = "general agent" if args.general_only else "seven-agent bundle"
+            label = (
+                "general agent"
+                if args.general_only
+                else "contextual-demo agent"
+                if args.contextual_only
+                else "seven-agent bundle"
+            )
             print(f"Publishing the reviewed {label} to {endpoint}.", file=sys.stderr)
             result = asyncio.run(publish(definitions, endpoint))
             print(
                 json.dumps(
                     {"FOUNDRY_GENERAL_AGENT": result[0]}
                     if args.general_only
+                    else {"FOUNDRY_CONTEXTUAL_AGENT": result[0]}
+                    if args.contextual_only
                     else {"FOUNDRY_AGENTS": result},
                     indent=2,
                 )

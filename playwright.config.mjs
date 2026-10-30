@@ -34,6 +34,7 @@ export default defineConfig({
       APP_ENV: "development",
       NEXT_TELEMETRY_DISABLED: "1",
       WEBIQ_ENABLED: "false",
+      SYNTHETIC_CONTEXT_ENABLED: "true",
       FOUNDRY_PROJECT_ENDPOINT: "",
       FOUNDRY_AGENT_NAME: "",
       FOUNDRY_AGENT_VERSION: "",

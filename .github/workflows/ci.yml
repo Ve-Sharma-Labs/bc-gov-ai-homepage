@@ -113,7 +113,7 @@ jobs:
               assert client.get("/healthz").status_code == 200
               assert client.get("/api/catalog").status_code == 503
           with TestClient(create_app(Settings(app_env="development")), base_url="http://localhost") as client:
-              assert len(client.get("/api/catalog").json()["journeys"]) == 5
+              assert len(client.get("/api/catalog").json()["journeys"]) == 7
               assert client.get("/api/capabilities").json()["aiConfigured"] is False
           PY
       - name: Check web runtime dependencies

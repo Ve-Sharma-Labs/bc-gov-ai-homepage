@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from bc_ingestion.azure_publish import publish
 from bc_ingestion.catalog import load_catalog, validate_catalog
+from bc_ingestion import paths
 from bc_ingestion.cli import main
 from bc_ingestion.locations import parse_service_bc_offices
 from bc_ingestion.policy import AcquisitionError, SERVICE_BC
@@ -142,6 +143,15 @@ class OfficeParserTests(unittest.TestCase):
 
 
 class CliAndAzureTests(unittest.TestCase):
+    def test_packaged_runtime_can_override_project_root(self):
+        with patch.dict("os.environ", {"BC_INGESTION_PROJECT_ROOT": str(ROOT)}):
+            self.assertEqual(paths.resolve_project_root(), ROOT.resolve())
+
+    def test_project_root_override_must_be_absolute(self):
+        with patch.dict("os.environ", {"BC_INGESTION_PROJECT_ROOT": "relative"}):
+            with self.assertRaises(RuntimeError):
+                paths.resolve_project_root()
+
     def test_offline_catalog_validation(self):
         with redirect_stdout(io.StringIO()) as output:
             result = main(["validate", "--catalog", str(CATALOG)])

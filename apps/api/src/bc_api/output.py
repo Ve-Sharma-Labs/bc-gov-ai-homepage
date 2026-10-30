@@ -15,8 +15,8 @@ from ag_ui.core import (
 from bc_api.catalog import CatalogRepository
 from bc_api.dialogue import is_model_clarification
 from bc_api.errors import ApiError
-from bc_api.models import ResponseKind
-from bc_api.protocol import validate_artifact
+from bc_api.models import ContextArtifact, ResponseKind
+from bc_api.protocol import ContextArtifactValidator, validate_artifact
 from bc_api.retrieval import EvidenceLedger
 from bc_api.tools import TOOL_NAMES
 from bc_api.urls import official_url
@@ -48,6 +48,64 @@ TRANSACTION_CLAIMS = re.compile(
     r"|\byou\s+(?:are|have been)\s+(?:eligible|approved|enrolled|registered)\b",
     re.IGNORECASE,
 )
+CONTEXT_DECISION_CLAIMS = re.compile(
+    r"\b(?:you|the person|the applicant)\s+"
+    r"(?:are|is|were|was|have been|has been)\s+"
+    r"(?:eligible|ineligible|approved|denied|entitled|guaranteed|qualified)\b"
+    r"|\b(?:you|the person|the applicant)\s+qualif(?:y|ies)\s+for\b"
+    r"|\b(?:application|claim|benefit)\s+(?:is|was|has been)\s+"
+    r"(?:approved|denied)\b",
+    re.IGNORECASE,
+)
+CONTEXT_ACTION_CLAIMS = re.compile(
+    r"\b(?:I|we|the assistant)\s+(?:can|will)\s+"
+    r"(?:submit|sign|pay|book|transfer)\b"
+    r"|\b(?:I|we|the assistant)\s+(?:created|issued|generated)\s+(?:a\s+)?"
+    r"confirmation (?:number|code)\b"
+    r"|\b(?:your|the)\s+confirmation (?:number|code)\s*(?:is|:)\b"
+    r"|\b(?:this|the)\s+(?:preview|application)\s+"
+    r"(?:is\s+)?(?:ready to|can be)\s+"
+    r"(?:submitted|signed|paid|booked|transferred)\b"
+    r"|(?<!no )\bsubmission\s+(?:is\s+)?enabled\b",
+    re.IGNORECASE,
+)
+CONTEXT_HIGH_STAKES_CLAIMS = {
+    "guardianship-intake": re.compile(
+        r"\b(?:the person|your parent|the adult)\s+(?:is|has been)\s+"
+        r"(?:incapable|incompetent)\b"
+        r"|\b(?:guardianship|committeeship)\s+(?:is|will be|has been)\s+"
+        r"(?:required|necessary|approved)\b"
+        r"|\bthe court\s+will\s+(?:approve|grant)\b",
+        re.IGNORECASE,
+    ),
+    "disability-support": re.compile(
+        r"\b(?:you|the applicant)\s+(?:have|has)\s+(?:been\s+)?diagnosed\b"
+        r"|\b(?:your|the applicant'?s)\s+disability\s+(?:is|has been)\s+"
+        r"(?:severe|proven|confirmed)\b"
+        r"|\bthe practitioner section\s+(?:is|has been)\s+(?:complete|completed)\b",
+        re.IGNORECASE,
+    ),
+    "job-loss": re.compile(
+        r"\b(?:you|the applicant)\s+(?:will|should)\s+(?:receive|get)\s+"
+        r"(?:EI|Employment Insurance)\b"
+        r"|\b(?:EI|Employment Insurance)\s+(?:claim|application)\s+"
+        r"(?:is|will be|has been)\s+(?:approved|accepted)\b",
+        re.IGNORECASE,
+    ),
+}
+CONTEXT_STATUS_CLAIMS = {
+    "potential-match": re.compile(r"\bpotential matches?\b", re.IGNORECASE),
+    "needs-information": re.compile(r"\bneeds? (?:more )?information\b", re.IGNORECASE),
+    "already-enrolled": re.compile(
+        r"\balready (?:enrolled|receiving)\b",
+        re.IGNORECASE,
+    ),
+    "not-indicated": re.compile(
+        r"\b(?:not indicated|not (?:a )?(?:potential )?match|"
+        r"does not match|doesn't match)\b",
+        re.IGNORECASE,
+    ),
+}
 SENTENCE_BOUNDARY = re.compile(r"""(?<=[.!?])["”']?\s+|\n+""")
 
 
@@ -64,6 +122,8 @@ class OutputGate:
         ledger: EvidenceLedger,
         *,
         allow_clarification: bool = False,
+        tool_names: frozenset[str] = TOOL_NAMES,
+        context_artifacts: tuple[ContextArtifact, ...] = (),
     ) -> None:
         self.catalog = catalog
         self.ledger = ledger
@@ -77,6 +137,9 @@ class OutputGate:
         self.message_ids: set[str] = set()
         self.message_ends: set[str] = set()
         self.allow_clarification = allow_clarification
+        self.tool_names = tool_names
+        self.contextual = ContextArtifactValidator(context_artifacts) if context_artifacts else None
+        self.context_artifacts = context_artifacts
         self.response_kind: ResponseKind = "grounded"
 
     def hold(self, event: BaseEvent) -> None:
@@ -105,7 +168,7 @@ class OutputGate:
             if data["messageId"] not in self.message_ids or data["messageId"] in self.message_ends:
                 raise ApiError(502, "OUTPUT_INVALID", "Unexpected answer completion was withheld.")
             self.message_ends.add(data["messageId"])
-        if kind == "TOOL_CALL_START" and data["toolCallName"] not in TOOL_NAMES:
+        if kind == "TOOL_CALL_START" and data["toolCallName"] not in self.tool_names:
             raise ApiError(502, "TOOL_DENIED", "The agent requested an unapproved capability.")
         if kind == "STATE_SNAPSHOT" and data["snapshot"] not in (None, {}):
             raise ApiError(502, "OUTPUT_INVALID", "Unvalidated state changes were withheld.")
@@ -118,7 +181,7 @@ class OutputGate:
             ):
                 raise ApiError(502, "OUTPUT_INVALID", "Unvalidated usage metadata was withheld.")
         elif kind == "CUSTOM" and data.get("name") == "bc.artifact":
-            event = validate_artifact(data.get("value"), self.catalog)
+            event = validate_artifact(data.get("value"), self.catalog, self.contextual)
         elif kind == "CUSTOM" and data.get("name") != "annotations":
             raise ApiError(502, "OUTPUT_INVALID", "Unvalidated generated components were withheld.")
         self.events.append(event)
@@ -179,6 +242,8 @@ class OutputGate:
         return self._account(ready)
 
     def finish(self) -> list[BaseEvent]:
+        if self.contextual is not None:
+            self.contextual.ensure_complete()
         text = "\n".join(self.text.values())
         if not text.strip():
             raise ApiError(502, "EMPTY_ANSWER", "The AI service did not return a sourced answer.")
@@ -190,6 +255,51 @@ class OutputGate:
                 "TRANSACTION_CLAIM_BLOCKED",
                 "An unsupported service-action claim was withheld.",
             )
+        if self.context_artifacts:
+            if CONTEXT_ACTION_CLAIMS.search(text):
+                raise ApiError(
+                    502,
+                    "TRANSACTION_CLAIM_BLOCKED",
+                    "An unsupported contextual action claim was withheld.",
+                )
+            preview = next(
+                (
+                    artifact.payload
+                    for artifact in self.context_artifacts
+                    if artifact.kind == "application-preview"
+                ),
+                None,
+            )
+            if (
+                preview is not None
+                and CONTEXT_HIGH_STAKES_CLAIMS[preview.flow_id].search(text)
+            ):
+                raise ApiError(
+                    502,
+                    "HIGH_STAKES_CLAIM_BLOCKED",
+                    "An unsupported high-stakes claim was withheld.",
+                )
+            if CONTEXT_DECISION_CLAIMS.search(text):
+                raise ApiError(
+                    502,
+                    "RULE_RESULT_MISMATCH",
+                    "An unsupported eligibility or approval claim was withheld.",
+                )
+            statuses = {
+                match.status
+                for artifact in self.context_artifacts
+                if artifact.kind == "program-matches"
+                for match in artifact.payload
+            }
+            if any(
+                status not in statuses and pattern.search(text)
+                for status, pattern in CONTEXT_STATUS_CLAIMS.items()
+            ):
+                raise ApiError(
+                    502,
+                    "RULE_RESULT_MISMATCH",
+                    "A model-authored screening status was withheld.",
+                )
 
         evidence = {}
         for item in self.ledger.items.values():

@@ -87,6 +87,32 @@ export function deploymentBlockers(env) {
   }
   const stage = env.AZURE_DEPLOYMENT_STAGE || "closed";
   if (!["closed", "validation", "public"].includes(stage)) blockers.push("Choose closed, validation or public deployment stage.");
+  const syntheticContextEnabled = env.SYNTHETIC_CONTEXT_ENABLED || "false";
+  if (!["false", "true"].includes(syntheticContextEnabled)) {
+    blockers.push("SYNTHETIC_CONTEXT_ENABLED must be explicitly true or false.");
+  }
+  if (syntheticContextEnabled === "true") {
+    const contextual = jsonValue(env, "FOUNDRY_CONTEXTUAL_AGENT", blockers);
+    const agents = env.FOUNDRY_AGENTS ? jsonValue(env, "FOUNDRY_AGENTS", blockers) : [];
+    const general = env.FOUNDRY_GENERAL_AGENT
+      ? jsonValue(env, "FOUNDRY_GENERAL_AGENT", blockers)
+      : null;
+    const reservedNames = new Set([
+      ...(Array.isArray(agents) ? agents.map((agent) => agent?.name) : []),
+      general?.name,
+    ].filter(Boolean));
+    if (env.AZURE_SYNTHETIC_CONTEXT_APPROVED !== "1") {
+      blockers.push("Public synthetic citizen context requires AZURE_SYNTHETIC_CONTEXT_APPROVED=1.");
+    }
+    if (!contextual || typeof contextual !== "object" || Array.isArray(contextual) ||
+        Object.keys(contextual).some((key) => !["name", "version", "modelDeployment", "journeyId"].includes(key)) ||
+        ["name", "version", "modelDeployment"].some((key) => typeof contextual[key] !== "string" || !contextual[key].trim()) ||
+        contextual.journeyId != null || !/^[1-9]\d*$/.test(contextual.version) ||
+        !Array.isArray(models) || !models.some((model) => model?.deploymentName === contextual.modelDeployment) ||
+        reservedNames.has(contextual.name)) {
+      blockers.push("Synthetic context requires a distinct published FOUNDRY_CONTEXTUAL_AGENT with a pinned version, reviewed model and no journey scope.");
+    }
+  }
   if (stage !== "closed") {
     for (const key of ["AZURE_API_IMAGE_NAME", "AZURE_WEB_IMAGE_NAME"]) {
       if (!pinnedImage.test(env[key] || "")) {

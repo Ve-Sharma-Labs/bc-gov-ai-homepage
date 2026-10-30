@@ -1,6 +1,6 @@
 import { HttpAgent } from "@ag-ui/client";
 import type { BaseEvent, Message } from "@ag-ui/core";
-import { ApiError } from "./api";
+import { ApiError, getContextPageToken } from "./api";
 import type { JourneyId } from "./contract";
 
 type AgentRunOptions = {
@@ -14,6 +14,7 @@ type AgentRunOptions = {
 } & (
   | { mode: "general"; journeyId?: never }
   | { mode: "pathway"; journeyId: JourneyId }
+  | { mode: "contextual-demo"; journeyId?: never; researchRequested?: false }
 );
 
 function retryAt(response: Response, code: string): string | null {
@@ -44,7 +45,16 @@ export function startAgentRun(options: AgentRunOptions) {
     initialState: {},
     debug: false,
     fetch: async (url, init) => {
-      const response = await fetch(url, { ...init, cache: "no-store", credentials: "same-origin" });
+      const headers = new Headers(init?.headers);
+      if (options.mode === "contextual-demo") {
+        headers.set("x-bc-context-page", getContextPageToken());
+      }
+      const response = await fetch(url, {
+        ...init,
+        headers,
+        cache: "no-store",
+        credentials: "same-origin",
+      });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         const code = payload?.error?.code || "AGENT_UNAVAILABLE";
@@ -75,12 +85,14 @@ export function startAgentRun(options: AgentRunOptions) {
     state: {},
     tools: [],
     context: [],
-    forwardedProps: { bc: {
-      version: 2,
-      mode: options.mode,
-      ...(options.mode === "pathway" ? { journeyId: options.journeyId } : {}),
-      ...(options.researchRequested ? { researchRequested: true } : {}),
-    } },
+    forwardedProps: { bc: options.mode === "contextual-demo"
+      ? { version: 3, mode: "contextual-demo" }
+      : {
+        version: 2,
+        mode: options.mode,
+        ...(options.mode === "pathway" ? { journeyId: options.journeyId } : {}),
+        ...(options.researchRequested ? { researchRequested: true } : {}),
+      } },
   }).subscribe({
     next: (event) => {
       if (cancelled) return;

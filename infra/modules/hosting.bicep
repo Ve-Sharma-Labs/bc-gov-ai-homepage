@@ -6,6 +6,8 @@ param tags object
 param foundryProjectEndpoint string
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
+param foundryContextualAgentJson string
+param syntheticContextEnabled string
 param searchEndpoint string
 param searchIndex string
 param searchMetadataEnabled string
@@ -108,6 +110,12 @@ module api 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
       { name: 'FOUNDRY_PROJECT_ENDPOINT', value: foundryProjectEndpoint }
       { name: 'FOUNDRY_AGENTS', value: foundryAgentsJson }
       { name: 'FOUNDRY_GENERAL_AGENT', value: foundryGeneralAgentJson }
+      { name: 'FOUNDRY_CONTEXTUAL_AGENT', value: foundryContextualAgentJson }
+      { name: 'SYNTHETIC_CONTEXT_ENABLED', value: syntheticContextEnabled }
+      { name: 'SYNTHETIC_CONTEXT_SESSION_TTL_SECONDS', value: '1800' }
+      { name: 'SYNTHETIC_CONTEXT_CONSENT_TTL_SECONDS', value: '900' }
+      { name: 'SYNTHETIC_CONTEXT_AUDIT_MAX_EVENTS', value: '100' }
+      { name: 'SYNTHETIC_CONTEXT_AUDIT_MAX_BYTES', value: '65536' }
       { name: 'AZURE_CLIENT_ID', value: apiClientId }
       { name: 'AZURE_SEARCH_ENDPOINT', value: searchEndpoint }
       { name: 'AZURE_SEARCH_INDEX', value: searchIndex }

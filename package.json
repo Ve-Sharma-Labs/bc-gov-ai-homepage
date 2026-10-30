@@ -12,6 +12,7 @@
     "dev:web": "npm --prefix apps/web run dev",
     "dev:api": "node scripts/run-api.mjs",
     "build": "npm --prefix apps/web run build && node scripts/prepare-web.mjs",
+    "evaluate:context": "node scripts/evaluate-context-demo.mjs --pretty",
     "test:tooling": "node --test scripts/tests/*.test.mjs",
     "test:e2e": "playwright test",
     "check": "node scripts/check.mjs",

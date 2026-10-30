@@ -8,6 +8,11 @@ Resident transactions remain outside the approved pilot.
 **Product authority:** [PRODUCT.md](../PRODUCT.md).
 **Source discovery:** [source-discovery.json](source-discovery.json).
 **Current system:** [As-built architecture and diagrams](architecture.md).
+**Citizen-context decision materials:**
+[ADM demonstration package](citizen-context-adm-demo.md) and
+[executive brief](citizen-context-executive-brief.md). They describe an
+unreleased, disabled-by-default synthetic repository capability, not the
+deployed public pilot.
 
 The first release has five managed agent bindings and 12 Search chunks from four
 explicitly approved snapshots. Web IQ and transactions are not enabled.

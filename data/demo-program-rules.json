@@ -1,0 +1,578 @@
+{
+  "schemaVersion": 1,
+  "ruleSetId": "citizen-context-demo-program-screening",
+  "ruleSetVersion": "2026-10-28.1",
+  "owner": "BC Government citizen-context demo product owner",
+  "catalogAsOf": "2026-10-28T04:33:08Z",
+  "effectiveFrom": "2026-10-28",
+  "effectiveTo": null,
+  "reviewedAt": "2026-10-28",
+  "reviewDue": "2026-12-31",
+  "screeningNotice": "This is a screening indicator, not an eligibility decision.",
+  "sourceReviews": [
+    {
+      "sourceId": "employment-business",
+      "catalogStatus": "limited",
+      "catalogCheckedAt": "2026-10-25T00:21:21Z",
+      "coverage": "reviewed-navigation-only",
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-04",
+      "missingCoverageReason": null
+    },
+    {
+      "sourceId": "family-social-supports",
+      "catalogStatus": "limited",
+      "catalogCheckedAt": "2026-10-25T00:21:20Z",
+      "coverage": "reviewed-navigation-only",
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-04",
+      "missingCoverageReason": null
+    },
+    {
+      "sourceId": "housing-tenancy",
+      "catalogStatus": "available",
+      "catalogCheckedAt": "2026-10-25T00:21:18Z",
+      "coverage": "reviewed-navigation-only",
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-04",
+      "missingCoverageReason": null
+    },
+    {
+      "sourceId": "service-bc",
+      "catalogStatus": "available",
+      "catalogCheckedAt": "2026-10-25T00:21:15Z",
+      "coverage": "reviewed-navigation-only",
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-04",
+      "missingCoverageReason": null
+    }
+  ],
+  "rules": [
+    {
+      "order": 1,
+      "ruleId": "caregiver-support-navigation-v1",
+      "programId": "family-social-supports-navigation",
+      "programDisplayName": "Family and social supports navigation",
+      "flowId": "guardianship-intake",
+      "discoveryRole": "primary-navigation",
+      "owner": "BC Government citizen-context demo product owner",
+      "version": "2026-10-28.1",
+      "effectiveFrom": "2026-10-28",
+      "effectiveTo": null,
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-30",
+      "sourceIds": [
+        "family-social-supports"
+      ],
+      "sourceCoverage": "reviewed-navigation-only",
+      "missingSourceCoverageReason": null,
+      "requiredFacts": [
+        {
+          "factKey": "caregiving.care-recipient-bc-resident",
+          "publicMissingFactKey": "care-recipient-residency"
+        },
+        {
+          "factKey": "caregiving.immediate-safety-event",
+          "publicMissingFactKey": "safety-check"
+        },
+        {
+          "factKey": "household.relationship-to-care-recipient",
+          "publicMissingFactKey": "caregiving-relationship"
+        }
+      ],
+      "conditions": [
+        {
+          "factKey": "caregiving.care-recipient-bc-resident",
+          "operator": "equals",
+          "expected": true,
+          "satisfiedLabel": "care-recipient-bc-context",
+          "notSatisfiedLabel": "care-recipient-bc-context-not-present"
+        },
+        {
+          "factKey": "caregiving.immediate-safety-event",
+          "operator": "equals",
+          "expected": false,
+          "satisfiedLabel": "non-urgent-navigation-context",
+          "notSatisfiedLabel": "urgent-human-support-context"
+        },
+        {
+          "factKey": "household.relationship-to-care-recipient",
+          "operator": "in",
+          "expected": [
+            "adult-child",
+            "spouse",
+            "other-family",
+            "friend"
+          ],
+          "satisfiedLabel": "caregiving-relationship-context",
+          "notSatisfiedLabel": "caregiving-relationship-context-not-present"
+        }
+      ],
+      "optionalConditions": [
+        {
+          "factKey": "authority.power-of-attorney-recorded",
+          "operator": "equals",
+          "expected": false,
+          "satisfiedLabel": "no-recorded-power-of-attorney-context",
+          "notSatisfiedLabel": "recorded-power-of-attorney-context"
+        },
+        {
+          "factKey": "preferences.output-format",
+          "operator": "equals",
+          "expected": "plain-language-checklist",
+          "satisfiedLabel": "plain-language-preference-context",
+          "notSatisfiedLabel": "plain-language-preference-context-not-present"
+        }
+      ],
+      "alreadyEnrolledCondition": null,
+      "missingFactBehavior": "needs-information-unless-not-indicated",
+      "navigationRationale": "Potential navigation only: explore reviewed family and social-support information for a caregiving situation; this is not a formal eligibility assessment.",
+      "screeningNotice": "This is a screening indicator, not an eligibility decision.",
+      "ruleHash": "8ea87678b7a26918d5a2c41ddc54b79dce86eac4014c72a33362500282aa1ce0"
+    },
+    {
+      "order": 2,
+      "ruleId": "caregiver-service-bc-navigation-v1",
+      "programId": "service-bc-assisted-navigation",
+      "programDisplayName": "Service BC assisted navigation",
+      "flowId": "guardianship-intake",
+      "discoveryRole": "related-navigation",
+      "owner": "BC Government citizen-context demo product owner",
+      "version": "2026-10-28.1",
+      "effectiveFrom": "2026-10-28",
+      "effectiveTo": null,
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-30",
+      "sourceIds": [
+        "service-bc"
+      ],
+      "sourceCoverage": "reviewed-navigation-only",
+      "missingSourceCoverageReason": null,
+      "requiredFacts": [
+        {
+          "factKey": "region.service-area",
+          "publicMissingFactKey": "service-region"
+        }
+      ],
+      "conditions": [
+        {
+          "factKey": "region.service-area",
+          "operator": "in",
+          "expected": [
+            "Victoria service region",
+            "Interior service region"
+          ],
+          "satisfiedLabel": "reviewed-service-region-context",
+          "notSatisfiedLabel": "reviewed-service-region-context-not-present"
+        }
+      ],
+      "optionalConditions": [
+        {
+          "factKey": "preferences.output-format",
+          "operator": "equals",
+          "expected": "plain-language-checklist",
+          "satisfiedLabel": "assisted-format-preference-context",
+          "notSatisfiedLabel": "assisted-format-preference-context-not-present"
+        }
+      ],
+      "alreadyEnrolledCondition": null,
+      "missingFactBehavior": "needs-information-unless-not-indicated",
+      "navigationRationale": "Potential related navigation only: explore reviewed Service BC human-service channels; this is not a formal eligibility assessment.",
+      "screeningNotice": "This is a screening indicator, not an eligibility decision.",
+      "ruleHash": "67ab1927db1409d1d5ee079164e59fa8ccd8d5d0c8ff7f4b92ea6491386fd08c"
+    },
+    {
+      "order": 3,
+      "ruleId": "disability-support-navigation-v1",
+      "programId": "provincial-disability-support-navigation",
+      "programDisplayName": "Provincial disability-support navigation",
+      "flowId": "disability-support",
+      "discoveryRole": "primary-navigation",
+      "owner": "BC Government citizen-context demo product owner",
+      "version": "2026-10-28.1",
+      "effectiveFrom": "2026-10-28",
+      "effectiveTo": null,
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-30",
+      "sourceIds": [
+        "family-social-supports"
+      ],
+      "sourceCoverage": "reviewed-navigation-only",
+      "missingSourceCoverageReason": null,
+      "requiredFacts": [
+        {
+          "factKey": "identity.is-adult",
+          "publicMissingFactKey": "adult-status"
+        },
+        {
+          "factKey": "residency.bc-status",
+          "publicMissingFactKey": "bc-residency-status"
+        },
+        {
+          "factKey": "disability.duration-band",
+          "publicMissingFactKey": "disability-duration-category"
+        },
+        {
+          "factKey": "disability.functional-capacity",
+          "publicMissingFactKey": "functional-capacity-category"
+        },
+        {
+          "factKey": "programs.provincial-disability-assistance",
+          "publicMissingFactKey": "current-disability-support-status"
+        }
+      ],
+      "conditions": [
+        {
+          "factKey": "identity.is-adult",
+          "operator": "equals",
+          "expected": true,
+          "satisfiedLabel": "adult-context",
+          "notSatisfiedLabel": "adult-context-not-present"
+        },
+        {
+          "factKey": "residency.bc-status",
+          "operator": "equals",
+          "expected": "resident",
+          "satisfiedLabel": "bc-residency-context",
+          "notSatisfiedLabel": "bc-residency-context-not-present"
+        },
+        {
+          "factKey": "disability.duration-band",
+          "operator": "in",
+          "expected": [
+            "long-term",
+            "ongoing"
+          ],
+          "satisfiedLabel": "long-term-duration-context",
+          "notSatisfiedLabel": "long-term-duration-context-not-present"
+        },
+        {
+          "factKey": "disability.functional-capacity",
+          "operator": "in",
+          "expected": [
+            "reduced",
+            "substantially-reduced"
+          ],
+          "satisfiedLabel": "reduced-function-context",
+          "notSatisfiedLabel": "reduced-function-context-not-present"
+        },
+        {
+          "factKey": "programs.provincial-disability-assistance",
+          "operator": "in",
+          "expected": [
+            "not-receiving",
+            "application-in-progress",
+            "receiving"
+          ],
+          "satisfiedLabel": "current-disability-program-context",
+          "notSatisfiedLabel": "current-disability-program-context-unrecognized"
+        }
+      ],
+      "optionalConditions": [
+        {
+          "factKey": "disability.mobility-support-needed",
+          "operator": "equals",
+          "expected": true,
+          "satisfiedLabel": "mobility-support-context",
+          "notSatisfiedLabel": "mobility-support-context-not-present"
+        },
+        {
+          "factKey": "disability.practitioner-access",
+          "operator": "equals",
+          "expected": true,
+          "satisfiedLabel": "practitioner-access-context",
+          "notSatisfiedLabel": "practitioner-access-context-not-present"
+        }
+      ],
+      "alreadyEnrolledCondition": {
+        "factKey": "programs.provincial-disability-assistance",
+        "operator": "equals",
+        "expected": "receiving",
+        "satisfiedLabel": "existing-disability-assistance-enrolment",
+        "notSatisfiedLabel": "existing-disability-assistance-enrolment-not-present"
+      },
+      "missingFactBehavior": "needs-information-unless-not-indicated",
+      "navigationRationale": "Potential navigation only: explore reviewed provincial disability-support information; this is not a formal eligibility assessment.",
+      "screeningNotice": "This is a screening indicator, not an eligibility decision.",
+      "ruleHash": "fb0ef3b737a1fe6875065e0b9caa81e55826fbb6d1730fd6c0c4bed612da18e9"
+    },
+    {
+      "order": 4,
+      "ruleId": "disability-service-bc-navigation-v1",
+      "programId": "service-bc-assisted-navigation",
+      "programDisplayName": "Service BC assisted navigation",
+      "flowId": "disability-support",
+      "discoveryRole": "related-navigation",
+      "owner": "BC Government citizen-context demo product owner",
+      "version": "2026-10-28.1",
+      "effectiveFrom": "2026-10-28",
+      "effectiveTo": null,
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-30",
+      "sourceIds": [
+        "service-bc"
+      ],
+      "sourceCoverage": "reviewed-navigation-only",
+      "missingSourceCoverageReason": null,
+      "requiredFacts": [
+        {
+          "factKey": "preferences.service-channel",
+          "publicMissingFactKey": "preferred-service-channel"
+        }
+      ],
+      "conditions": [
+        {
+          "factKey": "preferences.service-channel",
+          "operator": "in",
+          "expected": [
+            "online-with-assisted-option",
+            "in-person",
+            "phone"
+          ],
+          "satisfiedLabel": "assisted-service-channel-context",
+          "notSatisfiedLabel": "assisted-service-channel-context-not-present"
+        }
+      ],
+      "optionalConditions": [],
+      "alreadyEnrolledCondition": null,
+      "missingFactBehavior": "needs-information-unless-not-indicated",
+      "navigationRationale": "Potential related navigation only: explore reviewed Service BC assisted-service channels; this is not a formal eligibility assessment.",
+      "screeningNotice": "This is a screening indicator, not an eligibility decision.",
+      "ruleHash": "9091719df7979dbfa988fceaf918d58e465bceb8dbd76ca929bad15141533848"
+    },
+    {
+      "order": 5,
+      "ruleId": "employment-support-navigation-v1",
+      "programId": "employment-business-navigation",
+      "programDisplayName": "Employment and business navigation",
+      "flowId": "job-loss",
+      "discoveryRole": "primary-navigation",
+      "owner": "BC Government citizen-context demo product owner",
+      "version": "2026-10-28.1",
+      "effectiveFrom": "2026-10-28",
+      "effectiveTo": null,
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-30",
+      "sourceIds": [
+        "employment-business"
+      ],
+      "sourceCoverage": "reviewed-navigation-only",
+      "missingSourceCoverageReason": null,
+      "requiredFacts": [
+        {
+          "factKey": "identity.is-adult",
+          "publicMissingFactKey": "adult-status"
+        },
+        {
+          "factKey": "residency.bc-status",
+          "publicMissingFactKey": "bc-residency-status"
+        },
+        {
+          "factKey": "employment.end-date-band",
+          "publicMissingFactKey": "employment-end-category"
+        },
+        {
+          "factKey": "employment.status",
+          "publicMissingFactKey": "employment-status"
+        }
+      ],
+      "conditions": [
+        {
+          "factKey": "identity.is-adult",
+          "operator": "equals",
+          "expected": true,
+          "satisfiedLabel": "adult-context",
+          "notSatisfiedLabel": "adult-context-not-present"
+        },
+        {
+          "factKey": "residency.bc-status",
+          "operator": "equals",
+          "expected": "resident",
+          "satisfiedLabel": "bc-residency-context",
+          "notSatisfiedLabel": "bc-residency-context-not-present"
+        },
+        {
+          "factKey": "employment.end-date-band",
+          "operator": "in",
+          "expected": [
+            "within-last-four-weeks",
+            "recent"
+          ],
+          "satisfiedLabel": "recent-employment-end-context",
+          "notSatisfiedLabel": "recent-employment-end-context-not-present"
+        },
+        {
+          "factKey": "employment.status",
+          "operator": "equals",
+          "expected": "recently-ended",
+          "satisfiedLabel": "employment-ended-context",
+          "notSatisfiedLabel": "employment-ended-context-not-present"
+        }
+      ],
+      "optionalConditions": [
+        {
+          "factKey": "employment.record-of-employment",
+          "operator": "equals",
+          "expected": "available",
+          "satisfiedLabel": "record-of-employment-context",
+          "notSatisfiedLabel": "record-of-employment-context-not-present"
+        },
+        {
+          "factKey": "preferences.service-channel",
+          "operator": "in",
+          "expected": [
+            "online-and-phone",
+            "online-with-assisted-option"
+          ],
+          "satisfiedLabel": "service-channel-context",
+          "notSatisfiedLabel": "service-channel-context-not-present"
+        }
+      ],
+      "alreadyEnrolledCondition": null,
+      "missingFactBehavior": "needs-information-unless-not-indicated",
+      "navigationRationale": "Potential navigation only: explore reviewed provincial employment information after a job loss; this is not a formal eligibility assessment.",
+      "screeningNotice": "This is a screening indicator, not an eligibility decision.",
+      "ruleHash": "bf88deddd41a533d735bf70b68a02b033276e7788816af5b2548a1a8efe0f7ad"
+    },
+    {
+      "order": 6,
+      "ruleId": "income-assistance-navigation-v1",
+      "programId": "provincial-income-assistance-navigation",
+      "programDisplayName": "Provincial income-assistance navigation",
+      "flowId": "job-loss",
+      "discoveryRole": "related-navigation",
+      "owner": "BC Government citizen-context demo product owner",
+      "version": "2026-10-28.1",
+      "effectiveFrom": "2026-10-28",
+      "effectiveTo": null,
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-30",
+      "sourceIds": [
+        "family-social-supports"
+      ],
+      "sourceCoverage": "reviewed-navigation-only",
+      "missingSourceCoverageReason": null,
+      "requiredFacts": [
+        {
+          "factKey": "residency.bc-status",
+          "publicMissingFactKey": "bc-residency-status"
+        },
+        {
+          "factKey": "income.change",
+          "publicMissingFactKey": "household-income-change"
+        },
+        {
+          "factKey": "programs.provincial-income-assistance",
+          "publicMissingFactKey": "current-income-assistance-status"
+        }
+      ],
+      "conditions": [
+        {
+          "factKey": "residency.bc-status",
+          "operator": "equals",
+          "expected": "resident",
+          "satisfiedLabel": "bc-residency-context",
+          "notSatisfiedLabel": "bc-residency-context-not-present"
+        },
+        {
+          "factKey": "income.change",
+          "operator": "equals",
+          "expected": "material-decrease",
+          "satisfiedLabel": "income-decrease-context",
+          "notSatisfiedLabel": "income-decrease-context-not-present"
+        },
+        {
+          "factKey": "programs.provincial-income-assistance",
+          "operator": "in",
+          "expected": [
+            "not-receiving",
+            "application-in-progress",
+            "receiving"
+          ],
+          "satisfiedLabel": "current-income-program-context",
+          "notSatisfiedLabel": "current-income-program-context-unrecognized"
+        }
+      ],
+      "optionalConditions": [
+        {
+          "factKey": "household.dependant-count",
+          "operator": "at-least",
+          "expected": 1,
+          "satisfiedLabel": "dependants-context",
+          "notSatisfiedLabel": "dependants-context-not-present"
+        }
+      ],
+      "alreadyEnrolledCondition": {
+        "factKey": "programs.provincial-income-assistance",
+        "operator": "equals",
+        "expected": "receiving",
+        "satisfiedLabel": "existing-income-assistance-enrolment",
+        "notSatisfiedLabel": "existing-income-assistance-enrolment-not-present"
+      },
+      "missingFactBehavior": "needs-information-unless-not-indicated",
+      "navigationRationale": "Potential related navigation only: explore reviewed provincial income-assistance information after an income change; this is not a formal eligibility assessment.",
+      "screeningNotice": "This is a screening indicator, not an eligibility decision.",
+      "ruleHash": "f4cb44930847b6f3c9c692c349e05b08f4abeb3876abbcdb286052ef26271a2e"
+    },
+    {
+      "order": 7,
+      "ruleId": "housing-tenancy-navigation-v1",
+      "programId": "housing-tenancy-navigation",
+      "programDisplayName": "Housing and tenancy navigation",
+      "flowId": "job-loss",
+      "discoveryRole": "related-navigation",
+      "owner": "BC Government citizen-context demo product owner",
+      "version": "2026-10-28.1",
+      "effectiveFrom": "2026-10-28",
+      "effectiveTo": null,
+      "reviewedAt": "2026-10-28",
+      "reviewDue": "2026-11-30",
+      "sourceIds": [
+        "housing-tenancy"
+      ],
+      "sourceCoverage": "reviewed-navigation-only",
+      "missingSourceCoverageReason": null,
+      "requiredFacts": [
+        {
+          "factKey": "housing.tenure",
+          "publicMissingFactKey": "housing-tenure"
+        },
+        {
+          "factKey": "income.change",
+          "publicMissingFactKey": "household-income-change"
+        }
+      ],
+      "conditions": [
+        {
+          "factKey": "housing.tenure",
+          "operator": "equals",
+          "expected": "renter",
+          "satisfiedLabel": "renter-context",
+          "notSatisfiedLabel": "renter-context-not-present"
+        },
+        {
+          "factKey": "income.change",
+          "operator": "equals",
+          "expected": "material-decrease",
+          "satisfiedLabel": "income-decrease-context",
+          "notSatisfiedLabel": "income-decrease-context-not-present"
+        }
+      ],
+      "optionalConditions": [
+        {
+          "factKey": "household.dependant-count",
+          "operator": "at-least",
+          "expected": 1,
+          "satisfiedLabel": "housing-dependants-context",
+          "notSatisfiedLabel": "housing-dependants-context-not-present"
+        }
+      ],
+      "alreadyEnrolledCondition": null,
+      "missingFactBehavior": "needs-information-unless-not-indicated",
+      "navigationRationale": "Potential related navigation only: explore reviewed housing and tenancy information after an income change; this is not a formal eligibility assessment.",
+      "screeningNotice": "This is a screening indicator, not an eligibility decision.",
+      "ruleHash": "35f039d6004f874368ec20fdcaaf12272abc74ade94f28837d900ab429c7f9a6"
+    }
+  ],
+  "ruleSetHash": "13c2dace9e80cbe883ae82aee43d9a8b48b699a920657fe7d84769bc8e53d05e"
+}

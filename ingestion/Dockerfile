@@ -6,6 +6,7 @@ RUN --mount=type=secret,id=pip_config,target=/etc/pip.conf \
     python -m pip install --no-cache-dir -r /app/requirements.lock
 
 FROM dependencies AS runtime
+ENV BC_INGESTION_PROJECT_ROOT=/app
 COPY ingestion/pyproject.toml /app/ingestion/pyproject.toml
 COPY ingestion/bc_ingestion /app/ingestion/bc_ingestion
 RUN python -m pip install --no-cache-dir --no-build-isolation --no-deps /app/ingestion \

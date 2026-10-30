@@ -11,7 +11,8 @@ from bc_api.models import RunOptions
 RUN_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,99}$")
 SENSITIVE_INPUT = re.compile(
     r"\b(?:PHN|SIN|licen[cs]e\s*(?:number|no\.?)|personal health number)"
-    r"\s*[:#=-]?\s*\d{5,}|\b\d{3}[- ]\d{3}[- ]\d{3}\b"
+    r"\s*(?:(?:number|no\.?|is|equals?)\s*)?[:#=-]?\s*\d{5,}"
+    r"|\b\d{3}[- ]\d{3}[- ]\d{3}\b"
     r"|[\w.+-]+@[\w.-]+\.[a-z]{2,}",
     re.IGNORECASE,
 )

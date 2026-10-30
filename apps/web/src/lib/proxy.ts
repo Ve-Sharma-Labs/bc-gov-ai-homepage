@@ -1,7 +1,14 @@
 import { journeyIds } from "./contract";
 import { internalHeaders } from "./internal-auth";
 
-const READ_PATHS = new Set(["/healthz", "/api/catalog", "/api/capabilities", "/api/locations"]);
+const READ_PATHS = new Set([
+  "/healthz",
+  "/api/catalog",
+  "/api/capabilities",
+  "/api/locations",
+  "/api/demo/personas",
+  "/api/context/summary",
+]);
 const MAX_BODY_BYTES = 64 * 1024;
 
 export function allowedApiRequest(method: string, pathname: string, query: URLSearchParams): boolean {
@@ -13,9 +20,12 @@ export function allowedApiRequest(method: string, pathname: string, query: URLSe
   if (method === "GET") {
     return READ_PATHS.has(pathname) || journeyIds.some((id) => pathname === `/api/journeys/${id}`);
   }
+  if (method === "DELETE") return pathname === "/api/demo/session";
   return method === "POST" && (
-    pathname === "/api/agent" ||
-    /^\/api\/runs\/[A-Za-z0-9_-]{1,128}\/cancel$/u.test(pathname)
+    pathname === "/api/agent"
+    || pathname === "/api/demo/session"
+    || pathname === "/api/context/consents"
+    || /^\/api\/runs\/[A-Za-z0-9_-]{1,128}\/cancel$/u.test(pathname)
   );
 }
 
@@ -87,7 +97,7 @@ export async function proxyRequest(request: Request): Promise<Response> {
       }
     }
     const headers = new Headers();
-    for (const name of ["accept", "content-type", "cookie", "origin"]) {
+    for (const name of ["accept", "content-type", "cookie", "origin", "x-bc-context-page"]) {
       const value = request.headers.get(name);
       if (value) headers.set(name, value);
     }

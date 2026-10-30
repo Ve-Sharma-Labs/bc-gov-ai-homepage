@@ -132,6 +132,15 @@ Web IQ is disabled by default. Its access, public-query policy, transient-data
 handling, and privacy review are separate gates. It is not the source of the
 maintained search corpus.
 
+The repository also contains a disabled-by-default, synthetic citizen-context
+validation implementation. It uses three fixed fictional personas,
+purpose-specific consent, deterministic screening, review-only previews and a
+value-free audit receipt. The reviewed public pilot enables this synthetic
+mode, but it is not connected to BC Services Card, a real citizen identity, or
+real government records. See the
+[ADM demonstration package](docs/citizen-context-adm-demo.md) and
+[forwardable executive brief](docs/citizen-context-executive-brief.md).
+
 ## Checks
 
 ```powershell
@@ -203,6 +212,8 @@ Template compilation is not a substitute for deployment validation.
 - [Product requirements](PRODUCT.md)
 - [Pilot specification](docs/pilot-specification.md)
 - [Implementation contract](docs/implementation-contract.md)
+- [Citizen-context ADM demonstration package](docs/citizen-context-adm-demo.md)
+- [Citizen-context executive brief](docs/citizen-context-executive-brief.md)
 - [Twelve-source discovery inventory](docs/source-discovery.json)
 - [America.gov implementation research](docs/america-ui-implementation-research.md)
 - [Reference-fidelity UI rebuild specification](docs/ui-fidelity-rebuild.md)
