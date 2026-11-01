@@ -202,10 +202,11 @@ def public_queries(programme: ProgrammeId, topics: list[AnswerTopic]) -> tuple[s
 
 def explicit_ei_rejection(text: str) -> bool:
     value = normalize(text)
+    # Match "asking about" as separate tokens to avoid overlapping repetition paths.
     return bool(
         re.search(
             r"\b(?:not|don't|do not|isn't|rather than|instead of)\s+"
-            r"(?:want(?:ing)?(?: to)?\s+|need(?: to)?\s+|mean\s+|asking(?: about)?\s+|"
+            r"(?:want(?:ing)?(?: to)?\s+|need(?: to)?\s+|mean\s+|asking\s+|"
             r"apply(?:ing)? for\s+|claim\s+|about\s+|my\s+|the\s+)*"
             r"(?:ei|employment insurance)\b",
             value,

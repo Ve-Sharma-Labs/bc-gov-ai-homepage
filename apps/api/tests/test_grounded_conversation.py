@@ -1,4 +1,7 @@
 import json
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,7 +12,12 @@ from bc_api.catalog import CatalogRepository
 from bc_api.config import default_catalog_path
 from bc_api.conversation import ConversationService, StoredConversation
 from bc_api.conversation_contract import GroundedConversationProposal
-from bc_api.conversation_grounding import explicit_ei_request, public_queries, resolve_municipality
+from bc_api.conversation_grounding import (
+    explicit_ei_rejection,
+    explicit_ei_request,
+    public_queries,
+    resolve_municipality,
+)
 from bc_api.discovery_store import PageStateStore
 from bc_api.errors import ApiError
 from bc_api.input import validate_run
@@ -396,6 +404,55 @@ def test_programme_queries_are_typed_and_bounded():
     assert not explicit_ei_request("I want work rather than EI")
     assert not explicit_ei_request("I'm not asking about EI")
     assert not explicit_ei_request("EIghteen forms")
+
+
+@pytest.mark.parametrize(
+    "text,rejected,requested",
+    [
+        ("I'm not asking about EI", True, False),
+        ("I'm not asking about asking about EI", True, False),
+        ("I’m not ASKING\tabout\nEmployment Insurance", True, False),
+        ("I don't want to apply for my EI", True, False),
+        ("I do not need to claim the EI", True, False),
+        ("I'm not wanting to claim EI", True, False),
+        ("I'm not applying for employment insurance", True, False),
+        ("I don't mean EI", True, False),
+        ("This isn't about my EI", True, False),
+        ("I want work rather than EI", True, False),
+        ("I want work instead of EI", True, False),
+        ("I'm asking about EI", False, True),
+        ("I want employment insurance", False, True),
+        ("I don't want job advice; help with EI", False, True),
+        ("I'm not asking about jobs", False, False),
+        ("I'm not asking about EIghteen forms", False, False),
+    ],
+)
+def test_explicit_ei_requests_and_rejections_preserve_phrase_matching(text, rejected, requested):
+    assert explicit_ei_rejection(text) is rejected
+    assert explicit_ei_request(text) is requested
+
+
+def test_repeated_ei_rejection_phrases_do_not_backtrack_exponentially():
+    # A worker timeout makes a backtracking regression fail rather than hang pytest.
+    process = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from bc_api.conversation_grounding import explicit_ei_rejection, "
+            "explicit_ei_request\n"
+            "text = 'not asking' + ' about asking' * 300\n"
+            "for suffix in (' about jobs', ' about EIghteen forms'):\n"
+            "    assert not explicit_ei_rejection(text + suffix)\n"
+            "assert explicit_ei_rejection(text + ' about EI')\n"
+            "assert not explicit_ei_request(text + ' about employment insurance')\n",
+        ],
+        cwd=Path(__file__).resolve().parents[1] / "src",
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert process.returncode == 0, process.stderr or process.stdout
 
 
 def test_city_resolution_requires_a_unique_approved_match():

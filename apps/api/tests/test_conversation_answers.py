@@ -1,4 +1,5 @@
 import json
+import re
 from unittest.mock import AsyncMock
 
 import pytest
@@ -224,7 +225,8 @@ def test_job_loss_starter_advances_to_the_chosen_priority(ai_settings, repositor
         assert result["question"] is None
         assert not result["shareContext"]
         if journey is None:
-            assert "https://www.workbc.ca/" in "".join(item.get("delta", "") for item in events)
+            text = "".join(item.get("delta", "") for item in events)
+            assert re.findall(r"\[WorkBC\]\(([^()\s]+)\)", text) == ["https://www.workbc.ca/"]
         assert len(runtime.inputs) == 1
 
 
