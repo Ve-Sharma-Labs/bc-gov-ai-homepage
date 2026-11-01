@@ -418,11 +418,70 @@ details[open] > summary > .disclosure-chevron { transform: rotate(180deg); }
 .source-provenance > summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
 .source-provenance code { font-size: 12px; overflow-wrap: anywhere; }
 .source-freshness { font-size: 14px; margin-bottom: 12px; }
+.source-licence-notice { margin-block: 24px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
+.source-licence-notice p { margin-top: 8px; }
 .official-link { display: inline; overflow-wrap: anywhere; }
 .official-link > svg { display: inline; margin-left: 5px; vertical-align: -2px; }
 .missing-source, .unavailable-link { color: var(--error-text); font-size: 14px; }
 
 .conversation { margin-top: 32px; }
+.ai-conversation-notice { margin: 10px 12px 0; max-width: 70ch; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.home-conversation-details { margin-top: 8px; padding: 0 16px; background: var(--surface); border-radius: 12px; font-size: 14px; }
+.home-conversation-details > summary { padding-block: 10px; min-height: 44px; cursor: pointer; }
+.home-conversation-details .conversation-details-content { max-height: 50dvh; overflow-y: auto; padding-bottom: 16px; }
+.conversation-details { margin-bottom: 32px; padding-block: 20px; border-block: 1px solid var(--line); }
+.conversation-details-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.conversation-details-heading h2 { font: 700 20px/1.4 var(--font-bc-sans), Arial, sans-serif; letter-spacing: -.02em; }
+.conversation-detail-options { display: flex; align-items: flex-start; flex-direction: column; gap: 12px; margin-top: 20px; }
+.conversation-detail-options .composer-scope { box-shadow: none; padding-left: 0; }
+.conversation-details-content .ai-conversation-notice { margin-inline: 0; font-size: 14px; }
+.conversation-starters { max-width: 736px; margin: 28px auto; }
+.conversation-starters h2 { font: 700 22px/1.4 var(--font-bc-sans), Arial, sans-serif; letter-spacing: -.02em; margin-bottom: 8px; }
+.conversation-starters > p { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+.conversation-starters ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; list-style: none; margin: 0; padding: 0; }
+.conversation-starters li { min-width: 0; border-bottom: 1px solid var(--line); }
+.conversation-starters [data-slot="button"] { min-height: 48px; height: auto; width: 100%; justify-content: flex-start; padding: 12px 8px; text-align: left; white-space: normal; line-height: 1.5; color: var(--link); }
+.starter-replacement { margin-top: 20px; padding-block: 16px; border-block: 1px solid var(--line); }
+.starter-replacement .discovery-actions [data-slot="button"] { width: auto; }
+.hero-stage > .conversation-starters { max-width: 880px; margin-top: 40px; }
+.ai-conversation-notice label { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.ai-conversation-notice input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--action); }
+.ai-conversation-context { margin-block: 0 24px; }
+.ai-context-summary { margin-top: 20px; border-top: 1px solid var(--line); padding-block: 12px; }
+.ai-context-summary > summary { min-height: 44px; padding-block: 10px; font-weight: 700; cursor: pointer; }
+.ai-decision-notice { margin-top: 12px; font-size: 12px; color: var(--muted); }
+.task-progress-label { margin-block: 12px; color: var(--muted); font-size: 13px; }
+.task-current-guidance { max-width: 70ch; line-height: 1.7; }
+.task-current-guidance p + p { margin-top: 16px; }
+.full-preparation-guide { margin-top: 20px; }
+.full-preparation-guide > summary { cursor: pointer; min-height: 44px; padding-block: 10px; font-weight: 700; }
+.full-preparation-guide .chat-artifacts { margin-top: 16px; }
+.conversation-control-error { padding-block: 8px; color: var(--error-text); }
+.ai-conversation-context [data-slot="button"] { min-height: 44px; height: auto; max-width: 100%; white-space: normal; text-align: left; padding-block: 10px; }
+.ai-conversation-context fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.discovery-context { margin: 32px 0; padding-block: 24px; border-block: 1px solid var(--line); }
+.discovery-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; }
+.discovery-heading h2 { font-size: 30px; letter-spacing: -.025em; }
+.discovery-heading > span, .discovery-provenance, .discovery-count { color: var(--muted); font-size: 13px; }
+.discovery-goal { margin-top: 16px; font-weight: 700; }
+.discovery-privacy, .discovery-demo-note, .discovery-suggestion p { max-width: 70ch; margin-top: 8px; color: var(--muted); font-size: 14px; }
+.discovery-facts { margin: 20px 0; }
+.discovery-fact { padding-block: 14px; border-top: 1px solid var(--line); }
+.discovery-fact dt { font-weight: 700; font-size: 14px; }
+.discovery-fact dd { margin: 4px 0 0; }
+.discovery-provenance { display: inline-block; margin-inline-start: 12px; }
+.discovery-fact-actions, .discovery-actions, .discovery-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.discovery-context [data-slot="button"] { min-height: 44px; height: auto; max-width: 100%; padding-block: 10px; white-space: normal; text-align: left; }
+.discovery-question fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.discovery-reason { margin-top: 16px; color: var(--muted); font-size: 14px; }
+.discovery-reason summary { cursor: pointer; min-height: 44px; padding-block: 10px; }
+.discovery-reason p { max-width: 70ch; padding-block: 4px 12px; }
+.discovery-edit { display: grid; gap: 8px; max-width: 36rem; }
+.discovery-edit input { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
+.discovery-edit label { font-size: 14px; }
+.discovery-suggestion { margin-top: 20px; }
+.discovery-demo-note { margin-block: 20px 8px; }
+.chat-context-notice { margin-block: 16px; color: var(--notice-text); background: var(--notice-bg); padding: 16px; border-radius: 12px; }
 .message { margin-block: 20px; padding-block: 22px; border-top: 1px solid var(--line); }
 .message-user { padding: 22px 26px; background: var(--surface-soft); border: 0; border-radius: 26px 26px 4px 26px; }
 .message-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
@@ -453,7 +512,9 @@ details[open] > summary > .disclosure-chevron { transform: rotate(180deg); }
 .chat-page { width: min(100% - 48px, 736px); min-height: 100dvh; margin-inline: auto; padding-top: 116px; padding-bottom: calc(var(--chat-composer-height, 190px) + 48px); }
 .chat-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: 28px; gap: 16px; color: var(--muted); font-size: 14px; }
 .chat-toolbar > a { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; min-height: 44px; }
-.chat-empty h1 { font-size: clamp(40px, 5vw, 64px); margin-top: 12vh; text-align: center; }
+.chat-toolbar-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.chat-toolbar-actions [data-slot="button"] { min-height: 44px; }
+.chat-empty h1 { font-size: clamp(40px, 5vw, 64px); margin-top: clamp(16px, 4vh, 40px); text-align: center; }
 .chat-empty-copy { max-width: 48ch; margin: 24px auto; text-align: center; color: var(--muted); }
 .chat-empty-copy p + p { margin-top: 14px; font-size: 14px; }
 .chat-empty-copy > a { display: inline-flex; gap: 10px; align-items: center; margin-top: 28px; }
@@ -547,6 +608,8 @@ details[open] > summary > .disclosure-chevron { transform: rotate(180deg); }
   .chat-header .identity-logo { width: 152px; }
   .chat-page { width: calc(100% - 40px); padding-top: 96px; }
   .chat-toolbar { margin-bottom: 20px; }
+  .chat-toolbar { gap: 8px; flex-wrap: wrap; }
+  .conversation-starters ul { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .chat-page .message-user { max-width: 94%; padding: 14px 18px; }
   .chat-page .answer-content { font-size: 16px; line-height: 1.7; }
   .chat-recovery { padding: 18px; }

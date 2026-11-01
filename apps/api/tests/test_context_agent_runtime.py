@@ -120,6 +120,20 @@ async def authorized_plan(
     return service, agent, await agent.authorize("owner", PAGE_TOKEN, token), token
 
 
+async def test_context_discovery_never_expands_a_fictional_purpose(settings):
+    settings = contextual_settings(settings)
+    _, agent, _, token = await authorized_plan(settings)
+    with pytest.raises(ApiError) as error:
+        await agent.authorize(
+            "owner", PAGE_TOKEN, token, question="I'm buying a motorcycle next year."
+        )
+    assert error.value.code == "CONTEXT_PURPOSE_CHANGED"
+    plan = await agent.authorize(
+        "owner", PAGE_TOKEN, token, question="I lost my job and need help with rent."
+    )
+    assert plan.authorization.persona_id == "sam-job-loss"
+
+
 class FixtureContextRuntime(FoundryRuntime):
     def __init__(self, settings, catalog, evidence):
         super().__init__(settings, catalog)

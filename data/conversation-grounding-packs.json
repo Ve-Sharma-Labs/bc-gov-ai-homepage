@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "purpose": "grounded-conversation",
+  "publicationPolicy": "exact-hash-human-review",
+  "containsSourceContent": false,
+  "packs": [
+    {
+      "id": "licence",
+      "programmes": ["licence-renewal"],
+      "requiredTopics": ["requirements", "additional-items", "documents", "fees", "timing", "locations", "application"],
+      "rightsState": "publisher-permission-required",
+      "rightsReview": null,
+      "publicationReview": null,
+      "policyReferences": ["https://www.icbc.com/policies/Terms-and-conditions"],
+      "gap": "No verified permission exception or licensed licensing-office feed has been supplied. Licensing statistics are not office locations, hours, or capabilities.",
+      "sources": [
+        {"id": "icbc-renewal", "sourceId": "icbc", "url": "https://www.icbc.com/driver-licensing/getting-licensed/Renew-your-licence-or-ID", "topics": ["requirements", "additional-items", "timing", "application"]},
+        {"id": "icbc-id", "sourceId": "icbc", "url": "https://www.icbc.com/driver-licensing/visit-dl-office/Accepted-ID", "topics": ["documents"]},
+        {"id": "icbc-fees", "sourceId": "icbc", "url": "https://www.icbc.com/driver-licensing/visit-dl-office/Fees", "topics": ["fees"]},
+        {"id": "icbc-visits", "sourceId": "icbc", "url": "https://www.icbc.com/driver-licensing/visit-dl-office", "topics": ["locations", "additional-items"]}
+      ]
+    },
+    {
+      "id": "ei",
+      "programmes": ["ei-regular"],
+      "requiredTopics": ["requirements", "documents", "timing", "application", "missing-roe", "existing-claim", "reporting", "contact"],
+      "rightsState": "use-classification-review-required",
+      "rightsReview": null,
+      "publicationReview": null,
+      "policyReferences": ["https://www.canada.ca/en/transparency/terms.html"],
+      "gap": "Non-commercial classification has not been confirmed. Terms require accurate reproduction, title/author attribution and a copy-of-source-URL notice; commercial redistribution needs permission. Page-specific exclusions and AI reuse must be reviewed.",
+      "sources": [
+        {"id": "ei-overview", "sourceId": "employment-insurance", "url": "https://www.canada.ca/en/services/benefits/ei/ei-regular-benefit.html", "topics": ["overview", "timing", "missing-roe"]},
+        {"id": "ei-eligibility", "sourceId": "employment-insurance", "url": "https://www.canada.ca/en/services/benefits/ei/ei-regular-benefit/eligibility.html", "topics": ["requirements"]},
+        {"id": "ei-apply", "sourceId": "employment-insurance", "url": "https://www.canada.ca/en/services/benefits/ei/ei-regular-benefit/apply.html", "topics": ["application", "documents", "existing-claim"]},
+        {"id": "ei-after", "sourceId": "employment-insurance", "url": "https://www.canada.ca/en/services/benefits/ei/ei-regular-benefit/after-applying.html", "topics": ["reporting"]},
+        {"id": "ei-contact", "sourceId": "employment-insurance", "url": "https://www.canada.ca/en/employment-social-development/corporate/contact/ei-individual.html", "topics": ["contact"]}
+      ]
+    },
+    {
+      "id": "guardianship",
+      "programmes": ["guardianship-adult", "guardianship-child"],
+      "requiredTopics": ["overview", "requirements", "documents", "application", "contact", "legal-help"],
+      "rightsState": "publisher-permission-required",
+      "rightsReview": null,
+      "publicationReview": null,
+      "policyReferences": ["https://www2.gov.bc.ca/gov/content/home/copyright", "https://www.trustee.bc.ca/terms-conditions", "https://www.bclaws.gov.bc.ca/standards/Licence.html"],
+      "gap": "BC guidance prose and PGT materials need verified permission. The King's Printer Licence is a separate possible route for expressly licensed statute text, not permission to copy guidance prose. No existing permission exception was supplied.",
+      "sources": [
+        {"id": "adult-decision-making", "sourceId": "family-social-supports", "url": "https://www2.gov.bc.ca/gov/content/family-social-supports/seniors/financial-legal-matters/substitute-decision-making", "topics": ["overview", "legal-help"]},
+        {"id": "child-guardianship", "sourceId": "child-guardianship", "url": "https://www2.gov.bc.ca/gov/content/life-events/divorce/family-justice/family-law/parenting-apart/am-i-a-guardian", "topics": ["overview", "requirements", "legal-help"]},
+        {"id": "pgt-planning", "sourceId": "public-guardian-trustee", "url": "https://www.trustee.bc.ca/adults/personal-planning-tools", "topics": ["documents", "application"]},
+        {"id": "pgt-contact", "sourceId": "public-guardian-trustee", "url": "https://www.trustee.bc.ca/contact-us", "topics": ["contact"]}
+      ]
+    },
+    {
+      "id": "disability",
+      "programmes": ["disability-assistance", "pwd-designation"],
+      "requiredTopics": ["overview", "requirements", "documents", "application", "contact", "professional-sections"],
+      "rightsState": "publisher-permission-required",
+      "rightsReview": null,
+      "publicationReview": null,
+      "policyReferences": ["https://www2.gov.bc.ca/gov/content/home/copyright"],
+      "gap": "A permission or applicable licence exception for the new BC guidance is not supplied. Existing approved corpus records are not a blanket grant for these pages. Other disability programmes need their own reviewed scope.",
+      "sources": [
+        {"id": "bc-disability-assistance", "sourceId": "disability-assistance", "url": "https://www2.gov.bc.ca/gov/content/family-social-supports/services-for-people-with-disabilities/disability-assistance", "topics": ["overview", "requirements", "documents", "application", "professional-sections"]},
+        {"id": "bc-assistance-contact", "sourceId": "disability-assistance", "url": "https://www2.gov.bc.ca/gov/content/family-social-supports/income-assistance/access-services", "topics": ["contact"]}
+      ]
+    }
+  ]
+}

@@ -5,6 +5,8 @@ const officialHosts = [
   "healthlinkbc.ca",
   "workbc.ca",
   "bclaws.gov.bc.ca",
+  "canada.ca",
+  "trustee.bc.ca",
 ];
 
 export function safeOfficialUrl(value: unknown): string | null {

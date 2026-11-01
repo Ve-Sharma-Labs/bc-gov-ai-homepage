@@ -14,7 +14,9 @@ from pydantic import ValidationError
 from bc_api.agents import (
     agent_definitions,
     contextual_agent_definition,
+    conversation_agent_definition,
     general_agent_definition,
+    grounded_agent_definition,
 )
 from bc_api.catalog import CatalogRepository
 from bc_api.config import Settings
@@ -24,10 +26,14 @@ from bc_api.models import AgentBinding
 from bc_api.urls import azure_endpoint
 
 
-async def publish(definitions: list[dict], endpoint: str) -> list[dict]:
+async def publish(
+    definitions: list[dict], endpoint: str, subscription: str | None = None
+) -> list[dict]:
     endpoint = azure_endpoint(endpoint, service="foundry")
     registered: list[dict] = []
-    async with AzureCliCredential() as credential:
+    async with AzureCliCredential(
+        **({"subscription": subscription} if subscription else {})
+    ) as credential:
         async with AIProjectClient(
             endpoint=endpoint, credential=credential, retry_total=0, logging_enable=False
         ) as project:
@@ -39,12 +45,21 @@ async def publish(definitions: list[dict], endpoint: str) -> list[dict]:
                         model=definition["model"],
                         instructions=definition["instructions"],
                         tools=[FunctionTool(**tool) for tool in definition["tools"]],
+                        **(
+                            {"tool_choice": definition["tool_choice"]}
+                            if "tool_choice" in definition
+                            else {}
+                        ),
                     ),
                     metadata={
                         "journey": entry["journeyId"] or entry.get("mode", "general"),
                         "contract": (
-                            "1"
+                            "6"
+                            if entry.get("mode") in ("grounded-conversation", "grounded-answer")
+                            else "1"
                             if entry["journeyId"]
+                            else "5"
+                            if entry.get("mode") == "conversation"
                             else "3"
                             if entry.get("mode") == "contextual-demo"
                             else "2"
@@ -69,18 +84,40 @@ def main() -> int:
     parser.add_argument("--prefix", default="bc-service")
     parser.add_argument("--model-deployment", required=True)
     parser.add_argument("--project-endpoint")
+    parser.add_argument(
+        "--subscription", help="Use this existing CLI subscription without changing its default."
+    )
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--approved", action="store_true")
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--general-only", action="store_true")
     selection.add_argument("--contextual-only", action="store_true")
+    selection.add_argument("--conversation-only", action="store_true")
+    selection.add_argument("--grounded-planner-only", action="store_true")
+    selection.add_argument("--grounded-answer-only", action="store_true")
     args = parser.parse_args()
     if args.publish and (not args.approved or not args.project_endpoint):
         parser.error("Publishing requires --approved and a user-confirmed --project-endpoint.")
     configure_safe_logging()
     try:
         catalog = CatalogRepository(Settings().catalog_path)
-        if args.general_only:
+        if args.grounded_planner_only or args.grounded_answer_only:
+            definitions = [
+                grounded_agent_definition(
+                    catalog,
+                    prefix=args.prefix,
+                    model_deployment=args.model_deployment,
+                    planner=args.grounded_planner_only,
+                )
+            ]
+        elif args.conversation_only:
+            definitions = [
+                conversation_agent_definition(
+                    prefix=args.prefix,
+                    model_deployment=args.model_deployment,
+                )
+            ]
+        elif args.general_only:
             definitions = [
                 general_agent_definition(
                     catalog,
@@ -105,17 +142,29 @@ def main() -> int:
         if args.publish:
             endpoint = azure_endpoint(args.project_endpoint, service="foundry")
             label = (
-                "general agent"
+                "grounded conversation planner"
+                if args.grounded_planner_only
+                else "grounded answer agent"
+                if args.grounded_answer_only
+                else "conversation agent"
+                if args.conversation_only
+                else "general agent"
                 if args.general_only
                 else "contextual-demo agent"
                 if args.contextual_only
                 else "seven-agent bundle"
             )
             print(f"Publishing the reviewed {label} to {endpoint}.", file=sys.stderr)
-            result = asyncio.run(publish(definitions, endpoint))
+            result = asyncio.run(publish(definitions, endpoint, args.subscription))
             print(
                 json.dumps(
-                    {"FOUNDRY_GENERAL_AGENT": result[0]}
+                    {"FOUNDRY_GROUNDED_CONVERSATION_AGENT": result[0]}
+                    if args.grounded_planner_only
+                    else {"FOUNDRY_GROUNDED_ANSWER_AGENT": result[0]}
+                    if args.grounded_answer_only
+                    else {"FOUNDRY_CONVERSATION_AGENT": result[0]}
+                    if args.conversation_only
+                    else {"FOUNDRY_GENERAL_AGENT": result[0]}
                     if args.general_only
                     else {"FOUNDRY_CONTEXTUAL_AGENT": result[0]}
                     if args.contextual_only

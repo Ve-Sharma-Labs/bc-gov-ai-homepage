@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import re
 from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
@@ -18,6 +19,7 @@ from bc_api.config import Settings
 from bc_api.dialogue import source_topics
 from bc_api.embeddings import AzureEmbeddings
 from bc_api.errors import ApiError
+from bc_api.grounded_quotes import mark_source_quotes, quote_registry
 from bc_api.models import JOURNEY_IDS, Evidence, EvidenceBundle, EvidenceMetadata, SourceReference
 
 SELECT_FIELDS = [
@@ -56,9 +58,26 @@ METADATA_FIELDS = [
 ]
 INJECTION_MARKERS = re.compile(
     r"(?:ignore|override|disregard).{0,50}(?:instructions|system|developer)"
-    r"|<script\b|javascript:|(?:system|developer)\s+prompt",
+    r"|<script\b|javascript:|(?:system|developer)\s+prompt"
+    r"|(?:^|[\r\n])[ \t]*(?:system|developer|assistant)[ \t]*:"
+    r"|<\s*(?:/\s*)?(?:system|developer|assistant)\b[^<>]*>",
     re.IGNORECASE | re.DOTALL,
 )
+
+
+def _reject_instruction_markers(value: Any) -> None:
+    """Screen known markers without rewriting source text; this does not establish trust."""
+    if isinstance(value, str):
+        if INJECTION_MARKERS.search(value):
+            raise ApiError(
+                502, "SOURCE_CONTENT_REJECTED", "Unexpected instruction-like source content."
+            )
+    elif isinstance(value, dict):
+        for item in value.values():
+            _reject_instruction_markers(item)
+    elif isinstance(value, list):
+        for item in value:
+            _reject_instruction_markers(item)
 
 
 def iso_value(value: Any) -> Any:
@@ -378,11 +397,25 @@ def diversify_evidence(candidates: list[Evidence], limit: int = 5) -> list[Evide
     return [item for rank, item in unique if rank in selected]
 
 
+def model_evidence_json(bundle: EvidenceBundle) -> str:
+    payload = bundle.model_dump(mode="json", by_alias=True)
+    _reject_instruction_markers(payload)
+    quotes = quote_registry(bundle.evidence)
+    for item in payload["evidence"]:
+        item["content"] = mark_source_quotes(item["content"], item["reference"]["url"], quotes)
+        metadata = item["reference"].get("metadata")
+        if metadata and metadata["version"] == 2:
+            for key in ("notice", "attribution", "licenceUrl", "contentHash"):
+                metadata.pop(key, None)
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
 class EvidenceLedger:
     def __init__(self) -> None:
         self.items: dict[str, Evidence] = {}
 
     def add(self, bundle: EvidenceBundle) -> None:
+        _reject_instruction_markers(bundle.model_dump(mode="json", by_alias=True))
         for item in bundle.evidence:
             ref = item.reference
             for previous in self.items.values():

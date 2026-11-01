@@ -8,6 +8,7 @@ import { CircleHelp, X } from "lucide-react";
 import { Composer } from "./composer";
 import { ComposerScope } from "./composer-scope";
 import { CitizenContextControl, SyntheticContextBanner } from "./citizen-context";
+import { AI_PROCESSING_NOTICE, ConversationDetailsContent } from "./ai-conversation";
 import { useAssistant } from "./assistant-provider";
 import { FooterCredit } from "./chrome";
 
@@ -112,13 +113,26 @@ export function ComposerDock() {
       {position?.docked && !isChat && <div className="dock-caption">
         {assistant.busy ? <span>Answer in progress</span> : <Link href="/about#privacy">Your privacy</Link>}<span aria-hidden="true">·</span><Link href="/how-it-works">How it works</Link>
       </div>}
-      <Composer value={assistant.draft} onChange={assistant.setDraft} onSubmit={submit} onStop={assistant.stop} busy={assistant.busy} inputRef={inputRef} compact={position?.docked} />
+      <Composer value={assistant.draft} onChange={assistant.setDraft} onSubmit={submit} onStop={assistant.stop}
+        busy={assistant.busy && !assistant.conversationControlPending}
+        submissionDisabled={assistant.conversationControlPending}
+        inputRef={inputRef} compact={position?.docked}
+        privacyText={assistant.capabilities.conversationAvailable
+          ? `${AI_PROCESSING_NOTICE} Optional personal-context sharing is in Details.`
+          : undefined} />
       <SyntheticContextBanner />
-      <div className="conversation-controls">
+      {assistant.capabilities.conversationAvailable
+        ? !isChat && <details className="home-conversation-details">
+          <summary>Details and sharing</summary>
+          <ConversationDetailsContent />
+        </details>
+        : <div className="conversation-controls">
         <ComposerScope />
         <CitizenContextControl />
-      </div>
-      <p className="composer-privacy">Keep names, ID numbers and personal details out of your question.</p>
+      </div>}
+      {!assistant.capabilities.conversationAvailable && <p className="composer-privacy">{assistant.capabilities.discoveryAvailable
+        ? "Share only what you choose. No names, ID numbers, documents, or health histories."
+        : "Keep names, ID numbers and personal details out of your question."}</p>}
       {isChat && <footer className="chat-composer-footer"><div><Link href="/about#privacy">Privacy</Link><span aria-hidden="true">·</span><Link href="/how-it-works">How it works</Link></div><FooterCredit /></footer>}
       {assistant.notice && !isChat && <div className="composer-notice" role="status">
         <div><CircleHelp size={18} aria-hidden="true" /><p>{assistant.notice}</p></div>

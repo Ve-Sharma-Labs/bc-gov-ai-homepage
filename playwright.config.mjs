@@ -2,9 +2,22 @@ import { defineConfig, devices } from "@playwright/test";
 
 const webPort = 3310;
 const apiPort = 8310;
+const discovery = process.env.CONVERSATION_DISCOVERY_ENABLED === "true";
+const taskAssistance = process.env.TASK_ASSISTANCE_ENABLED === "true";
+const aiConversation = process.env.AI_CONVERSATION_ENABLED === "true" || taskAssistance;
+const liveGrounded = process.env.LIVE_GROUNDED_EVAL === "true";
+if (liveGrounded && (!process.env.PILOT_BASE_URL
+  || !["127.0.0.1", "localhost"].includes(new URL(process.env.PILOT_BASE_URL).hostname))) {
+  throw new Error("Live grounded UI evaluation requires an explicitly selected loopback preview.");
+}
 
 export default defineConfig({
   testDir: "./tests/browser",
+  testMatch: liveGrounded ? "**/grounded-live.spec.mjs" : taskAssistance ? "**/task-progress.spec.mjs" : aiConversation ? "**/ai-conversation.spec.mjs" : discovery ? "**/discovery.spec.mjs" : undefined,
+  testIgnore: liveGrounded ? [] : [
+    "**/grounded-live.spec.mjs",
+    ...(taskAssistance ? [] : aiConversation ? ["**/discovery.spec.mjs", "**/task-progress.spec.mjs"] : discovery ? ["**/ai-conversation.spec.mjs", "**/task-progress.spec.mjs"] : ["**/discovery.spec.mjs", "**/ai-conversation.spec.mjs", "**/task-progress.spec.mjs"]),
+  ],
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -35,6 +48,18 @@ export default defineConfig({
       NEXT_TELEMETRY_DISABLED: "1",
       WEBIQ_ENABLED: "false",
       SYNTHETIC_CONTEXT_ENABLED: "true",
+      CONVERSATION_DISCOVERY_ENABLED: discovery ? "true" : "false",
+      CONVERSATION_DISCOVERY_PRIVACY_REVIEWED: "false",
+      AI_CONVERSATION_ENABLED: aiConversation ? "true" : "false",
+      TASK_ASSISTANCE_ENABLED: taskAssistance ? "true" : "false",
+      GROUNDED_CONVERSATION_ENABLED: "false",
+      LOCAL_EVIDENCE_EVALUATION_ENABLED: "false",
+      LOCAL_EVIDENCE_SNAPSHOT_PATH: "",
+      LOCAL_EVIDENCE_SNAPSHOT_SHA256: "",
+      FOUNDRY_GROUNDED_CONVERSATION_AGENT: "",
+      FOUNDRY_GROUNDED_ANSWER_AGENT: "",
+      AI_CONVERSATION_PRIVACY_REVIEWED: "false",
+      FOUNDRY_CONVERSATION_AGENT: "",
       FOUNDRY_PROJECT_ENDPOINT: "",
       FOUNDRY_AGENT_NAME: "",
       FOUNDRY_AGENT_VERSION: "",

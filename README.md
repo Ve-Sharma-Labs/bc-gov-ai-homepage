@@ -67,6 +67,205 @@ The pilot does not renew a licence, book an appointment, register a patient,
 determine benefit eligibility, or submit a government form. It prepares people
 and hands them off to the appropriate official service.
 
+### AI-led conversations
+
+With `TASK_ASSISTANCE_ENABLED=true`, the conversation continues through practical
+preparation steps instead of reposting the full checklist. A B.C. renewal starts
+with identification preparation; "I have my ID" moves to office selection, and
+a chosen city/town filters the reviewed office snapshot. Repeated requests and
+"are you helping?" stay with the active task. Chat is text-first: follow-ups
+appear as messages and accept typed replies. The full guide, progress, context,
+and sharing preferences stay available in optional **Details**, never a
+required answer panel.
+
+Four examples on the homepage and empty chat cover licence renewal,
+guardianship, disability support, and job loss. Selecting an example only
+fills/focuses the composer; Send is explicit, existing drafts need confirmation
+before replacement, and no fictional persona or sharing preference is activated.
+During a conversation, **Examples** reopens the same suggestions.
+
+Sharing and step-review controls use a non-model, revision-checked endpoint.
+They do not insert invented user messages or clear a pending intake question.
+Progress means **reviewed or reported ready by the user**, never a completed
+government transaction. Task state shares the page session's expiry and can be
+cleared with Start over or reload.
+
+The new `AI_CONVERSATION_ENABLED=true` mode uses a separately pinned
+`FOUNDRY_CONVERSATION_AGENT` to understand requests before retrieval. Ordinary
+typos and paraphrases are handled by the model, not an exact-keyword gate.
+The API validates the proposed goal, facts, and essential question, then
+provides the existing reviewed guide or uses the grounded-answer runtime.
+For example, a misspelled driver's-licence renewal request asks whether the
+licence was issued in B.C.; a yes answer leads to practical renewal preparation.
+Exact question labels and short answers resolve against the server's pending
+question without model inference. "Issued somewhere else" is retained and
+leads to a different question: renew with the original issuer, or get a B.C.
+licence. Unknown/skipped issuers never become an assumed B.C. renewal.
+Business licences, BCeID accounts, and motorcycle purchase planning remain
+distinct from driver renewal.
+
+The UI discloses Azure processing before sending. Optional personal-context
+sharing starts **off**. When enabled, only relevant, explicitly supplied
+categories are retained for that page and included in future model requests.
+Changing or removing context does not undo earlier model processing.
+Identifiers, credentials, documents, addresses, and medical histories remain
+prohibited. Reviewed question wording cannot carry uncited model claims.
+
+Use a distinct isolated agent, not an edited public binding. The export-first
+publisher supports `--conversation-only`; a live publication still requires
+the approved endpoint and `--publish --approved`. The returned binding is the
+source of truth for its version. `AZURE_CLI_SUBSCRIPTION` optionally pins local
+authentication without changing the CLI's global default. Public enablement
+requires `AI_CONVERSATION_PRIVACY_REVIEWED=true` and the applicable review,
+not merely a working local model.
+
+After local connection and explicit model-usage approval, run the bounded
+synthetic conversation checks:
+
+```powershell
+node scripts\evaluate-ai-conversation.mjs --live-approved
+```
+
+This exercises all seven journeys plus negative routing cases, respects local
+rate limits, fails on the first broken case, and clears its test sessions.
+When task assistance is enabled, it also checks repeated help, sharing changes,
+user-reported readiness, continued steps, and an official handoff, rather than
+stopping after a guide appears. The reported-renewal case includes the full
+frustrated-check-in exchange. The additional non-B.C. cases follow the reported
+negative answer through both licensing routes. The guardianship, disability,
+and job-loss starter cases check public-safe follow-ups and useful official
+handoffs, without borrowing fictional records.
+`--case="reported renewal typo"` runs only the reported regression.
+`--from="reported non-BC renewal loop"` runs the five new branch/starter cases.
+The separate browser fixture suite uses `AI_CONVERSATION_ENABLED=true` with
+`npm run test:e2e`; it does not invoke a model.
+Set `TASK_ASSISTANCE_ENABLED=true` to run the text-first task-continuation,
+starter/draft, and non-B.C. browser suite.
+
+### Grounded conversation candidate (version 6)
+
+The candidate separates progress from the current information request. A mixed
+reply such as "I have my ID ready, what else to bring?" can retain progress and
+select additional-requirements evidence instead of replaying the checklist.
+EI is a specific programme under job loss; city spelling is resolved against
+approved names, and a missing snapshot row leads to ICBC's locator rather than
+an assertion that the requested city has no service.
+
+`GROUNDED_CONVERSATION_ENABLED` is **off by default**. Clients opt into
+capability discovery with `X-BC-Client-Version: 6` and pin their selected
+conversation version until starting over. Version 6 uses separate
+`FOUNDRY_GROUNDED_CONVERSATION_AGENT` and `FOUNDRY_GROUNDED_ANSWER_AGENT`
+bindings. Export review-only definitions using `publish_agents` with
+`--grounded-planner-only` or `--grounded-answer-only`. The policies include
+bounded SDK model-assisted refinements; this is not a claim that the managed
+MCP prompt optimizer ran.
+The same publisher's explicit endpoint/approval requirements still apply.
+
+The new source inventory is **metadata, not a populated or approved corpus**:
+
+```powershell
+.\apps\api\.venv\Scripts\python.exe -m bc_api.grounding_packs
+```
+
+`data\conversation-grounding-packs.json` records required topics and source
+references for all four starter flows, including missing candidate topics.
+Every pack remains blocked pending its actual rights and publication review.
+ICBC and PGT access restrictions are not bypassed. New B.C. guidance needs an
+applicable permission/licence review. Canada.ca's conditional non-commercial
+terms require an actual use classification, attribution, and content review;
+government ownership or an open-data licence is not a blanket grant.
+No new source content or index is published by this feature.
+
+For **local non-commercial evaluation only**, the separate
+`LOCAL_EVIDENCE_EVALUATION_ENABLED` profile can use named licensed alternatives:
+existing project preparation notes, BC Laws statutory sections under the
+King's Printer Licence, and dated Canada.ca copies under its conditional
+non-commercial terms. This does not approve the original blocked blueprints
+or classify a future public/commercial deployment as permitted.
+
+The profile requires development mode, loopback-only API hosts/origins and
+listeners, and the same flag in the web proxy. `npm run dev` binds both services
+to loopback. A direct Uvicorn launch must use `--host 127.0.0.1 --no-proxy-headers`;
+set `API_ALLOWED_HOSTS=localhost,127.0.0.1,::1`. Optional Canada.ca copies require
+an absolute `LOCAL_EVIDENCE_SNAPSHOT_PATH` and its
+`LOCAL_EVIDENCE_SNAPSHOT_SHA256`. Copies expire after seven days; stale or
+changed evidence fails closed. Source bodies are not committed or published
+to Search. Privacy and evaluation notices are kept in optional Details rather
+than below the composer. The UI retains dated/live provenance
+and the full statutory licence notice.
+
+The grounded writer has one typed, programme-scoped source tool, not legacy
+plan or office tools. Free-text public-query copying is not required of the
+model. Core grounded answers are checked before display; an invalid citation
+or critical quotation gets at most one correction within the same model
+budget. Failed text never becomes conversation history. The ICBC locator is
+an honest handoff, not a verified office inventory or booking service.
+
+Run the explicitly billable, synthetic outcome suite against this local profile:
+
+```powershell
+node .\scripts\evaluate-grounded-conversation.mjs --live-approved
+```
+
+It replays the reported renewal and EI conversations plus adult/child
+guardianship, disability, and a programme switch, and rejects repeated intake,
+missing substantive answers, unverified details, and false transaction claims.
+
+For an explicitly billable desktop/mobile UI replay, set `PILOT_BASE_URL` to
+the local preview and `LIVE_GROUNDED_EVAL=true`, then run `npm run test:e2e`.
+These live tests are excluded from normal fixture runs and never run against
+a public host.
+
+The existing version-5 path also has safe compatibility repairs: explicit EI
+requests leave the rent/work loop and use an honest official handoff; mixed
+document follow-ups request evidence rather than reprinting the ID step; clear
+city typos are normalized; and unavailable licensing-office coverage points to
+the proper ICBC locator. These fixes do not invent missing instructions or
+claim that the four-flow grounding work is complete.
+
+### Original deterministic discovery (version 4)
+
+The repository includes a disabled-by-default conversation increment. To try it
+locally with fictional inputs:
+
+```powershell
+$env:CONVERSATION_DISCOVERY_ENABLED = 'true'
+npm run dev
+```
+
+Start with a goal such as planning for a motorcycle next year. The assistant
+uses reviewed, application-authored acknowledgments and asks one relevant
+question at a time, with at most three questions before a starting plan or
+honest official handoff. **Skip this question**, **Give me general guidance**,
+and an editable **What I understand** summary keep disclosure optional.
+Existing guided plans remain available. Direct factual questions bypass
+discovery but still need the configured model and reviewed evidence.
+
+Discovery works without Foundry for its bounded questions and catalogue
+handoffs; it is not simulated model output. Motorcycle-specific rules are not
+in the approved corpus, so no age eligibility, fees, or licensing outcome is
+invented. Age, PHN possession, and other allowlisted answers are temporary
+self-reports, not verified government records. PHN numbers, documents, and
+credentials must not be entered. Immigration-status questions are not enabled
+without a reviewed program-specific purpose and question contract.
+
+**Try fictional context** remains a separate opt-in. A matching conversation
+can suggest a fictional scenario, but cannot activate Maya, Alex, or Sam without
+the person's explicit choice and consent. Real BCeID/BC Services Card sign-in
+and government-record access are not implemented by this increment.
+
+State is bound to the anonymous session and a separate in-memory page token.
+It expires after `CONVERSATION_CONTEXT_TTL_SECONDS` (default 1800), and reload
+or Start over makes the old page binding unusable. Answers are not put in
+browser storage, URLs, telemetry, Search, embeddings, or model prompts.
+Factual follow-ups use a bounded public-intent query, not raw discovery history.
+Those no-personal-context-to-model guarantees apply to version 4. Version 5
+uses its separate disclosure and optional sharing contract; it never imports
+facts from an older version-4 session.
+Public enablement additionally requires
+`CONVERSATION_DISCOVERY_PRIVACY_REVIEWED=true` and the applicable release review.
+This code change does not enable or deploy the feature in the public pilot.
+
 ## Connect approved Azure services
 
 See `.env.example` for non-secret setting names. The key connections are:
@@ -148,12 +347,18 @@ npm run check
 npm run build
 $env:PLAYWRIGHT_CHANNEL = 'msedge'
 npm run test:e2e
+# Separately exercise the opt-in discovery increment against the real local API.
+$env:CONVERSATION_DISCOVERY_ENABLED = 'true'
+npm run test:e2e
+Remove-Item Env:\CONVERSATION_DISCOVERY_ENABLED
 ```
 
 The browser suite uses an isolated Edge profile on Windows when the channel is
 set. On systems without Edge, install Playwright's Chromium browser and omit
 that setting. The suite starts its own local services on ports 3310 and 8310
 and must not share a real user conversation or Azure model session.
+The discovery flag selects the focused discovery browser suite; the default
+suite exercises the unchanged legacy modes. CI runs both configurations.
 
 ## Containers and Azure deployment
 

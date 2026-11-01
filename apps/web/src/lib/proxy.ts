@@ -8,6 +8,9 @@ const READ_PATHS = new Set([
   "/api/locations",
   "/api/demo/personas",
   "/api/context/summary",
+  "/api/discovery",
+  "/api/conversation",
+  "/api/conversation/task",
 ]);
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -20,17 +23,38 @@ export function allowedApiRequest(method: string, pathname: string, query: URLSe
   if (method === "GET") {
     return READ_PATHS.has(pathname) || journeyIds.some((id) => pathname === `/api/journeys/${id}`);
   }
-  if (method === "DELETE") return pathname === "/api/demo/session";
+  if (method === "DELETE") return ["/api/demo/session", "/api/discovery", "/api/conversation"].includes(pathname);
   return method === "POST" && (
     pathname === "/api/agent"
     || pathname === "/api/demo/session"
     || pathname === "/api/context/consents"
+    || pathname === "/api/conversation/control"
     || /^\/api\/runs\/[A-Za-z0-9_-]{1,128}\/cancel$/u.test(pathname)
   );
 }
 
 function failure(status: number, code: string, message: string) {
   return Response.json({ error: { code, message } }, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+function loopbackHost(host: string): boolean {
+  return ["localhost", "127.0.0.1", "::1", "[::1]", "::ffff:127.0.0.1"].includes(host.toLowerCase());
+}
+
+function localEvaluationRequest(request: Request, incoming: URL, base: URL): boolean {
+  if (!loopbackHost(incoming.hostname) || !loopbackHost(base.hostname)
+    || !loopbackHost(process.env.HOSTNAME || "") || process.env.API_AUTH_SCOPE
+    || request.headers.has("forwarded")) return false;
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded && !forwarded.split(",").every((value) => loopbackHost(value.trim()))) return false;
+  try {
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    if (forwardedHost && !loopbackHost(new URL(`http://${forwardedHost}`).hostname)) return false;
+    const origin = request.headers.get("origin");
+    return !origin || loopbackHost(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
 }
 
 export async function proxyRequest(request: Request): Promise<Response> {
@@ -47,12 +71,19 @@ export async function proxyRequest(request: Request): Promise<Response> {
   } catch {
     return failure(503, "CONFIGURATION_ERROR", "The service connection is not configured correctly.");
   }
+  const localEvaluation = process.env.LOCAL_EVIDENCE_EVALUATION_ENABLED === "true";
+  if (localEvaluation && !localEvaluationRequest(request, incoming, base)) {
+    return failure(403, "LOCAL_EVALUATION_ONLY", "These sources are restricted to the loopback, non-commercial evaluation app.");
+  }
 
   const controller = new AbortController();
   const abort = () => controller.abort();
   request.signal.addEventListener("abort", abort, { once: true });
   if (request.signal.aborted) abort();
-  const timeout = setTimeout(abort, incoming.pathname === "/api/agent" ? 180_000 : 15_000);
+  // Readiness can include CLI credential priming followed by agent/source metadata checks.
+  const timeoutMs = incoming.pathname === "/api/agent" ? 180_000
+    : incoming.pathname === "/api/capabilities" ? 45_000 : 15_000;
+  const timeout = setTimeout(abort, timeoutMs);
   const cleanup = () => {
     clearTimeout(timeout);
     request.signal.removeEventListener("abort", abort);
@@ -97,12 +128,13 @@ export async function proxyRequest(request: Request): Promise<Response> {
       }
     }
     const headers = new Headers();
-    for (const name of ["accept", "content-type", "cookie", "origin", "x-bc-context-page"]) {
+    for (const name of ["accept", "content-type", "cookie", "origin", "x-bc-context-page", "x-bc-discovery-page", "x-bc-conversation-page", "x-bc-client-version"]) {
       const value = request.headers.get(name);
       if (value) headers.set(name, value);
     }
     const serviceHeaders = await internalHeaders(request);
     serviceHeaders.forEach((value, name) => headers.set(name, value));
+    if (localEvaluation) headers.set("X-BC-Evaluation-Scope", "local-noncommercial");
     const response = await fetch(new URL(incoming.pathname + incoming.search, base), {
       method: request.method,
       headers,

@@ -8,12 +8,13 @@ import { sourceDomain } from "@/lib/links";
 import { OfficialLink } from "./official-link";
 import { SourceReferences } from "./sources";
 
-export function TaskPanel({ journey, sources, checked, onCheck, sourcePrefix = "guide-source-" }: {
+export function TaskPanel({ journey, sources, checked, onCheck, sourcePrefix = "guide-source-", disabled = false }: {
   journey: Journey;
   sources: Source[];
   checked: Set<string>;
   onCheck: (id: string, selected: boolean) => void;
   sourcePrefix?: string;
+  disabled?: boolean;
 }) {
   const headingId = useId();
   const completed = journey.steps.filter((step) => checked.has(`${journey.id}:${step.id}`)).length;
@@ -29,7 +30,7 @@ export function TaskPanel({ journey, sources, checked, onCheck, sourcePrefix = "
           const key = `${journey.id}:${step.id}`;
           return (
             <li key={step.id} className={checked.has(key) ? "step-reviewed" : ""}>
-              <Checkbox className="task-checkbox" isSelected={checked.has(key)} onChange={(selected) => onCheck(key, selected)}>
+              <Checkbox className="task-checkbox" isSelected={checked.has(key)} isDisabled={disabled} onChange={(selected) => onCheck(key, selected)}>
                 <span className="checkbox-box" aria-hidden="true"><Check size={14} strokeWidth={2.5} /></span>
                 <span>{step.title}</span>
               </Checkbox>

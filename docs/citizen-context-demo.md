@@ -129,6 +129,14 @@ explicitly configured adapters.
 
 ### 4.1 Entry point
 
+The repository's separate context-first increment changes the visible entry
+label to **Try fictional context**. Normal conversation does not require a
+persona selection. When that increment is enabled, the conversation can
+recommend an appropriate fictional scenario and open its consent sheet inline.
+It must never assign the visitor that fixture's identity or borrow its facts
+from an anonymous statement. Selection and category-level consent below remain
+mandatory. This behavior is gated and is not a claim of a new public deployment.
+
 A persistent citizen-context control appears near the conversation scope. Its
 options are:
 

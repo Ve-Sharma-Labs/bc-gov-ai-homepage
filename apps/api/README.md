@@ -3,8 +3,9 @@
 Read-only FastAPI service with explicit general chat and optional guided pathways.
 Without a verified general binding, factual general requests fail honestly; the
 curated catalogue and strictly classified application greetings remain available.
-Startup can warm agent/index metadata, but never generates answers, deploys,
-registers agents or crawls content. A separate, explicitly approved operator
+Default startup can warm agent/index metadata, but never generates answers, deploys,
+registers agents or crawls content. The explicit local-evaluation profile can
+also check its finite registry of licensed sources. A separate, explicitly approved operator
 command publishes managed prompt-agent versions. Resident transactions and Web IQ
 transport remain unimplemented.
 
@@ -94,6 +95,63 @@ not replace the cookie that owns an immediately submitted run. Run IDs
 are correlation IDs, not permission tokens or provider conversation identifiers.
 
 ## Foundry configuration and remaining service gates
+
+The optional AI-led conversation front door uses `AI_CONVERSATION_ENABLED=true`
+and a **distinct** `FOUNDRY_CONVERSATION_AGENT` binding. Export its definition
+with `publish_agents --conversation-only --prefix <isolated-prefix>
+--model-deployment <existing-approved-deployment>`. Publish only with the
+existing approval/endpoint controls; `--subscription` pins the CLI credential
+without changing global account state. Set `AZURE_CLI_SUBSCRIPTION` for the same
+local runtime pin. Production remains managed-identity-only.
+
+This agent returns one typed proposal; the API validates and renders the next
+turn. It can understand typos and ask an essential follow-up before any Search
+request, while factual generation retains the original evidence checks.
+Planner and answer stages share an aggregate budget and owned cancellation.
+The live evaluation script in the root uses synthetic cases and fails on the
+first error; CI runs offline protocol and browser fixtures.
+
+Whole canonical answers to the current question bypass the planner and commit
+through the same page/revision safeguards. In particular, the application's
+own "Issued somewhere else" and "Planning a move" labels are authoritative
+answers, not suggestions that a model or regex may discard. Non-B.C. licensing
+gets a separate renewal-versus-exchange clarification. Public guardianship
+and disability topic choices use internal bounded state and the existing
+intent-question wire shape; no fictional records are activated.
+
+### Local grounded evaluation
+
+Version 6 uses separate pinned planner/writer bindings. With
+`LOCAL_EVIDENCE_EVALUATION_ENABLED=true`, the API rejects production mode,
+non-loopback hosts/origins, non-loopback request peers/listener addresses, and
+forwarded requests. The web proxy validates its loopback configuration and
+supplies `X-BC-Evaluation-Scope: local-noncommercial`; clients cannot turn the
+source profile on themselves. Keep both services bound to loopback.
+
+`local_evidence.py` has no arbitrary URL or crawl operation. Named CiviX reads
+pin validated public DNS addresses to HTTPS while retaining certificate/host
+verification, reject redirects and unsupported/compressed media, and cap
+responses at 2 MB. Selected statutory sections retain their qualifiers and
+publisher consolidation dates. Fee-table currency comes from its published
+column heading. Neither a consolidation date nor a runtime check declares
+personal eligibility or all provisions in force for a person.
+
+Dated Canada.ca copies are separately identified as copies, with original
+titles, authors, URLs, and acquisition dates. Their optional local manifest
+must match a pinned SHA-256 digest and the exact named registry, and expires
+after seven days. The local assumption is non-commercial evaluation only;
+public/commercial reuse and original ICBC/PGT acquisition remain unapproved.
+The existing project catalogue is identified as project preparation material,
+not a fresh copy of the ICBC website.
+
+The grounded writer only receives `read_programme_sources(topic)`. The server
+owns programme selection, topic-to-query mapping, source scope, evidence
+budgets, and registered navigation links. Other journeys keep their existing
+general-agent/tool contract. A substantive core answer is buffered until
+source validation succeeds. One output correction is permitted for an invalid
+link or critical quotation; it reuses the same budget, exposes all usage for
+accounting, and never replays rejected prose. Cancellation still closes the
+owned native stream before state commit.
 
 Set all of:
 

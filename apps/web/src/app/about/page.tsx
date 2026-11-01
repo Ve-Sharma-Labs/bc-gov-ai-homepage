@@ -19,6 +19,8 @@ export default function AboutPage() {
         <h3>AI answers, when connected</h3>
         <p>Submitting a question opens a dedicated chat view. Free-form answers are available only when the AI service is connected. Otherwise, the chat explains the limitation, keeps your question and offers guided plans. The pilot never substitutes a simulated answer.</p>
         <p>Activity labels reflect the request's actual progress. Answer sections appear after source checks, with links to the official pages used. You can stop a response or open its sources without losing your conversation.</p>
+        <p>When step-by-step assistance is enabled, you can work through the next action by replying normally in chat. Details holds the optional full guide, progress, context, and sharing settings. You never have to complete a panel to keep talking. Changing a sharing preference does not send a message on your behalf.</p>
+        <p>Example questions help you get started. Selecting one fills the composer for you to review or change; only Send starts a request. Examples do not activate a fictional profile or submit an application.</p>
         <p>Connected answers can still be incomplete or wrong. Open the sources and verify changing requirements with the responsible organisation. Live Web IQ research is a separately approved capability, not something every answer uses.</p>
       </section>
       <section>
@@ -28,7 +30,9 @@ export default function AboutPage() {
       </section>
       <section id="privacy">
         <h2>Keep personal information private</h2>
-        <p>Do not enter names, addresses, personal health numbers, licence numbers, financial information, passwords or other personal details. There are no document uploads, account sign-ins or payment forms in this pilot.</p>
+        <p>Do not enter names, addresses, personal health numbers, licence numbers, financial information, passwords, documents, or medical histories. There are no document uploads, account sign-ins or payment forms in this pilot.</p>
+        <p>When AI-led conversation is enabled, a notice explains that your messages are processed by the configured Azure model. An optional sharing control lets you use limited details you choose to provide, such as an age range or whether you have a PHN, only when relevant. You can skip any question or use general guidance. The model does not access government records or verify your identity.</p>
+        <p>What I understand, inside Details, shows the context used for the conversation. Removing a detail stops its use in future requests; it cannot undo earlier AI processing. Optional context is short-lived and is not put in public search queries, page URLs, browser storage, or application logs. Azure hosting does not by itself mean model processing remains in Canada.</p>
         <p>Your browser stores only your light, dark or system theme choice. Your conversation, draft and checklist stay in this tab’s memory as you explore the site. They are not saved to browser storage or put in page URLs. Reloading or starting over clears them.</p>
         <p>The API uses a session cookie to bind requests and cancellations. When AI is configured, submitted questions are sent to the connected Microsoft service. Clearing this page does not delete any provider records. Privacy, retention and public-release approvals are still required before using this pilot with resident information.</p>
         <p>Azure hosting records connection IP addresses, requested URLs, response status and timing to operate and protect the service. The pilot's access-log workspace retains this metadata for 30 days. These access logs do not include request bodies; provider and governance records have their own policies.</p>

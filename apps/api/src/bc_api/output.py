@@ -13,9 +13,11 @@ from ag_ui.core import (
 )
 
 from bc_api.catalog import CatalogRepository
+from bc_api.conversation_grounding import ProgrammeId, programme_handoffs
 from bc_api.dialogue import is_model_clarification
 from bc_api.errors import ApiError
-from bc_api.models import ContextArtifact, ResponseKind
+from bc_api.grounded_quotes import SENTENCE_BOUNDARY, normalize_quote
+from bc_api.models import ContextArtifact, Evidence, ResponseKind
 from bc_api.protocol import ContextArtifactValidator, validate_artifact
 from bc_api.retrieval import EvidenceLedger
 from bc_api.tools import TOOL_NAMES
@@ -26,7 +28,12 @@ CRITICAL = re.compile(
     r"[$\u00a3\u20ac\u00a5]\s*\d|\b(?:CAD|dollars?|deadline|percent)\b|\d\s*%"
     r"|\b(?:fees?|costs?|charges?|premiums?)\s*:"
     r"|\b(?:fees?|costs?|charges?|premiums?)\s+(?:[a-z'-]+\s+){0,4}"
-    r"(?:is|are|will|would|must|apply|applies|required|waived|covered|due|payable|imposed)\b"
+    r"(?:is|are|will|would|must|required|waived|covered|due|payable|imposed)\b"
+    r"|\b(?:fees?|costs?|charges?|premiums?)\s+(?!(?:that|which)\s+)"
+    r"(?:[a-z'-]+\s+){0,4}(?:apply|applies)\b"
+    r"|\brequired\s+(?:fees?|payments?|charges?)\b"
+    r"|^(?:please\s+)?(?:pay|owe)\s+(?!attention\b)"
+    r"(?:[a-z'-]+\s+){0,4}(?:fees?|charges?|premiums?|payments?)\b"
     r"|\b(?:no|zero|without|lower|higher|reduced|discounted|waived)\s+"
     r"(?:[a-z'-]+\s+){0,3}(?:fees?|costs?|charges?|premiums?)\b"
     r"|\bcomplimentary\b|(?<!feel )\bfree\b(?![- ]form)"
@@ -106,13 +113,59 @@ CONTEXT_STATUS_CLAIMS = {
         re.IGNORECASE,
     ),
 }
-SENTENCE_BOUNDARY = re.compile(r"""(?<=[.!?])["”']?\s+|\n+""")
+ATTRIBUTED_QUOTE = re.compile(
+    r'(?P<prefix>[^"“”]{1,200})["“](?P<quote>[^"“”]{1,4000})["”]\s*'
+    r"\[[^\]]{1,200}\]\((?P<url>[^)\s]+)\)\.?",
+    re.DOTALL,
+)
+NEUTRAL_ATTRIBUTION = re.compile(
+    r"(?:(?:For (?:fees|costs)|If you(?:'re| are) (?:also )?checking (?:cost|costs|fees)),\s*)?"
+    r"(?:the|this) (?:regulation|source|guide|page|schedule) (?:says|states|lists|shows):",
+    re.I,
+)
 
 
-def normalize_quote(value: str) -> str:
-    value = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", value)
-    value = re.sub(r"\s+([,;:!?])", r"\1", value)
-    return " ".join(value.strip(' \t\r\n*>"“”').split()).rstrip(".").casefold()
+def verified_attributions(text: str, evidence: dict[str, list[Evidence]]) -> set[str]:
+    accepted: set[str] = set()
+    for paragraph in re.split(r"\n\s*\n", text):
+        match = ATTRIBUTED_QUOTE.fullmatch(paragraph.strip())
+        if match is None or not NEUTRAL_ATTRIBUTION.fullmatch(normalize_quote(match["prefix"])):
+            continue
+        url = urldefrag(match["url"])[0]
+        items = evidence.get(url, [])
+        if "regulation" in match["prefix"].casefold() and not any(
+            "regulation" in item.reference.title.casefold() for item in items
+        ):
+            continue
+        quotes = {
+            normalize_quote(sentence)
+            for item in items
+            for sentence in SENTENCE_BOUNDARY.split(item.content)
+        }
+        if normalize_quote(match["quote"]) in quotes:
+            accepted.add(normalize_quote(SENTENCE_BOUNDARY.split(paragraph.strip())[0]))
+    return accepted
+
+
+def discussion_question(sentence: str) -> bool:
+    value = normalize_quote(re.sub(r"^\s*(?:[-*]|\d{1,2}[.)])\s+", "", sentence))
+    if re.search(
+        r"\d|[$\u00a3\u20ac\u00a5%]|\b(?:dollars?|CAD|percent|free|waived|complimentary|"
+        r"today|tomorrow|yesterday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b"
+        r"|\b(?:no|without)\s+(?:fees?|payments?|deadlines?)\b"
+        r"|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+        r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty)\s+"
+        r"(?:days?|weeks?|months?|years?|hours?)\b",
+        value,
+        re.I,
+    ):
+        return False
+    return bool(
+        value.endswith("?")
+        and re.match(r"^(?:what|which|how|when|who|where|can|could|do|does|is|are)\b", value)
+        or re.match(r"^ask\b", value)
+        and re.search(r"\b(?:about|whether|what|which|how|when|if)\b", value)
+    )
 
 
 class OutputGate:
@@ -124,9 +177,11 @@ class OutputGate:
         allow_clarification: bool = False,
         tool_names: frozenset[str] = TOOL_NAMES,
         context_artifacts: tuple[ContextArtifact, ...] = (),
+        programme_id: ProgrammeId | None = None,
     ) -> None:
         self.catalog = catalog
         self.ledger = ledger
+        self.programme_id = programme_id
         self.events: list[BaseEvent] = []
         self.text: dict[str, str] = {}
         self.size = 0
@@ -213,7 +268,12 @@ class OutputGate:
                 section = text[offset:boundary]
                 if not section.strip():
                     continue
-                probe = OutputGate(self.catalog, self.ledger)
+                probe = OutputGate(
+                    self.catalog,
+                    self.ledger,
+                    programme_id=self.programme_id,
+                    tool_names=self.tool_names,
+                )
                 probe.hold(TextMessageStartEvent(message_id=message_id, role="assistant"))
                 probe.hold(TextMessageContentEvent(message_id=message_id, delta=section))
                 probe.hold(TextMessageEndEvent(message_id=message_id))
@@ -270,10 +330,7 @@ class OutputGate:
                 ),
                 None,
             )
-            if (
-                preview is not None
-                and CONTEXT_HIGH_STAKES_CLAIMS[preview.flow_id].search(text)
-            ):
+            if preview is not None and CONTEXT_HIGH_STAKES_CLAIMS[preview.flow_id].search(text):
                 raise ApiError(
                     502,
                     "HIGH_STAKES_CLAIM_BLOCKED",
@@ -309,6 +366,7 @@ class OutputGate:
             for journey in self.catalog.get().journeys
             for handoff in journey.handoffs
         }
+        handoffs.update(programme_handoffs(self.programme_id))
         cited: set[str] = set()
         result: list[BaseEvent] = []
         annotated_ids: set[str] = set()
@@ -375,10 +433,11 @@ class OutputGate:
             for item in evidence[url]
             for sentence in SENTENCE_BOUNDARY.split(item.content)
         }
+        attributed = verified_attributions(text, evidence)
         for sentence in SENTENCE_BOUNDARY.split(text):
             normalized = normalize_quote(sentence)
-            if CRITICAL.search(normalized):
-                if not normalized or normalized not in quotes:
+            if CRITICAL.search(normalized) and not discussion_question(sentence):
+                if not normalized or normalized not in quotes | attributed:
                     raise ApiError(
                         502,
                         "CRITICAL_CLAIM_UNVERIFIED",

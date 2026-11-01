@@ -37,7 +37,11 @@ SOURCE_TOPICS = (
     ),
     ("bc-housing", r"\bbc housing\b|\brental assistance\b|\bsafer\b|\brent subsidy\b"),
     ("housing-tenancy", r"\btenan(?:t|cy)\b|\blandlord\b|\brent(?:al)?\b|\bhousing\b"),
-    ("health", r"\bmsp\b|\bpharmacare\b|\bhealth coverage\b|\bpublic health\b"),
+    (
+        "health",
+        r"\bmsp\b|\bpharmacare\b|\bhealth coverage\b|\bpublic health\b|"
+        r"\bphn\b|\bpersonal health number\b",
+    ),
     ("healthlink-bc", r"\bhealthlink\b|\bdoctor\b|\bprimary care\b|\bhealth connect\b"),
     (
         "family-social-supports",
@@ -64,10 +68,12 @@ class ApplicationReply:
 def dialogue_reply(text: str) -> ApplicationReply | None:
     normalized = " ".join(text.strip().split())
     if GREETING_ONLY.fullmatch(normalized):
-        return ApplicationReply("Hi! What would you like to know about B.C. government services?")
+        return ApplicationReply(
+            "Hi! What would you like help figuring out about B.C. government services?"
+        )
     if THANKS_ONLY.fullmatch(normalized):
         return ApplicationReply(
-            "You're welcome. I'm here if you have another B.C. service question."
+            "You're welcome. We can take the next step whenever you're ready."
         )
     if HELP_ONLY.fullmatch(normalized):
         return ApplicationReply(MODEL_CLARIFICATIONS[0])

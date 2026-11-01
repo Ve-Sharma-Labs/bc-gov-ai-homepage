@@ -62,13 +62,17 @@ try {
     CONTENT_CATALOG_PATH: process.env.CONTENT_CATALOG_PATH || path.join(root, "data", "pilot-catalog.json"),
     API_BASE_URL: settings.apiUrl,
     API_ALLOWED_ORIGINS: process.env.API_ALLOWED_ORIGINS || `${settings.webUrl},http://localhost:${settings.webPort}`,
+    API_ALLOWED_HOSTS: process.env.API_ALLOWED_HOSTS || (
+      process.env.LOCAL_EVIDENCE_EVALUATION_ENABLED === "true"
+        ? "localhost,127.0.0.1,::1" : "localhost,127.0.0.1,::1,api"
+    ),
     NEXT_TELEMETRY_DISABLED: "1",
     WEBIQ_ENABLED: process.env.WEBIQ_ENABLED || "false",
   };
   const api = launch(python, [
     "-m", "uvicorn", "bc_api.main:app",
     "--host", "127.0.0.1", "--port", String(settings.apiPort),
-    "--workers", "1", "--no-access-log",
+    "--workers", "1", "--no-access-log", "--no-proxy-headers",
   ], path.join(root, "apps", "api"), env);
   await waitUntilReady(`${settings.apiUrl}/healthz`, api);
   if (!stopping) {

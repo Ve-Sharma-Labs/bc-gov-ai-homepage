@@ -77,6 +77,21 @@ jobs:
       - run: npm run test:e2e
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+      - name: Check opt-in context-first conversations
+        run: npm run test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          CONVERSATION_DISCOVERY_ENABLED: "true"
+      - name: Check AI-led conversation presentation
+        run: npm run test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          AI_CONVERSATION_ENABLED: "true"
+      - name: Check practical task continuation
+        run: npm run test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          TASK_ASSISTANCE_ENABLED: "true"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

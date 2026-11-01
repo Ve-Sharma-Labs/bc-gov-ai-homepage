@@ -8,6 +8,7 @@ import { heroImages } from "@/lib/hero-images";
 import { useScenePlayback } from "@/lib/use-scene-playback";
 import { useAssistant } from "./assistant-provider";
 import { Button } from "./ui/button";
+import { ConversationStarters } from "./conversation-starters";
 
 export function HeroExperience() {
   const { catalog, selectJourney, draft, busy } = useAssistant();
@@ -64,6 +65,7 @@ export function HeroExperience() {
             <Button variant="ghost" size="icon" aria-label="Next example" onClick={() => move(1)}><ArrowRight size={18} /></Button>
             <Button variant="ghost" size="icon" aria-label={paused ? "Play examples" : "Pause examples"} disabled={!!reduced || !!draft || busy || inputFocused} onClick={() => setPaused(!paused)}>{paused || reduced ? <Play size={15} /> : <Pause size={15} />}</Button></div>
         </div>
+        <ConversationStarters heading="Ask the assistant" />
       </div>
       <p className="hero-trust">A little guidance goes a long way.<br />Explore official information, prepare your plan, and take the next step with confidence.</p>
       <noscript><p className="no-script-guidance">The interactive assistant needs JavaScript. <Link href="/services">Browse official services instead.</Link></p></noscript>

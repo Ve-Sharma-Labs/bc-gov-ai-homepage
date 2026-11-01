@@ -17,10 +17,18 @@ import {
   changeContextConsent,
   createDemoSession,
   deleteDemoSession,
+  deleteDiscoverySession,
+  deleteConversationSession,
   getCapabilities,
   getCatalog,
   getContextSummary,
   getDemoPersonas,
+  getDiscoverySummary,
+  getConversationSummary,
+  getConversationTask,
+  resetDiscoveryPageToken,
+  resetConversationPageToken,
+  updateConversationControl,
 } from "@/lib/api";
 import { contextCategoryByScope, contextCategoryDetails } from "@/lib/citizen-context";
 import {
@@ -32,6 +40,11 @@ import {
   type ContextSummary,
   type DemoPersonaId,
   type DemoPersonaSummary,
+  type DiscoveryCommand,
+  type DiscoveryFactKey,
+  type ConversationCommand,
+  type ConversationFactKey,
+  type ConversationControl,
   type Journey,
   type JourneyId,
 } from "@/lib/contract";
@@ -65,6 +78,9 @@ export interface AssistantState {
   contextLoading: boolean;
   contextError: string;
   contextActive: boolean;
+  conversationSharing: boolean;
+  conversationControlError: string;
+  conversationControlPending: boolean;
 }
 
 export interface AssistantActions {
@@ -81,7 +97,19 @@ export interface AssistantActions {
   revokeConsentScope: (scope: ConsentScope) => Promise<boolean>;
   refreshContextSummary: () => Promise<boolean>;
   clearContext: () => Promise<void>;
-  submit: () => Promise<boolean>;
+  submit: (submission?: {
+    prompt: string;
+    action?: DiscoveryCommand["action"];
+    factKey?: DiscoveryFactKey;
+    conversationAction?: ConversationCommand["action"];
+    conversationFactKey?: ConversationFactKey;
+    shareContext?: boolean;
+  }) => Promise<boolean>;
+  refreshDiscovery: () => Promise<boolean>;
+  refreshConversation: () => Promise<boolean>;
+  setConversationSharing: (value: boolean) => Promise<void>;
+  taskControl: (action: "review" | "next" | "back" | "skip", stepId?: string, reviewed?: boolean) => Promise<boolean>;
+  retryConversationControl: () => Promise<boolean>;
   stop: () => void;
   reset: () => void;
 }
@@ -135,6 +163,12 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
   const [contextSummary, setContextSummary] = useState<ContextSummary | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState("");
+  const [conversationSharing, updateConversationSharing] = useState(false);
+  const [controlBusy, setControlBusy] = useState(false);
+  const [conversationControlError, setConversationControlError] = useState("");
+  const controlController = useRef<AbortController | null>(null);
+  const failedControl = useRef<ConversationControl | null>(null);
+  const conversationSharingRef = useRef(false);
 
   const mounted = useRef(false);
   const draftRef = useRef("");
@@ -150,6 +184,12 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
   const personaController = useRef<AbortController | null>(null);
   const contextController = useRef<AbortController | null>(null);
   const contextSessionCreated = useRef(false);
+  const discoveryStarted = useRef(false);
+  const conversationStarted = useRef(false);
+  const conversationVersion = useRef<5 | 6 | null>(null);
+  const lastConversationAttempt = useRef<{ prompt: string; command: ConversationCommand } | null>(null);
+  const lastSubmission = useRef<Parameters<AssistantActions["submit"]>[0]>(undefined);
+  const lastDiscoveryAttempt = useRef<{ prompt: string; command: DiscoveryCommand } | null>(null);
 
   const setActivePersona = useCallback((value: DemoPersonaSummary | null) => {
     activePersonaRef.current = value;
@@ -170,6 +210,15 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
 
   const setDraft = useCallback<AssistantActions["setDraft"]>((value) => {
     const next = typeof value === "function" ? value(draftRef.current) : value;
+    if (lastSubmission.current && next.trim() !== lastSubmission.current.prompt.trim()) {
+      lastSubmission.current = undefined;
+    }
+    if (lastDiscoveryAttempt.current && next.trim() !== lastDiscoveryAttempt.current.prompt.trim()) {
+      lastDiscoveryAttempt.current = null;
+    }
+    if (lastConversationAttempt.current && next.trim() !== lastConversationAttempt.current.prompt.trim()) {
+      lastConversationAttempt.current = null;
+    }
     draftRef.current = next;
     updateDraft(next);
   }, []);
@@ -194,9 +243,41 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     mounted.current && activeRun.current === run && !run.cancelled
   ), []);
 
+  const forgetDiscovery = useCallback(() => {
+    controlController.current?.abort();
+    controlController.current = null;
+    failedControl.current = null;
+    setControlBusy(false);
+    setConversationControlError("");
+    lastSubmission.current = undefined;
+    lastDiscoveryAttempt.current = null;
+    lastConversationAttempt.current = null;
+    conversationVersion.current = null;
+    conversationSharingRef.current = false;
+    updateConversationSharing(false);
+    if (conversationStarted.current) {
+      conversationStarted.current = false;
+      void deleteConversationSession({ keepalive: true }).catch(() => {
+        console.warn("AI context cleanup could not be confirmed; the page binding was rotated.");
+        if (mounted.current) setNotice("Context was cleared on this page. Server cleanup will finish at expiry.");
+      });
+    }
+    resetConversationPageToken();
+    if (discoveryStarted.current) {
+      discoveryStarted.current = false;
+      void deleteDiscoverySession({ keepalive: true }).catch(() => {
+        console.warn("Conversation context cleanup failed; the page binding was rotated.");
+        if (mounted.current) setNotice("Context is cleared on this page. Server cleanup couldn't be confirmed; the old context will expire.");
+      });
+    }
+    resetDiscoveryPageToken();
+    dispatch({ type: "clear-discovery" });
+  }, [dispatch]);
+
   const clearContextMemory = useCallback(() => {
     if (activeRun.current?.mode === "contextual-demo") cancelActiveRun();
     contextController.current?.abort();
+    controlController.current?.abort();
     contextController.current = null;
     contextSessionCreated.current = false;
     threadId.current = null;
@@ -205,7 +286,8 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     setContextSummary(null);
     setContextLoading(false);
     dispatch({ type: "clear-context" });
-  }, [cancelActiveRun, dispatch, setActivePersona, setConsentReceipt]);
+    forgetDiscovery();
+  }, [cancelActiveRun, dispatch, forgetDiscovery, setActivePersona, setConsentReceipt]);
 
   const loadPersonas = useCallback(async () => {
     if (!mounted.current || !capabilitiesRef.current.syntheticContextAvailable) return;
@@ -289,6 +371,20 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
       console.warn("The assistant transport could not be preloaded. Sending a question will retry loading it.");
     });
     const clearBeforePageLeaves = () => {
+      if (conversationStarted.current) {
+        conversationStarted.current = false;
+        void deleteConversationSession({ keepalive: true }).catch(() => {
+          console.warn("AI conversation cleanup couldn't be confirmed; it will expire.");
+        });
+        resetConversationPageToken();
+      }
+      if (discoveryStarted.current) {
+        discoveryStarted.current = false;
+        void deleteDiscoverySession({ keepalive: true }).catch(() => {
+          console.warn("Conversation context cleanup could not be confirmed; it will expire.");
+        });
+        resetDiscoveryPageToken();
+      }
       if (!contextSessionCreated.current) return;
       contextSessionCreated.current = false;
       void deleteDemoSession({ keepalive: true }).catch(() => undefined);
@@ -364,6 +460,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     const controller = new AbortController();
     contextController.current = controller;
     if (activeRun.current?.mode === "contextual-demo") cancelActiveRun();
+    forgetDiscovery();
     dispatch({ type: "clear-context" });
     threadId.current = null;
     selectedIdRef.current = null;
@@ -395,7 +492,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
         setContextLoading(false);
       }
     }
-  }, [cancelActiveRun, dispatch, setActivePersona, setConsentReceipt]);
+  }, [cancelActiveRun, dispatch, forgetDiscovery, setActivePersona, setConsentReceipt]);
 
   const updateConsent = useCallback<AssistantActions["updateConsent"]>(async (scopes) => {
     const persona = activePersonaRef.current;
@@ -482,9 +579,36 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     });
   }, [clearContextMemory]);
 
-  const submit = useCallback(async () => {
-    const prompt = draftRef.current.trim();
-    if (!mounted.current || !prompt || prompt.length > 4000 || isStreaming(stateRef.current)) return false;
+  const refreshDiscovery = useCallback(async () => {
+    if (isStreaming(stateRef.current)) return false;
+    const currentThread = threadId.current;
+    try {
+      const summary = await getDiscoverySummary();
+      if (!mounted.current || threadId.current !== currentThread) return false;
+      if (summary && summary.threadId !== currentThread) {
+        setNotice("This context belongs to a different conversation. Please start over.");
+        return false;
+      }
+      if (!summary) {
+        forgetDiscovery();
+        threadId.current = null;
+      }
+      dispatch({ type: "refresh-discovery", summary });
+      setNotice("Context refreshed. Your question has not been resent.");
+      return true;
+    } catch (error) {
+      if (mounted.current && threadId.current === currentThread) {
+        setNotice(error instanceof ApiError ? error.message : "Context couldn't be refreshed. Please start over.");
+      }
+      return false;
+    }
+  }, [dispatch, forgetDiscovery]);
+
+  const submit = useCallback<AssistantActions["submit"]>(async (submission) => {
+    const retrying = submission === undefined;
+    submission ??= lastSubmission.current;
+    const prompt = (submission?.prompt ?? draftRef.current).trim();
+    if (!mounted.current || !prompt || prompt.length > 4000 || isStreaming(stateRef.current) || controlController.current) return false;
     if (activeRun.current) {
       if (stateRef.current.status !== "complete") return false;
       cancelActiveRun();
@@ -498,16 +622,59 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     }
     const journeyId = selectedIdRef.current;
     const mode = contextual ? "contextual-demo" as const : journeyId ? "pathway" as const : "general" as const;
+    const useConversation = mode === "general" && capabilitiesRef.current.conversationAvailable
+      && capabilitiesRef.current.requestVersions?.includes(5);
+    const useDiscovery = !useConversation && mode === "general"
+      && capabilitiesRef.current.discoveryAvailable
+      && capabilitiesRef.current.requestVersions?.includes(4);
+    if (submission?.action && !useDiscovery) {
+      setNotice("Conversation context is not active here. Return to general conversation first.");
+      return false;
+    }
+    if (submission?.conversationAction && !useConversation) {
+      setNotice("Return to AI-led general conversation to change this context.");
+      return false;
+    }
+    const conversationAction = submission?.conversationAction ?? "respond";
+    const conversation: ConversationCommand | undefined = useConversation
+      ? retrying && lastConversationAttempt.current?.prompt === prompt
+        ? lastConversationAttempt.current.command
+        : {
+          action: conversationAction, revision: stateRef.current.conversation?.revision ?? 0,
+          noticeVersion: "ai-conversation-v1",
+          shareContext: submission?.shareContext ?? conversationSharingRef.current,
+          ...(["respond", "skip"].includes(conversationAction) && stateRef.current.conversation?.question
+            ? { questionId: stateRef.current.conversation.question.id } : {}),
+          ...(submission?.conversationFactKey ? { factKey: submission.conversationFactKey } : {}),
+        }
+      : undefined;
+    const action = submission?.action ?? "respond";
+    const discovery: DiscoveryCommand | undefined = useDiscovery
+      ? retrying && lastDiscoveryAttempt.current?.prompt === prompt
+        ? lastDiscoveryAttempt.current.command
+        : {
+      action,
+      revision: stateRef.current.discovery?.revision ?? 0,
+      ...(["respond", "skip"].includes(action) && stateRef.current.discovery?.question
+        ? { questionId: stateRef.current.discovery.question.id } : {}),
+      ...(submission?.factKey ? { factKey: submission.factKey } : {}),
+        } : undefined;
     const runId = crypto.randomUUID();
     const messageId = crypto.randomUUID();
     threadId.current ||= crypto.randomUUID();
     const currentThreadId = threadId.current;
-    const history = historyForAgent(stateRef.current.messages, mode);
+    const history = discovery || conversation ? [] : historyForAgent(stateRef.current.messages, mode);
+    if (conversation && conversationVersion.current === null) {
+      conversationVersion.current = capabilitiesRef.current.requestVersions?.includes(6) ? 6 : 5;
+    }
     const scope = mode === "contextual-demo"
       ? { mode }
       : mode === "pathway"
         ? { mode, journeyId: journeyId! }
-        : { mode };
+        : { mode, ...(discovery ? { discovery } : {}), ...(conversation ? {
+          conversation,
+          conversationVersion: conversationVersion.current ?? 5,
+        } : {}) };
     const run: ActiveRun = { runId, mode, cancelled: false, cancelTransport: null };
     activeRun.current = run;
     const previous = stateRef.current;
@@ -517,10 +684,18 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
       messageId,
       prompt,
       mode,
+      ...(discovery ? { discovery: { revision: discovery.revision, threadId: currentThreadId } } : {}),
+      ...(conversation ? { conversation: { revision: conversation.revision, threadId: currentThreadId } } : {}),
+      taskAssistance: !!conversation && !!capabilitiesRef.current.taskAssistanceAvailable,
       ...(previous.error && previous.prompt === prompt ? { replaceRunId: previous.runId ?? undefined } : {}),
     });
     setNotice("");
     setDraft("");
+    lastSubmission.current = submission;
+    lastDiscoveryAttempt.current = discovery ? { prompt, command: discovery } : null;
+    lastConversationAttempt.current = conversation ? { prompt, command: conversation } : null;
+    if (conversation) conversationStarted.current = true;
+    if (discovery) discoveryStarted.current = true;
 
     try {
       const { startAgentRun } = await import("@/lib/agent");
@@ -531,7 +706,14 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
         ...scope,
         messages: [...history, { id: messageId, role: "user", content: prompt }],
         onEvent: (event) => {
-          if (isCurrentRun(run)) dispatch({ type: "event", runId, event });
+          if (isCurrentRun(run)) {
+            dispatch({ type: "event", runId, event });
+            if (event.type === "RUN_FINISHED" && stateRef.current.status === "complete") {
+              lastSubmission.current = undefined;
+              lastDiscoveryAttempt.current = null;
+              lastConversationAttempt.current = null;
+            }
+          }
         },
         onFailure: (message, code, retryAt) => {
           if (isCurrentRun(run)) dispatch({ type: "failure", runId, message, code, retryAt });
@@ -558,6 +740,112 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     }
   }, [cancelActiveRun, clearContextMemory, dispatch, isCurrentRun, setDraft]);
 
+  const runConversationControl = useCallback(async (control: ConversationControl) => {
+    if (!mounted.current || controlController.current || isStreaming(stateRef.current)) return false;
+    const controller = new AbortController();
+    const expectedThread = threadId.current;
+    controlController.current = controller;
+    setControlBusy(true);
+    setConversationControlError("");
+    try {
+      const response = await updateConversationControl(control, controller.signal);
+      if (!mounted.current || controller.signal.aborted || threadId.current !== expectedThread) return false;
+      const previous = stateRef.current.conversation;
+      if (!previous || response.summary.threadId !== previous.threadId
+        || response.summary.revision < previous.revision || response.summary.revision > previous.revision + 1) {
+        throw new ApiError(409, "CONVERSATION_CHANGED", "Your context changed. Refresh it before trying again.");
+      }
+      dispatch({ type: "control", response });
+      conversationSharingRef.current = response.summary.shareContext;
+      updateConversationSharing(response.summary.shareContext);
+      failedControl.current = null;
+      setNotice(response.notice);
+      return true;
+    } catch (error) {
+      if (mounted.current && !controller.signal.aborted) {
+        failedControl.current = control;
+        setConversationControlError(error instanceof ApiError ? error.message : "The setting couldn't be saved. Try again.");
+      }
+      return false;
+    } finally {
+      if (controlController.current === controller) {
+        controlController.current = null;
+        if (mounted.current) setControlBusy(false);
+      }
+    }
+  }, [dispatch]);
+
+  const taskControl = useCallback<AssistantActions["taskControl"]>(async (action, stepId, reviewed) => {
+    const summary = stateRef.current.conversation;
+    const task = stateRef.current.task?.task;
+    if (!summary || !task) return false;
+    return runConversationControl({
+      id: crypto.randomUUID(), revision: summary.revision, noticeVersion: "ai-conversation-v1",
+      action, taskId: task.id, stepId: stepId ?? task.activeStepId,
+      ...(action === "review" ? { reviewed: reviewed ?? true } : {}),
+    });
+  }, [runConversationControl]);
+
+  const retryConversationControl = useCallback(async () => (
+    failedControl.current ? runConversationControl(failedControl.current) : false
+  ), [runConversationControl]);
+
+  const setConversationSharing = useCallback(async (value: boolean) => {
+    if (isStreaming(stateRef.current) || controlController.current) return;
+    const summary = stateRef.current.conversation;
+    if (summary && capabilitiesRef.current.taskAssistanceAvailable) {
+      if (!value) {
+        conversationSharingRef.current = false;
+        updateConversationSharing(false);
+      }
+      await runConversationControl({
+        id: crypto.randomUUID(), revision: summary.revision, noticeVersion: "ai-conversation-v1",
+        action: "sharing", shareContext: value,
+      });
+    } else {
+      conversationSharingRef.current = value;
+      updateConversationSharing(value);
+    }
+    if (summary && !capabilitiesRef.current.taskAssistanceAvailable) {
+      await submit({
+        prompt: value ? "Use the optional details I choose to share." : "Stop using my personal context.",
+        conversationAction: "sharing", shareContext: value,
+      });
+    }
+  }, [runConversationControl, submit]);
+
+  const refreshConversation = useCallback(async () => {
+    if (isStreaming(stateRef.current)) return false;
+    const expectedThread = threadId.current;
+    try {
+      const withTask = !!capabilitiesRef.current.taskAssistanceAvailable;
+      const controlSnapshot = withTask ? await getConversationTask() : undefined;
+      const summary = withTask ? controlSnapshot?.summary ?? null : await getConversationSummary();
+      if (!mounted.current || threadId.current !== expectedThread) return false;
+      if (summary && summary.threadId !== expectedThread) {
+        setNotice("This context belongs to another conversation. Start over.");
+        return false;
+      }
+      if (!summary) {
+        forgetDiscovery();
+        threadId.current = null;
+      }
+      dispatch({ type: "refresh-conversation", summary,
+        ...(withTask ? { task: controlSnapshot?.task ?? null } : {}),
+      });
+      failedControl.current = null;
+      setConversationControlError("");
+      if (summary) {
+        conversationSharingRef.current = summary.shareContext;
+        updateConversationSharing(summary.shareContext);
+      }
+      return true;
+    } catch (error) {
+      if (mounted.current) setNotice(error instanceof ApiError ? error.message : "Context couldn't be refreshed.");
+      return false;
+    }
+  }, [dispatch, forgetDiscovery]);
+
   const stop = useCallback(() => {
     const runId = stateRef.current.runId;
     cancelActiveRun();
@@ -566,6 +854,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
 
   const reset = useCallback(() => {
     cancelActiveRun();
+    forgetDiscovery();
     contextController.current?.abort();
     contextController.current = null;
     contextSessionCreated.current = false;
@@ -582,10 +871,10 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     updateSelectedId(null);
     setChecked(new Set());
     setNotice("");
-  }, [cancelActiveRun, dispatch, setActivePersona, setConsentReceipt, setDraft]);
+  }, [cancelActiveRun, dispatch, forgetDiscovery, setActivePersona, setConsentReceipt, setDraft]);
 
   const selected = catalog?.journeys.find((journey) => journey.id === selectedId) ?? null;
-  const busy = isStreaming(state);
+  const busy = isStreaming(state) || controlBusy;
   const contextActive = !!activePersona && activeConsent(consent);
   const value = useMemo<AssistantContextValue>(() => ({
     catalog,
@@ -616,11 +905,19 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     contextLoading,
     contextError,
     contextActive,
+    conversationSharing,
+    setConversationSharing,
+    taskControl,
+    retryConversationControl,
+    conversationControlError,
+    conversationControlPending: controlBusy,
+    refreshConversation,
     activatePersona,
     updateConsent,
     revokeConsentScope,
     refreshContextSummary,
     clearContext,
+    refreshDiscovery,
     submit,
     stop,
     reset,
@@ -651,11 +948,19 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     contextLoading,
     contextError,
     contextActive,
+    conversationSharing,
+    setConversationSharing,
+    taskControl,
+    retryConversationControl,
+    conversationControlError,
+    controlBusy,
+    refreshConversation,
     activatePersona,
     updateConsent,
     revokeConsentScope,
     refreshContextSummary,
     clearContext,
+    refreshDiscovery,
     submit,
     stop,
     reset,

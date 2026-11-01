@@ -1,6 +1,50 @@
 import { z } from "zod";
 import { safeOfficialUrl } from "./links";
 
+const contractId = z.string().min(1).max(100).regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/);
+export const conversationFactKeySchema = z.enum([
+  "licence-jurisdiction", "road-test-kind", "housing-need", "coverage-need",
+  "primary-care-need", "service-need", "age-range", "phn-status", "bc-residency",
+  "care-recipient", "priority",
+]);
+export const conversationCommandSchema = z.object({
+  action: z.enum(["respond", "skip", "general", "correct", "remove", "explore", "sharing"]),
+  revision: z.number().int().nonnegative(),
+  questionId: contractId.nullable().optional(),
+  factKey: conversationFactKeySchema.nullable().optional(),
+  noticeVersion: z.literal("ai-conversation-v1"),
+  shareContext: z.boolean(),
+}).strict().superRefine((command, context) => {
+  if (["correct", "remove"].includes(command.action) !== (command.factKey != null)) {
+    context.addIssue({ code: "custom", message: "Only corrections/removals may name a fact" });
+  }
+  if (command.action === "skip" && !command.questionId) {
+    context.addIssue({ code: "custom", message: "Skipping requires a pending question" });
+  }
+  if (!["respond", "skip"].includes(command.action) && command.questionId != null) {
+    context.addIssue({ code: "custom", message: "This command cannot answer a question" });
+  }
+});
+export const discoveryFactKeySchema = z.enum([
+  "age", "licence-experience", "timeframe", "priority", "bc-residency", "phn-status", "support-for",
+]);
+export const discoveryCommandSchema = z.object({
+  action: z.enum(["respond", "skip", "general", "correct", "remove", "explore", "refine"]).default("respond"),
+  revision: z.number().int().nonnegative(),
+  questionId: contractId.nullable().optional(),
+  factKey: discoveryFactKeySchema.nullable().optional(),
+}).strict().superRefine((command, context) => {
+  if (["correct", "remove"].includes(command.action) !== (command.factKey != null)) {
+    context.addIssue({ code: "custom", message: "Only a correction or removal may name a fact" });
+  }
+  if (command.action === "skip" && command.questionId == null) {
+    context.addIssue({ code: "custom", message: "Skipping requires the current question" });
+  }
+  if (!["respond", "skip"].includes(command.action) && command.questionId != null) {
+    context.addIssue({ code: "custom", message: "This command cannot answer a question" });
+  }
+});
+
 export const journeyIds = [
   "licence-renewal",
   "road-test-booking",
@@ -18,6 +62,10 @@ const runOptionFields = {
   researchRequested: z.boolean().optional(),
 };
 export const runOptionsSchema = z.union([
+  z.object({
+    version: z.union([z.literal(5), z.literal(6)]), mode: z.literal("general"), conversation: conversationCommandSchema,
+    journeyId: z.null().optional(), researchRequested: z.literal(false).optional(),
+  }).strict(),
   z.object({ version: z.literal(1), ...runOptionFields }).strict(),
   z.object({ version: z.literal(2), mode: z.enum(["general", "pathway"]), ...runOptionFields }).strict().superRefine((options, context) => {
     if (options.mode === "general" && options.journeyId != null) {
@@ -32,11 +80,19 @@ export const runOptionsSchema = z.union([
     mode: z.literal("contextual-demo"),
     researchRequested: z.literal(false).optional(),
   }).strict(),
+  z.object({
+    version: z.literal(4),
+    mode: z.literal("general"),
+    discovery: discoveryCommandSchema,
+    journeyId: z.null().optional(),
+    researchRequested: z.literal(false).optional(),
+  }).strict(),
 ]);
 export const responseContextSchema = z.object({
   version: z.literal(1),
   kind: z.enum(["dialogue", "grounded", "handoff"]),
   origin: z.enum(["application", "model"]),
+  decisionOrigin: z.enum(["application", "model"]).optional(),
 }).strict();
 const text = z.string().max(12_000);
 const id = z.string().min(1).max(160);
@@ -44,11 +100,10 @@ const isoDate = z.union([z.string().date(), z.string().datetime({ offset: true }
 const date = isoDate.nullable();
 const calendarDate = z.string().date().nullable();
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
-const contractId = z.string().min(1).max(100).regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/);
 const serviceKey = z.string().min(1).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const isoDateTime = z.string().datetime({ offset: true });
 
-export const evidenceMetadataSchema = z.object({
+const indexedEvidenceMetadataSchema = z.object({
   version: z.literal(1),
   sourceIds: z.array(z.string().min(1).max(100).regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/)).min(1).max(30),
   documentType: z.enum(["guidance", "legal", "service-directory", "notice"]),
@@ -73,6 +128,33 @@ export const evidenceMetadataSchema = z.object({
     context.addIssue({ code: "custom", message: "Legal intervals have an inclusive start and exclusive end" });
   }
 });
+
+export const localEvidenceMetadataSchema = z.object({
+  version: z.literal(2),
+  sourceIds: z.array(contractId).min(1).max(30),
+  documentType: z.enum(["guidance", "legal", "service-directory"]),
+  retrievalOrigin: z.enum(["official-live", "official-snapshot", "project-catalogue"]),
+  useScope: z.literal("local-noncommercial-evaluation"),
+  humanReviewed: z.literal(false),
+  contentHash: sha256,
+  licenceUrl: z.string().max(2048).refine((url) => !!safeOfficialUrl(url)).nullable(),
+  attribution: z.string().min(1).max(2000),
+  notice: z.string().min(1).max(3000),
+  consolidationDate: calendarDate,
+  legalStatus: z.literal("publisher-current-collection").nullable(),
+}).strict().superRefine((metadata, context) => {
+  if (new Set(metadata.sourceIds).size !== metadata.sourceIds.length) {
+    context.addIssue({ code: "custom", message: "Evidence source tags must be unique" });
+  }
+  if (metadata.documentType === "legal" && (
+    !metadata.consolidationDate || !metadata.legalStatus
+    || metadata.retrievalOrigin !== "official-live" || !metadata.licenceUrl
+  )) {
+    context.addIssue({ code: "custom", message: "Legal evidence needs explicit current-collection provenance" });
+  }
+});
+
+export const evidenceMetadataSchema = z.union([indexedEvidenceMetadataSchema, localEvidenceMetadataSchema]);
 
 export const sourceSchema = z.object({
   id,
@@ -152,6 +234,158 @@ export const demoPersonaIds = [
   "sam-job-loss",
 ] as const;
 export const demoPersonaIdSchema = z.enum(demoPersonaIds);
+
+export const conversationGoalSchema = z.enum([
+  "licence-renewal", "road-test-booking", "rental-assistance", "health-coverage",
+  "pharmacare-registration", "primary-care", "service-bc", "motorcycle", "tenancy",
+  "job-loss", "caregiving", "disability", "business", "bceid", "taxes", "laws", "general", "unknown",
+]);
+export const conversationSummarySchema = z.object({
+  version: z.literal(1), noticeVersion: z.literal("ai-conversation-v1"),
+  threadId: contractId, revision: z.number().int().min(1), expiresAt: isoDateTime,
+  goal: conversationGoalSchema, goalLabel: z.string().min(1).max(100),
+  subject: z.enum(["you", "someone-else", "unspecified"]),
+  phase: z.enum(["clarify", "guide", "answer", "handoff", "social"]),
+  questionCount: z.number().int().min(0).max(3),
+  question: z.object({
+    id: contractId, kind: z.enum(["intent", "context"]),
+    factKey: conversationFactKeySchema.nullable(),
+    text: z.string().min(1).max(500), reason: z.string().min(1).max(500),
+    choices: z.array(z.string().min(1).max(100)).max(5),
+    candidates: z.array(conversationGoalSchema).max(3), personal: z.boolean(),
+  }).strict().nullable(),
+  facts: z.array(z.object({
+    key: conversationFactKeySchema, label: z.string().min(1).max(100),
+    value: z.enum([
+      "bc", "other", "car", "motorcycle", "rent", "tenancy", "housing", "msp", "pharmacare",
+      "both", "find-provider", "contact-provider", "licensing", "income-support", "identity",
+      "general-service", "under-19", "19-or-older", "yes", "no", "moving", "adult", "child", "work",
+    ]).nullable(),
+    displayValue: z.string().min(1).max(100),
+    status: z.enum(["provided", "unknown", "declined", "disputed"]),
+    subject: z.enum(["you", "someone-else", "unspecified"]),
+    provenance: z.literal("citizen-answer"), personal: z.boolean(),
+  }).strict()).max(11),
+  shareContext: z.boolean(), journeyId: journeyIdSchema.nullable(),
+  suggestedDemoId: demoPersonaIdSchema.nullable(),
+  limitation: z.enum(["none", "uncertain-intent", "missing-context", "source-coverage", "outside-scope"]),
+  decisionOrigin: z.enum(["model", "application"]),
+}).strict().superRefine((summary, context) => {
+  if (new Set(summary.facts.map((fact) => fact.key)).size !== summary.facts.length) {
+    context.addIssue({ code: "custom", message: "Conversation facts must be unique" });
+  }
+  if ((summary.phase === "clarify") !== (summary.question !== null)) {
+    context.addIssue({ code: "custom", message: "Clarification requires one question" });
+  }
+  if (!summary.shareContext && (summary.facts.some((fact) => fact.personal) || summary.question?.personal)) {
+    context.addIssue({ code: "custom", message: "Personal context requires optional sharing" });
+  }
+  if (summary.facts.some((fact) => (fact.status === "provided") !== (fact.value !== null))) {
+    context.addIssue({ code: "custom", message: "Only explicit answers have a value" });
+  }
+});
+
+export const assistanceTaskSchema = z.object({
+  id: contractId, journeyId: journeyIdSchema, catalogVersion: sha256,
+  stepVersions: z.record(contractId, sha256),
+  stepIds: z.array(contractId).min(1).max(40), activeStepId: contractId,
+  reviewedStepIds: z.array(contractId).max(40), skippedStepIds: z.array(contractId).max(40),
+  phase: z.enum(["preparing", "ready-for-official-handoff"]),
+  waitingFor: z.enum(["readiness", "municipality", "official-service"]),
+  lastAction: z.enum(["continue", "explain", "reviewed", "next", "back", "skip", "repair", "full-guide"]),
+  municipality: z.string().min(1).max(100).nullable(),
+  service: z.enum(["icbc-licensing", "income-assistance", "bc-services-card", "bceid"]).nullable(),
+}).strict().superRefine((task, context) => {
+  if (!task.stepIds.includes(task.activeStepId)
+    || task.reviewedStepIds.some((id) => !task.stepIds.includes(id) || task.skippedStepIds.includes(id))
+    || task.skippedStepIds.some((id) => !task.stepIds.includes(id))
+    || [task.stepIds, task.reviewedStepIds, task.skippedStepIds].some((ids) => new Set(ids).size !== ids.length)) {
+    context.addIssue({ code: "custom", message: "Task progress must reference unique existing steps" });
+  }
+});
+export const taskSnapshotSchema = z.object({
+  version: z.literal(1), threadId: contractId, revision: z.number().int().min(1),
+  task: assistanceTaskSchema.nullable(),
+  step: journeySchema.shape.steps.element.nullable(),
+  handoffs: journeySchema.shape.handoffs,
+  sources: z.array(sourceSchema).max(100),
+  guidance: z.string().max(8000),
+}).strict().superRefine((snapshot, context) => {
+  if (snapshot.task?.activeStepId !== snapshot.step?.id) {
+    context.addIssue({ code: "custom", message: "Current step must match the active task" });
+  }
+});
+export const conversationControlSchema = z.object({
+  id: contractId, revision: z.number().int().min(1), noticeVersion: z.literal("ai-conversation-v1"),
+  action: z.enum(["sharing", "review", "next", "back", "skip"]),
+  shareContext: z.boolean().nullable().optional(), taskId: contractId.nullable().optional(),
+  stepId: contractId.nullable().optional(), reviewed: z.boolean().nullable().optional(),
+}).strict().superRefine((control, context) => {
+  if (control.action === "sharing" ? control.shareContext == null || control.taskId != null || control.stepId != null || control.reviewed != null
+    : control.taskId == null || control.stepId == null || control.shareContext != null) {
+    context.addIssue({ code: "custom", message: "Only the requested setting or task step may change" });
+  }
+  if ((control.action === "review") !== (control.reviewed != null)) {
+    context.addIssue({ code: "custom", message: "Only review controls specify reviewed status" });
+  }
+});
+export const conversationControlResponseSchema = z.object({
+  summary: conversationSummarySchema, task: taskSnapshotSchema, notice: z.string().min(1).max(500),
+}).strict().superRefine((response, context) => {
+  if (response.summary.threadId !== response.task.threadId || response.summary.revision !== response.task.revision) {
+    context.addIssue({ code: "custom", message: "Control snapshots must be consistent" });
+  }
+});
+
+export const discoveryFactSchema = z.object({
+  key: discoveryFactKeySchema,
+  label: z.string().min(1).max(100),
+  value: z.string().min(1).max(100).nullable(),
+  status: z.enum(["provided", "unknown", "declined", "disputed"]),
+  provenance: z.literal("citizen-answer"),
+}).strict().superRefine((fact, context) => {
+  if ((fact.status === "provided") !== (fact.value !== null)) {
+    context.addIssue({ code: "custom", message: "Only an explicit answer may supply a fact value" });
+  }
+});
+export const discoverySummarySchema = z.object({
+  version: z.literal(1),
+  threadId: contractId,
+  revision: z.number().int().min(1),
+  phase: z.enum(["understand", "plan"]),
+  goalId: z.enum([
+    "motorcycle", "licence", "road-test", "rent", "health", "pharmacare",
+    "primary-care", "service-bc", "job-loss", "caregiving", "disability",
+  ]).nullable(),
+  goalLabel: z.string().min(1).max(100),
+  about: z.enum(["you", "someone-else", "unspecified"]),
+  questionCount: z.number().int().min(0).max(3),
+  facts: z.array(discoveryFactSchema).max(7),
+  question: z.object({
+    id: contractId,
+    factKey: discoveryFactKeySchema,
+    text: z.string().min(1).max(500),
+    reason: z.string().min(1).max(500),
+    choices: z.array(z.string().min(1).max(100)).max(6),
+  }).strict().nullable(),
+  suggestions: z.array(z.object({
+    journeyId: journeyIdSchema,
+    reason: z.string().min(1).max(300),
+  }).strict()).max(3),
+  suggestedDemoId: demoPersonaIdSchema.nullable(),
+  expiresAt: isoDateTime,
+}).strict().superRefine((summary, context) => {
+  if (new Set(summary.facts.map((fact) => fact.key)).size !== summary.facts.length
+    || new Set(summary.suggestions.map((item) => item.journeyId)).size !== summary.suggestions.length) {
+    context.addIssue({ code: "custom", message: "Discovery facts and suggestions must be unique" });
+  }
+  if (summary.question && (summary.phase !== "understand" || !summary.goalId)) {
+    context.addIssue({ code: "custom", message: "A question requires a current discovery goal" });
+  }
+  if (summary.phase !== "plan" && (summary.suggestions.length || summary.suggestedDemoId)) {
+    context.addIssue({ code: "custom", message: "Recommendations follow discovery" });
+  }
+});
 
 export const contextCategories = [
   "identity-residency",
@@ -585,7 +819,12 @@ export const capabilitiesSchema = z.object({
   journeys: z.record(journeyIdSchema, z.boolean()).optional(),
   generalChatConfigured: z.boolean().optional(),
   retrievalReady: z.boolean().optional(),
-  requestVersions: z.array(z.union([z.literal(1), z.literal(2), z.literal(3)])).max(3).optional(),
+  requestVersions: z.array(z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)])).max(6).optional(),
+  conversationAvailable: z.boolean().optional(),
+  conversationAgentReady: z.boolean().optional(),
+  taskAssistanceAvailable: z.boolean().optional(),
+  localEvidenceEvaluation: z.boolean().optional(),
+  discoveryAvailable: z.boolean().optional(),
   syntheticContextAvailable: z.boolean().optional(),
   realIdentityIntegrated: z.literal(false).optional(),
 }).superRefine((capabilities, context) => {
@@ -600,6 +839,15 @@ export const capabilitiesSchema = z.object({
     && !capabilities.requestVersions?.includes(3)
   ) {
     context.addIssue({ code: "custom", message: "Synthetic context requires request version 3" });
+  }
+  if (!!capabilities.discoveryAvailable !== !!capabilities.requestVersions?.includes(4)) {
+    context.addIssue({ code: "custom", message: "Discovery availability must match request version 4" });
+  }
+  if (!!capabilities.conversationAvailable !== !!capabilities.requestVersions?.includes(5)) {
+    context.addIssue({ code: "custom", message: "AI conversation requires request version 5" });
+  }
+  if (capabilities.requestVersions?.includes(6) && !capabilities.taskAssistanceAvailable) {
+    context.addIssue({ code: "custom", message: "Grounded conversation requires task support" });
   }
 });
 
@@ -688,6 +936,16 @@ export type JourneyId = z.infer<typeof journeyIdSchema>;
 export type ChatMode = z.infer<typeof chatModeSchema>;
 export type RunOptions = z.infer<typeof runOptionsSchema>;
 export type ResponseContext = z.infer<typeof responseContextSchema>;
+export type DiscoveryCommand = z.infer<typeof discoveryCommandSchema>;
+export type DiscoverySummary = z.infer<typeof discoverySummarySchema>;
+export type DiscoveryFact = z.infer<typeof discoveryFactSchema>;
+export type DiscoveryFactKey = z.infer<typeof discoveryFactKeySchema>;
+export type ConversationCommand = z.infer<typeof conversationCommandSchema>;
+export type ConversationFactKey = z.infer<typeof conversationFactKeySchema>;
+export type ConversationSummary = z.infer<typeof conversationSummarySchema>;
+export type TaskSnapshot = z.infer<typeof taskSnapshotSchema>;
+export type ConversationControl = z.infer<typeof conversationControlSchema>;
+export type ConversationControlResponse = z.infer<typeof conversationControlResponseSchema>;
 export type EvidenceMetadata = z.infer<typeof evidenceMetadataSchema>;
 export type DemoPersonaId = z.infer<typeof demoPersonaIdSchema>;
 export type DemoPersonaSummary = z.infer<typeof demoPersonaSummarySchema>;
@@ -718,6 +976,7 @@ export const unavailableCapabilities: Capabilities = {
   webIqEnabled: false,
   transactionsEnabled: false,
   syntheticContextAvailable: false,
+  discoveryAvailable: false,
   realIdentityIntegrated: false,
   message: "AI answers need the Azure / Microsoft Foundry connection. You can still explore source-backed guided plans.",
 };

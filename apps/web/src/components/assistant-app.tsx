@@ -20,7 +20,8 @@ export function AssistantApp() {
   const workspace = !!selected;
   const aiConfigured = selectedId
     ? capabilities.journeys?.[selectedId] ?? capabilities.aiConfigured
-    : capabilities.generalChatConfigured ?? capabilities.aiConfigured;
+    : capabilities.conversationAvailable ? capabilities.conversationAgentReady
+      : capabilities.generalChatConfigured ?? capabilities.aiConfigured;
   useEffect(() => {
     if (workspace) headingRef.current?.focus({ preventScroll: true });
   }, [workspace, selectedId]);

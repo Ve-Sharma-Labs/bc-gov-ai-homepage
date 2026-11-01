@@ -5,17 +5,54 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("closed same-origin proxy boundary", () => {
   it.each([
+    ["http://public.example/api/catalog", "127.0.0.1", {}],
+    ["http://127.0.0.1:3000/api/catalog", "0.0.0.0", {}],
+    ["http://127.0.0.1:3000/api/catalog", "127.0.0.1", { "x-forwarded-for": "192.0.2.1" }],
+    ["http://127.0.0.1:3000/api/catalog", "127.0.0.1", { origin: "https://public.example" }],
+    ["http://127.0.0.1:3000/api/catalog", "127.0.0.1", { forwarded: "for=127.0.0.1" }],
+  ])("does not expose local evaluation sources via %s", async (url, host, headers) => {
+    vi.stubEnv("LOCAL_EVIDENCE_EVALUATION_ENABLED", "true");
+    vi.stubEnv("HOSTNAME", host);
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    const response = await proxyRequest(new Request(url, { headers }));
+    expect(response.status).toBe(403);
+    expect((await response.json()).error.code).toBe("LOCAL_EVALUATION_ONLY");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("marks verified loopback evaluation requests without trusting a client scope header", async () => {
+    vi.stubEnv("LOCAL_EVIDENCE_EVALUATION_ENABLED", "true");
+    vi.stubEnv("HOSTNAME", "127.0.0.1");
+    vi.stubEnv("API_BASE_URL", "http://127.0.0.1:8000");
+    let headers = new Headers();
+    vi.stubGlobal("fetch", vi.fn(async (_url, init: RequestInit) => {
+      headers = new Headers(init.headers);
+      return Response.json({ ok: true });
+    }));
+    const response = await proxyRequest(new Request("http://127.0.0.1:3000/api/catalog", {
+      headers: { "x-forwarded-for": "127.0.0.1", "x-bc-evaluation-scope": "public" },
+    }));
+    expect(response.status).toBe(200);
+    await response.json();
+    expect(headers.get("x-bc-evaluation-scope")).toBe("local-noncommercial");
+    expect(headers.has("x-forwarded-for")).toBe(false);
+  });
+
+  it.each([
     ["GET", "/api/catalog"],
     ["GET", "/healthz"],
     ["GET", "/api/capabilities"],
     ["GET", "/api/demo/personas"],
     ["GET", "/api/context/summary"],
+    ["GET", "/api/discovery"],
     ["GET", "/api/journeys/licence-renewal"],
     ["GET", "/api/locations"],
     ["POST", "/api/agent"],
     ["POST", "/api/demo/session"],
     ["POST", "/api/context/consents"],
     ["DELETE", "/api/demo/session"],
+    ["DELETE", "/api/discovery"],
     ["POST", "/api/runs/run-123/cancel"],
   ])("allows %s %s", (method, path) => expect(allowedApiRequest(method, path, new URLSearchParams())).toBe(true));
 
@@ -27,6 +64,7 @@ describe("closed same-origin proxy boundary", () => {
     ["DELETE", "/api/agent"],
     ["DELETE", "/api/context/summary"],
     ["POST", "/api/context/summary"],
+    ["POST", "/api/discovery"],
     ["GET", "/api/admin"],
     ["GET", "/api/http://example.com"],
     ["GET", "/api/healthz"],
@@ -34,6 +72,7 @@ describe("closed same-origin proxy boundary", () => {
 
   it("rejects unexpected, duplicated or misplaced query parameters", () => {
     expect(allowedApiRequest("GET", "/api/catalog", new URLSearchParams("url=https://evil.test"))).toBe(false);
+    expect(allowedApiRequest("GET", "/api/discovery", new URLSearchParams("age=30"))).toBe(false);
     expect(allowedApiRequest("GET", "/api/locations", new URLSearchParams("service=a&service=b"))).toBe(false);
     expect(allowedApiRequest("GET", "/api/locations", new URLSearchParams("host=evil.test"))).toBe(false);
     expect(allowedApiRequest("GET", "/api/locations", new URLSearchParams("service=icbc-licensing&municipality=Victoria"))).toBe(true);
@@ -124,6 +163,37 @@ describe("closed same-origin proxy boundary", () => {
     await reader.cancel();
     expect(upstreamSignal!.aborted).toBe(true);
     expect(upstreamCancelled).toBe(true);
+  });
+
+  it.each([
+    ["/api/capabilities", 20_000, 200],
+    ["/api/capabilities", 45_001, 504],
+    ["/api/catalog", 15_001, 504],
+  ])("bounds %s readiness at %i ms with HTTP %i", async (path, elapsed, status) => {
+    vi.useFakeTimers();
+    let upstreamSignal: AbortSignal | undefined;
+    let complete!: () => void;
+    vi.stubGlobal("fetch", vi.fn(async (_url, init: RequestInit) => {
+      upstreamSignal = init.signal ?? undefined;
+      return new Promise<Response>((resolve, reject) => {
+        complete = () => resolve(Response.json({ ready: true }));
+        upstreamSignal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        }, { once: true });
+      });
+    }));
+    try {
+      const pending = proxyRequest(new Request(`http://localhost:3000${path}`));
+      await vi.waitFor(() => expect(upstreamSignal).toBeDefined());
+      await vi.advanceTimersByTimeAsync(elapsed);
+      expect(upstreamSignal?.aborted).toBe(status === 504);
+      if (status === 200) complete();
+      const response = await pending;
+      expect(response.status).toBe(status);
+      await response.text();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not follow upstream redirects or leak network errors", async () => {

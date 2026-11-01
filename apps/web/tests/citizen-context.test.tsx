@@ -90,7 +90,7 @@ describe("public synthetic citizen context controls", () => {
     vi.stubGlobal("fetch", contextUiApi());
     render(<ContextSurface />);
     const trigger = await screen.findByRole("button", { name: "Choose a synthetic demo persona" });
-    expect(trigger).toHaveTextContent("Anonymous");
+    expect(trigger).toHaveTextContent("Try fictional context");
     fireEvent.click(trigger);
 
     expect(screen.getByRole("dialog", { name: "Choose conversation context" })).toBeInTheDocument();

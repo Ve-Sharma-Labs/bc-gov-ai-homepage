@@ -7,7 +7,9 @@ from bc_api.catalog import CatalogRepository
 from bc_api.config import Settings
 from bc_api.context_agent_policy import CONTEXTUAL_INSTRUCTIONS
 from bc_api.context_tools import create_context_tools, schema_context
+from bc_api.conversation_policy import CONVERSATION_INSTRUCTIONS, decision_schema
 from bc_api.errors import ApiError
+from bc_api.grounded_policy import GROUNDED_ANSWER_INSTRUCTIONS, GROUNDED_PLANNER_INSTRUCTIONS
 from bc_api.input import parse_options
 from bc_api.models import JOURNEY_IDS, AgentBinding
 from bc_api.retrieval import EvidenceLedger, journey_matches
@@ -42,7 +44,7 @@ def route_journey(
                 "Synthetic citizen context is not enabled in this release.",
             )
         return None
-    if options.version == 2:
+    if options.version in (2, 4, 5, 6):
         return options.journey_id
     matches = journey_matches(request.messages[-1].content)
     if len(matches) == 2 and "service-bc" in matches:
@@ -65,7 +67,26 @@ def route_journey(
 
 
 def binding_for_request(settings: Settings, request: RunAgentInput) -> AgentBinding:
-    mode = parse_options(request.forwarded_props).mode
+    options = parse_options(request.forwarded_props)
+    mode = options.mode
+    if options.version == 6:
+        if settings.grounded_agents_configured:
+            assert settings.foundry_grounded_conversation_agent is not None
+            return settings.foundry_grounded_conversation_agent
+        raise ApiError(
+            503,
+            "GROUNDED_CONVERSATION_NOT_CONFIGURED",
+            "The grounded conversation candidate is not connected.",
+        )
+    if options.version == 5:
+        if settings.conversation_agent_configured:
+            assert settings.foundry_conversation_agent is not None
+            return settings.foundry_conversation_agent
+        raise ApiError(
+            503,
+            "CONVERSATION_AGENT_NOT_CONFIGURED",
+            "AI-led conversation is not connected. Guided plans remain available.",
+        )
     if mode == "contextual-demo":
         if settings.contextual_agent_configured:
             assert settings.foundry_contextual_agent is not None
@@ -138,6 +159,43 @@ def general_agent_definition(
             "model": model_deployment,
             "instructions": GENERAL_INSTRUCTIONS,
             "tools": function_declarations(create_tools(context)),
+        },
+    }
+
+
+def conversation_agent_definition(*, prefix: str, model_deployment: str) -> dict:
+    return {
+        "journeyId": None,
+        "mode": "conversation",
+        "name": f"{prefix}-conversation",
+        "definition": {
+            "kind": "prompt",
+            "model": model_deployment,
+            "instructions": CONVERSATION_INSTRUCTIONS,
+            "tools": [decision_schema()],
+            "tool_choice": "required",
+        },
+    }
+
+
+def grounded_agent_definition(
+    catalog: CatalogRepository, *, prefix: str, model_deployment: str, planner: bool
+) -> dict:
+    context = ToolContext(catalog, EvidenceLedger(), grounded_conversation=True)
+    return {
+        "journeyId": None,
+        "mode": "grounded-conversation" if planner else "grounded-answer",
+        "name": f"{prefix}-grounded-{'planner' if planner else 'answer'}",
+        "definition": {
+            "kind": "prompt",
+            "model": model_deployment,
+            "instructions": GROUNDED_PLANNER_INSTRUCTIONS
+            if planner
+            else GROUNDED_ANSWER_INSTRUCTIONS,
+            "tools": [decision_schema(grounded=True)]
+            if planner
+            else function_declarations(create_tools(context)),
+            **({"tool_choice": "required"} if planner else {}),
         },
     }
 
