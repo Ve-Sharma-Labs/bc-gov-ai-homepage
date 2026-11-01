@@ -304,7 +304,7 @@ export const contextArtifactsFixture: Artifact[] = [
   },
 ];
 
-export const evidenceMetadataFixture: EvidenceMetadata = {
+export const evidenceMetadataFixture: Extract<EvidenceMetadata, { version: 1 }> = {
   version: 1,
   sourceIds: ["bc-laws"],
   documentType: "legal",

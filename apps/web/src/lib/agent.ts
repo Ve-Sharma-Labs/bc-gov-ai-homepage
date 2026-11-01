@@ -1,7 +1,7 @@
 import { HttpAgent } from "@ag-ui/client";
 import type { BaseEvent, Message } from "@ag-ui/core";
-import { ApiError, getContextPageToken } from "./api";
-import type { JourneyId } from "./contract";
+import { ApiError, getContextPageToken, getDiscoveryPageToken, getConversationPageToken } from "./api";
+import type { ConversationCommand, DiscoveryCommand, JourneyId } from "./contract";
 
 type AgentRunOptions = {
   threadId: string;
@@ -12,9 +12,9 @@ type AgentRunOptions = {
   onClose: () => void;
   researchRequested?: boolean;
 } & (
-  | { mode: "general"; journeyId?: never }
-  | { mode: "pathway"; journeyId: JourneyId }
-  | { mode: "contextual-demo"; journeyId?: never; researchRequested?: false }
+  | { mode: "general"; journeyId?: never; discovery?: DiscoveryCommand; conversation?: ConversationCommand; conversationVersion?: 5 | 6 }
+  | { mode: "pathway"; journeyId: JourneyId; discovery?: never; conversation?: never; conversationVersion?: never }
+  | { mode: "contextual-demo"; journeyId?: never; researchRequested?: false; discovery?: never; conversation?: never; conversationVersion?: never }
 );
 
 function retryAt(response: Response, code: string): string | null {
@@ -49,6 +49,10 @@ export function startAgentRun(options: AgentRunOptions) {
       if (options.mode === "contextual-demo") {
         headers.set("x-bc-context-page", getContextPageToken());
       }
+      if (options.discovery) {
+        headers.set("x-bc-discovery-page", getDiscoveryPageToken());
+      }
+      if (options.conversation) headers.set("x-bc-conversation-page", getConversationPageToken());
       const response = await fetch(url, {
         ...init,
         headers,
@@ -56,6 +60,7 @@ export function startAgentRun(options: AgentRunOptions) {
         credentials: "same-origin",
       });
       if (!response.ok) {
+        terminal = true;
         const payload = await response.json().catch(() => null);
         const code = payload?.error?.code || "AGENT_UNAVAILABLE";
         const message = typeof payload?.error?.message === "string" ? payload.error.message.slice(0, 600) : "The assistant is unavailable. Your question has been kept.";
@@ -87,6 +92,8 @@ export function startAgentRun(options: AgentRunOptions) {
     context: [],
     forwardedProps: { bc: options.mode === "contextual-demo"
       ? { version: 3, mode: "contextual-demo" }
+      : options.conversation ? { version: options.conversationVersion ?? 5, mode: "general", conversation: options.conversation }
+      : options.discovery ? { version: 4, mode: "general", discovery: options.discovery }
       : {
         version: 2,
         mode: options.mode,

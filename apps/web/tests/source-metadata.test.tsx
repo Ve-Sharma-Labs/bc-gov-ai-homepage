@@ -2,9 +2,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { BaseEvent } from "@ag-ui/core";
 import { describe, expect, it, vi } from "vitest";
-import { resolveCitation } from "@/components/conversation";
+import { Conversation, resolveCitation } from "@/components/conversation";
 import { SourceCard } from "@/components/sources";
-import { evidenceMetadataSchema, sourceSchema } from "@/lib/contract";
+import { evidenceMetadataSchema, localEvidenceMetadataSchema, sourceSchema } from "@/lib/contract";
 import { formatDate } from "@/lib/links";
 import { initialStreamState, streamReducer, type StreamState } from "@/lib/stream";
 import { catalogFixture, evidenceMetadataFixture } from "./fixtures";
@@ -23,6 +23,44 @@ function annotated(metadata?: unknown, nested = false) {
 }
 
 describe("versioned evidence provenance", () => {
+  it("keeps local evidence separate from human-approved indexed metadata", () => {
+    const metadata = localEvidenceMetadataSchema.parse({
+      version: 2, sourceIds: ["bc-laws"], documentType: "legal",
+      retrievalOrigin: "official-live", useScope: "local-noncommercial-evaluation",
+      humanReviewed: false, contentHash: "a".repeat(64),
+      licenceUrl: "https://www.bclaws.gov.bc.ca/standards/Licence.html",
+      attribution: "Synthetic Province of British Columbia fixture",
+      notice: "Synthetic licence notice: THESE MATERIALS ARE NOT AN OFFICIAL VERSION.",
+      consolidationDate: "2026-10-27", legalStatus: "publisher-current-collection",
+    });
+    expect(annotated(metadata).messages[1].citations[0].metadata).toEqual(metadata);
+    for (const patch of [
+      { humanReviewed: true }, { useScope: "public" }, { effectiveFrom: "2026-10-27" },
+      { legalStatus: "in-force" }, { retrievalOrigin: "official-snapshot" },
+    ]) {
+      expect(evidenceMetadataSchema.safeParse({ ...metadata, ...patch }).success).toBe(false);
+    }
+  });
+
+  it("shows the complete legal licence notice without opening a source dialog", () => {
+    const metadata = localEvidenceMetadataSchema.parse({
+      version: 2, sourceIds: ["bc-laws"], documentType: "legal",
+      retrievalOrigin: "official-live", useScope: "local-noncommercial-evaluation",
+      humanReviewed: false, contentHash: "a".repeat(64),
+      licenceUrl: "https://www.bclaws.gov.bc.ca/standards/Licence.html",
+      attribution: "Synthetic legal source attribution",
+      notice: "Synthetic complete licence notice: THESE MATERIALS ARE NOT AN OFFICIAL VERSION.",
+      consolidationDate: "2026-10-27", legalStatus: "publisher-current-collection",
+    });
+    let state = annotated(metadata);
+    state = event(state, { type: "TEXT_MESSAGE_CONTENT", messageId: "answer-1", delta: "A synthetic answer." });
+    state = event(state, { type: "RUN_FINISHED" });
+    render(<Conversation state={state} catalog={null} textFirst />);
+    expect(screen.getByRole("complementary", { name: "Source licence notice" })).toBeVisible();
+    expect(screen.getByText(metadata.notice)).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("accepts the exact metadata and keeps omitted/null legacy references compatible", () => {
     expect(evidenceMetadataSchema.parse(evidenceMetadataFixture)).toEqual(evidenceMetadataFixture);
     expect(sourceSchema.parse(catalogFixture.sources[0]).metadata).toBeUndefined();
@@ -92,6 +130,29 @@ describe("versioned evidence provenance", () => {
 });
 
 describe("source provenance details", () => {
+  it("identifies dated copies and their author without claiming live or human review", async () => {
+    const metadata = localEvidenceMetadataSchema.parse({
+      version: 2, sourceIds: ["employment-insurance"], documentType: "guidance",
+      retrievalOrigin: "official-snapshot", useScope: "local-noncommercial-evaluation",
+      humanReviewed: false, contentHash: "b".repeat(64),
+      licenceUrl: "https://www.canada.ca/en/transparency/terms.html",
+      attribution: "EI Regular Benefits. Employment and Social Development Canada. Canada.ca.",
+      notice: "This is a copy of the version available at the cited official URL.",
+      consolidationDate: null, legalStatus: null,
+    });
+    const source = resolveCitation({
+      sourceId: catalogFixture.sources[0].id, url: catalogFixture.sources[0].url,
+      title: "Synthetic source copy", publisher: "Synthetic copy publisher", metadata,
+    }, catalogFixture, 0)!;
+    expect(source.publisher).toBe("Synthetic copy publisher");
+    render(<SourceCard source={source} />);
+    expect(screen.getByText("Dated copy of an official page", { selector: ".source-status" })).toBeVisible();
+    await userEvent.setup().click(screen.getByText(source.title));
+    expect(screen.getByText(metadata.attribution)).toBeVisible();
+    expect(screen.getByText("Not human-reviewed for publication")).toBeVisible();
+    expect(screen.queryByText("In force")).not.toBeInTheDocument();
+  });
+
   it("separates effective bounds, consolidation and historical status, with snapshot-only review details", async () => {
     const user = userEvent.setup();
     const source = sourceSchema.parse({

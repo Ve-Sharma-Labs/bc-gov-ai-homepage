@@ -18,6 +18,10 @@ trust boundaries and end-to-end flows; this document remains the interface contr
 The web app calls same-origin `/api/*`. Its server-only `API_BASE_URL` points to
 the Python API. It forwards only explicitly supported API paths/methods and
 preserves streaming, cancellation, session cookies, and error status.
+The web proxy allows up to 45 seconds for capability discovery, which may need
+local CLI credential priming followed by several live agent/source metadata
+checks. Other metadata reads remain bounded at 15 seconds and agent streams at
+180 seconds. This does not delay sending a chat request behind readiness.
 
 ## Public catalogue
 
@@ -95,6 +99,10 @@ Raw fetched documents belong in ignored generated directories.
   `ConsentReceipt`.
 - `GET /api/context/summary`: returns a redacted `ContextSummary` containing
   only categories covered by the current, unexpired receipt.
+- `GET /api/discovery`: when discovery is enabled, returns the current page's
+  `DiscoverySummary` or null. No query parameters or client profile are accepted.
+- `DELETE /api/discovery`: invalidates that page's discovery state, cancels local
+  in-flight discovery runs, and prevents a late commit from recreating it.
 - `POST /api/agent`: standard AG-UI RunAgentInput and SSE output when Foundry is
   actually configured. If not configured, return 503 with the error below;
   never fake a streamed model answer.
@@ -125,6 +133,12 @@ Environment contract:
 - `SYNTHETIC_CONTEXT_SESSION_TTL_SECONDS` and
   `SYNTHETIC_CONTEXT_CONSENT_TTL_SECONDS`; consent must not outlive the bounded
   server session.
+- `CONVERSATION_DISCOVERY_ENABLED=false` by default; advertises request version 4
+  and `discoveryAvailable:true` only when enabled.
+- `CONVERSATION_CONTEXT_TTL_SECONDS` (60-3600; default 1800), with bounded
+  page-owned memory/Redis state. This is a fixed expiry, not a permanent profile.
+- `CONVERSATION_DISCOVERY_PRIVACY_REVIEWED=false` by default. Production startup
+  refuses enabled discovery without this separate review acknowledgment.
 - V1 keeps `AZURE_SEARCH_INDEX=bc-pilot-public`,
   `AZURE_SEARCH_METADATA_ENABLED=false`, `AZURE_SEARCH_METADATA_REVIEWED=0`.
   The future v2 revision must atomically set `bc-pilot-public-v2`, `true`, `1`;
@@ -330,3 +344,300 @@ still return `SOURCES_UNAVAILABLE` for a particular question.
 Azure AI Search is the default evidence path. Foundry IQ is an optional bounded
 managed-retrieval comparison, Web IQ a separate disabled-until-approved public
 research capability, and Work IQ/Fabric IQ are outside the anonymous pilot.
+
+### Version 4 context-first discovery
+
+Version 4 is an opt-in general-conversation contract. Versions 1-3 retain their
+existing meaning. The initial `forwardedProps.bc` is:
+
+```json
+{
+  "version": 4,
+  "mode": "general",
+  "discovery": { "action": "respond", "revision": 0 }
+}
+```
+
+Subsequent replies send the last committed revision and the server's pending
+`questionId`. Actions are `respond`, `skip`, `general`, `correct`, `remove`,
+`explore`, or `refine`; only correction/removal may include an existing
+`factKey`. A skip requires the active question ID. No journey scope, raw
+profile, client-provided facts, consent receipt, tools, or research flag can be
+combined with this mode. Explicit source questions may change topic without
+turning the previous question's answer into evidence.
+
+`X-BC-Discovery-Page` is a separate random, in-memory page binding. The API binds
+it to the anonymous owner and validates the thread and state revision. Browser
+reload and Start over rotate this binding; deletion closes old access even when
+an earlier run has not yet committed. Redis uses atomic compare-and-set and
+expiry. A repeated answer with the same original command can replay its last
+application result without consuming another question. Stale/foreign questions
+cannot silently populate a different field.
+
+`CUSTOM/bc.discovery` contains a strict version-1 `DiscoverySummary`: thread,
+revision, phase, reviewed goal ID/label, whether the discussion is about the
+speaker or someone else, question count, allowlisted facts, pending question,
+optional pathway suggestions, optional fictional-demo recommendation, and expiry.
+Fact status is `provided`, `unknown`, `declined`, or `disputed`; only `provided`
+has a value and its provenance is `citizen-answer`. A recommendation cannot
+appear before the plan phase. Question IDs, schemas, permitted fields, and
+copy are server-owned. Arbitrary uncited model prose cannot emit this event.
+
+The frontend stages this update until `RUN_FINISHED`, rejects mismatched
+thread/revision or duplicate updates, ignores late events after Stop/reset,
+and exposes explicit refresh for conflicts. Inline edits, removal, skip, and
+general guidance use narrow commands, not generated state. Retries preserve
+the original command so a short answer is not reassigned to a new question.
+
+The initial implementation uses reviewed question templates and bounded explicit
+answer interpretation. It does not infer a person's sensitive attributes or use
+a model to invent persona records. Warm acknowledgments and discovery are
+application dialogue; supplied preparation artifacts are canonical catalogue
+data, not generated eligibility decisions. Unsupported motorcycle rules receive
+an ICBC handoff, not licence-renewal routing or invented numeric criteria.
+Immigration-status questions are not enabled by this initial field allowlist.
+
+All discovery turns are excluded from later version-2/pathway/demo histories.
+The coordinator retains only allowlisted self-reports and canonical public intent,
+not the raw transcript. Factual follow-ups use the existing pinned general
+agent with public-intent-only input; Search and tool searches cannot receive
+the stored personal answers. Non-factual discovery does not weaken the existing
+exact-clarification or substantive-claim source gates. No new Foundry version,
+source snapshot, identity integration, or public deployment is authorized here.
+
+### Version 5 AI-led conversation
+
+`AI_CONVERSATION_ENABLED` advertises request version 5 and
+`conversationAvailable`. `conversationAgentReady` separately reports a
+verified, isolated `FOUNDRY_CONVERSATION_AGENT` binding. Production startup
+requires `AI_CONVERSATION_PRIVACY_REVIEWED` before enabling this mode.
+Existing request versions and their disclosure/data-use boundaries remain
+unchanged.
+
+The browser sends exactly one current user message and:
+
+```json
+{
+  "version": 5,
+  "mode": "general",
+  "conversation": {
+    "action": "respond",
+    "revision": 0,
+    "noticeVersion": "ai-conversation-v1",
+    "shareContext": false
+  }
+}
+```
+
+`questionId` binds an answer/skip to a server-owned pending question. Other
+actions are `general`, `correct`, `remove`, `explore`, and `sharing`; only
+correction/removal may name an existing `factKey`. No browser profile, model
+choice, generated tool, arbitrary source URL, or consent receipt is accepted.
+`X-BC-Conversation-Page` is separate from both the version-4 discovery page
+token and the fictional-persona context token.
+
+The server decodes complete displayed labels, canonical values, and explicitly
+allowed short replies against that pending question. These answers use an
+application decision with no planner invocation; stale question IDs and
+revisions still fail. A label must not depend on a separate regex to be accepted.
+Longer or genuinely ambiguous text remains model-interpreted and validated.
+Corrections use the named existing fact; a new service request is not consumed
+as a substring match for the old question.
+
+`GET /api/conversation` returns the active page's strict `ConversationSummary`
+or null. `DELETE /api/conversation` invalidates the page state and prevents a
+late request from recreating it. Neither route accepts query parameters.
+Memory and Redis use the same typed, expiring compare-and-set repository with
+an isolated namespace. Corrections, consent changes, and conflicts do not
+automatically resend the user's message.
+
+`CUSTOM/bc.conversation` carries the goal, phase, essential intent/context
+question, explicit facts and subject, sharing choice, optional guide/demo
+references, limitation kind, origin, revision, and expiry. The client stages it
+until `RUN_FINISHED`, rejects mismatched/duplicate updates, and ignores late
+events after cancellation. All v5 turns are excluded from legacy histories.
+`bc.response.decisionOrigin` distinguishes AI decisions rendered with reviewed
+wording from no-model application dialogue; the existing `origin` still names
+the authority that produced the displayed text.
+
+The licensing-route, guardianship-scope, and disability-kind follow-ups reuse
+`kind:"intent"`, `factKey:null`, string `choices`, and an empty `candidates`
+list. Their bounded answers and pending-question purpose are internal
+`StoredConversation` state, not new public fact keys. The model may propose
+`serviceAnswer:{key,value,status,quote}` only for the active goal with
+current-message evidence; the application owns the final route. This changes
+the pinned planner definition, not the version-5 browser response schema.
+Unknown/skipped licence issuers never initialize a B.C. renewal task. An
+outside-B.C. issuer asks renewal-versus-B.C.-licensing once, then provides the
+appropriate reviewed navigation without inventing foreign requirements.
+
+The planner can only call `propose_conversation_turn` with a strict schema.
+It does not execute service actions. One shared model-call/input budget spans
+planning and any subsequent evidence-backed generation. The API renders known
+questions and canonical catalogue artifacts; it does not accept arbitrary
+uncited planner text. A missing Search chunk does not hide a supported
+preparation guide. Model/authentication errors remain errors.
+
+Every current message is handled under the displayed AI notice; canonical
+short answers and controls need no inference. Optional
+personal-category retention/reuse requires `shareContext:true`, appropriate
+purpose, and an explicit current-message quote. Numbers identifying a person,
+credentials, documents, addresses, and medical histories are not requested.
+Only canonical service intent is used for Search and embeddings. Turning sharing
+off clears stored personal categories before later model input is assembled;
+previous processing cannot be undone. Live testing uses synthetic data only.
+
+### Task assistance and non-chat controls
+
+`TASK_ASSISTANCE_ENABLED` advertises `taskAssistanceAvailable` in the existing
+capabilities response. Version 5 clients that use this capability accept an
+additive `CUSTOM/bc.task` version-1 snapshot alongside `bc.conversation`.
+Older request formats and message-authority fields remain unchanged.
+
+The snapshot contains the conversation thread/revision, stable task ID,
+catalogue/step versions, current step, user-reported reviewed/skipped IDs,
+explicit visit municipality where supplied, current guidance, and approved
+source/handoff references. It is staged until terminal success. The frontend
+retains the previous validated task/guide on a new run or interruption, and
+replaces it only after an authoritative update. Task guides use stable IDs,
+not an ID that changes with each chat run.
+
+`POST /api/conversation/control` accepts a unique control ID, current revision,
+notice version, and exactly one action:
+
+- `sharing`: a boolean `shareContext`, without task/progress fields.
+- `review`: server-owned `taskId`, `stepId`, and boolean `reviewed`.
+- `next`, `back`, or `skip`: only the current task/step references.
+
+The response is a strict conversation summary, task snapshot, and status
+notice. It is not an SSE/model response and creates no chat messages. The same
+ID/body is idempotent; a conflicting ID, stale revision, foreign task/page, or
+expired state is rejected. Progress changes do not imply renewal, eligibility,
+booking, or submission. `GET /api/conversation/task` refreshes both snapshots
+without resending the person's message.
+
+Sharing changes preserve non-personal progress and still-valid pending
+questions. Turning sharing off removes personal facts before future model
+input and invalidates affected personal questions without resetting the task.
+These controls work without a model allowance. Their errors are shown with
+explicit retry/refresh actions rather than a fake successful conversation.
+
+Chat does not render mandatory answer widgets or checklists. The current
+question and practical next action are ordinary messages; full guides,
+progress, context, and sharing preferences live in optional Details. Closing
+Details never clears state or disables the composer. Source links and essential
+qualifications remain with the answer.
+
+The four shared starter prompts only fill/focus the composer. Selection
+does not invoke an agent, reset a task, enable sharing, or load a persona.
+A draft is retained until explicit replacement. On Send, the normal
+question/revision-bound request carries the full new message for intent
+resolution. Browser fixtures cover both empty and active chat plus homepage
+selection, keyboard focus, and draft protection.
+
+The planner's task fields select continuation, explanation, repair, explicit
+user-reported review, navigation, or full-guide display. Step IDs must belong to
+the current task. Review requires a quote from the current message and positive
+readiness, not negation, uncertainty, or a future intention. An explicit goal
+change is required to leave an active task; greetings and repeated requests
+cannot silently reset it. Current-step facts remain subject to the existing
+source and privacy boundaries.
+
+If a proposed structure fails schema validation, the runtime may make one
+correction attempt using the same pinned agent and aggregate budget. It does
+not retry indefinitely or bypass validation. Success-shaped progress is never
+manufactured after failure.
+
+### Version 6 grounded-conversation candidate
+
+Version 6 is separately gated by `GROUNDED_CONVERSATION_ENABLED`, requires
+AI conversation and task assistance, and has a separate production privacy
+review flag. `/api/capabilities` advertises it only to a caller sending
+`X-BC-Client-Version: 6`. Old clients receive the existing version list and
+response shapes. The frontend pins version 5 or 6 for the page-owned thread;
+refreshing capabilities does not silently migrate an active conversation.
+The server rejects cross-version reuse of a page state.
+
+The version-6 planner schema adds `programmeId`, `answerQuestion`, and
+`answerTopics` while retaining the existing progress proposal. These are
+server-validated model proposals, not browser-supplied state. A progress update
+cannot change which question needs an answer. Bare acknowledgments of an
+ambiguous question are not treated as explicit readiness. A review always
+applies to the current step, even when the question's focus is another step.
+
+Programme state refines a broad goal (for example job loss to EI) without
+inventing an eligibility fact. It is internal server state; the current
+`bc.conversation` summary remains compatible. Programme switches retire
+obsolete questions and reset irrelevant topic context. Public queries come
+from bounded programme/topic vocabulary, never raw personal context.
+The grounded writer receives only `read_programme_sources(topic)`, with a
+bounded topic enum and a server-owned programme. The server constructs the
+public query and source scope; the model cannot supply raw query text, a URL,
+or a programme override. Provincial plans and the small Service BC snapshot cannot be used as
+an EI, guardianship, disability, or comprehensive ICBC directory.
+
+Substantive task questions enter evidence retrieval/generation instead of
+automatically rendering `task_text()`. Canonical interpretation may be
+deterministic, but possible downstream generation still reserves model work.
+One repeated preliminary-question repair is allowed within the same budget;
+if it still repeats, qualified public guidance is selected without assuming
+the missing answer. A source failure does not mark the topic covered or
+silently replay the same checklist paragraph.
+
+The planner and grounded writer have distinct pinned bindings and verification.
+The policies include SDK model-assisted refinements and require evaluation
+before activation. No managed optimizer result is fabricated when MCP
+authentication is unavailable.
+The configured metadata-aware index name may be an explicitly reviewed isolated
+target via `AZURE_SEARCH_METADATA_INDEX`; it cannot repurpose `bc-pilot-public`.
+Index creation/publication and switching a local binding are separate actions.
+
+`conversation-grounding-packs.json` is a validated, candidate-only source
+inventory with no source bodies or approval records. Its validator rejects
+adding an invented rights/publication approval. Candidate URL/topic coverage
+is not evidence coverage. Canada.ca and trustee.bc.ca are valid official
+**link destinations**, not automatically permitted fetch targets. The Web IQ
+transport remains unimplemented/fail-closed. Live provider integration and
+source publication must wait for actual permission, scope, extraction and
+accountable content review; blueprint metadata does not satisfy those gates.
+
+The separate local-only profile does not promote those blueprints. It uses
+finite named CiviX statutory sources, existing project notes, and permitted,
+dated Canada.ca copies for non-commercial evaluation. Production activation
+is rejected, as are non-loopback request boundaries. Optional snapshot files
+are digest-pinned and time-bounded, not human publication approvals.
+
+Evidence metadata version 2 distinguishes `official-live`, `official-snapshot`,
+and `project-catalogue`; its `useScope` is
+`local-noncommercial-evaluation` and `humanReviewed` is false. It carries
+attribution, licence/copy notices, source hashes and, for statutes, a
+publisher consolidation date/current-collection designation. It does not
+replace version-1 indexed evidence or relax ingestion's legal review gates.
+
+Core v6 factual answers are validated before text is released. Invalid links
+or critical quotations can trigger one bounded correction using exact allowed
+URLs and complete source sentences. Both attempts use the original aggregate
+budget; neither failed text nor unsupported progress is committed. A second
+failure is surfaced, not silently presented as success. Exact critical quotes
+may have a narrowly recognised neutral attribution only when the complete
+quotation matches the document cited in that same paragraph; changed amounts,
+missing conditions, personal conclusions and cross-document attributions fail.
+
+Critical passages also have server-issued `{{quote:...}}` markers in the
+model-only evidence view. The writer selects a marker; the application inserts
+the original complete passage and canonical citation before validation.
+Unknown markers and excessive expansion fail closed. The immutable ledger,
+user-facing source notices and citation provenance are not rewritten.
+Repeated topic reads return references to already supplied evidence instead
+of duplicating entire source documents in the model context.
+
+Optional malformed or contradictory model fact proposals are withheld, not
+repaired into citizen answers. Inapplicable question/topic control fields may
+be discarded conservatively; the resulting proposal still undergoes strict
+validation and all consent, quote, purpose, revision and progress checks.
+
+Public programme choices survive changes in subject wording; personal context
+is still cleared when the person changes. A model's `changeTask` flag alone
+cannot turn a PWD practitioner question into a primary-care search. Explicit
+service-change language or a clear new service request is required, while
+ordinary follow-ups retain the established programme.

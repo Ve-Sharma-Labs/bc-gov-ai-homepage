@@ -109,6 +109,92 @@ persisted preference.
 - Make next steps and authoritative evidence visible.
 - Keep pilot handoffs honest; expand authority only with approved integrations.
 
+## Context-first conversation increment
+
+The AI-led version-5 increment supersedes keyword-first discovery when
+explicitly enabled. One isolated Foundry conversation agent interprets the
+current request, including typos and short follow-ups, and proposes a typed
+next step. The API owns the final question, permissions, essential-field
+checks, and choice of reviewed guide. An unclear request receives clarification,
+not a false unsupported-service answer. A known guide can be offered even when
+Search lacks enough evidence for detailed factual generation.
+
+The subsequent task-assistance increment keeps a current catalogue step,
+user-reported readiness, and the next useful action. The conversation actively
+walks through preparation across the seven existing journeys. A repeated help
+request or frustrated check-in must not restart intake or simply repost a guide.
+The guide remains available; practical step guidance leads. Sharing changes
+are settings, not messages attributed to the person. Step progress is never
+evidence that an official service was completed.
+
+The default chat is messages and one composer, not an intake form. Full guides,
+checklists, context, and sharing controls live in optional Details. Starter
+questions for renewal, guardianship, disability support, and job loss fill the
+composer for review; they do not send, overwrite a draft silently, or activate
+a fictional persona.
+
+An answer offered by the application must always be accepted by its own
+question contract. Canonical labels and unambiguous short replies are resolved
+before any model interpretation, tied to the pending question and revision.
+Already-known answers are not re-asked. For a non-B.C. licence, clarify renewing
+with the original issuer versus getting a B.C. licence; do not apply the B.C.
+renewal checklist to both. Uncertainty remains explicit.
+
+Guardianship and disability entry questions select public information topics,
+not personal records, legal capacity, diagnoses, or eligibility. Their
+navigation links are not full application journeys or new Search publications.
+Outside reviewed coverage, name the specific limitation and the appropriate
+authority instead of inventing a procedure.
+
+Version 5 explicitly discloses Azure message processing and offers optional
+personal-context sharing, off by default. Only relevant self-reports the person
+chooses to share can inform later model requests; identifiers and sensitive
+documents remain prohibited. Removal stops future use, not past processing.
+Version-4 context is never silently imported. The existing BC visual identity
+and read-only/official-handoff boundaries are unchanged. An isolated local
+agent is not an approval to update the public pilot.
+
+The following describes the retained version-4 compatibility mode:
+
+The repository now includes a separately gated, goal-first discovery flow.
+It is not a claim that the public pilot has been updated. Begin with the
+person's goal, acknowledge the situation warmly, and ask at most three
+relevant questions one at a time before a useful first plan or official handoff.
+Facts already volunteered are not requested again. Every question can be
+skipped; simple factual questions do not require a profile.
+
+Persona labels stay behind the scenes. An editable **What I understand**
+summary makes the current goal, self-reported context, uncertainty, and
+suggested pathways visible. Context is page-bound and expiring, not a durable
+citizen profile. Age and PHN possession are only navigation context; the actual
+PHN, credentials, documents, and medical histories remain prohibited.
+Immigration-status collection remains gated on a specific reviewed program.
+
+Maya, Alex, and Sam are still fictional fixtures. A conversation may recommend
+an optional scenario, but explicit selection and purpose-specific consent are
+required before any fixture facts are used. Signing in to BCeID or BC Services
+Card is not a substitute for authorized program-data access; neither real
+sign-in nor record integration is part of this increment.
+
+`CONVERSATION_DISCOVERY_ENABLED` is false by default. Production also requires
+the privacy-review flag; the code does not authorize public activation, new
+source publication, or transactions.
+
+## Grounded continuation candidate
+
+The next increment separates the question being answered from preparation
+progress and introduces programme-aware continuity, including EI under job
+loss. It targets useful sourced answers across the four starter flows,
+not another static checklist or persona workflow. Current compatibility
+repairs must acknowledge source gaps rather than loop.
+
+The version-6 implementation remains opt-in and its source packs are
+candidate metadata only. Full grounding is not ready until the four-flow
+coverage, publisher rights, exact source review, prompt evaluation and local
+acceptance gates pass. Existing reviewed sources are not blanket permission
+to acquire new B.C., ICBC, PGT, or Canada.ca material. Public deployment and
+real transactions remain out of scope.
+
 ## Accepted Planning Baseline
 
 On October 24, 2026, the user adopted the

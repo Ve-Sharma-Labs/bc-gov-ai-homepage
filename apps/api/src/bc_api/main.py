@@ -27,8 +27,12 @@ from bc_api.context_sessions import (
 )
 from bc_api.context_tools import ContextAgentService, ContextRunPlan, ContextRunTracker
 from bc_api.controls import SharedControls
+from bc_api.conversation import CONVERSATION_PAGE_HEADER, ConversationService, StoredConversation
+from bc_api.conversation_contract import ConversationControlResponse, ConversationSummary
 from bc_api.demo_personas import DemoPersonaRepository
 from bc_api.dialogue import dialogue_reply
+from bc_api.discovery import DiscoveryService
+from bc_api.discovery_store import DISCOVERY_PAGE_HEADER, DiscoveryStore, PageStateStore
 from bc_api.errors import ApiError, unavailable
 from bc_api.foundry import FoundryRuntime, configure_safe_logging
 from bc_api.input import RUN_ID, parse_options, validate_run
@@ -38,6 +42,7 @@ from bc_api.models import (
     ConsentReceipt,
     ContextSummary,
     DemoPersonaSummary,
+    DiscoverySummary,
     Journey,
     LocationsResponse,
 )
@@ -51,6 +56,7 @@ from bc_api.synthetic_context import (
     clear_context_cookie,
     set_context_cookie,
 )
+from bc_api.task_assistance import ConversationControl
 from bc_api.telemetry import Telemetry
 
 
@@ -99,6 +105,28 @@ def create_app(
     context_tracker = ContextRunTracker(context_service.invalidation_hook)
     context_service.invalidation_hook = context_tracker
     context_agent = ContextAgentService(catalog, context_service)
+    discovery = DiscoveryService(
+        settings,
+        catalog,
+        DiscoveryStore(
+            settings.api_max_sessions,
+            redis=shared.client if shared is not None else None,
+            prefix=shared.prefix if shared is not None else settings.api_control_namespace,
+            ttl_seconds=settings.conversation_context_ttl_seconds,
+        ),
+    )
+    conversation = ConversationService(
+        settings,
+        catalog,
+        PageStateStore(
+            settings.api_max_sessions,
+            state_type=StoredConversation,
+            namespace="conversation",
+            redis=shared.client if shared is not None else None,
+            prefix=shared.prefix if shared is not None else settings.api_control_namespace,
+            ttl_seconds=settings.conversation_context_ttl_seconds,
+        ),
+    )
     runtime = runtime or FoundryRuntime(settings, catalog)
     runtime.context_agent = context_agent
     telemetry = Telemetry(settings)
@@ -107,7 +135,9 @@ def create_app(
     async def lifespan(app: FastAPI):
         warmup = (
             asyncio.create_task(runtime.warm())
-            if settings.general_agent_configured or settings.contextual_agent_configured
+            if settings.general_agent_configured
+            or settings.contextual_agent_configured
+            or settings.conversation_agent_configured
             else None
         )
         try:
@@ -139,11 +169,21 @@ def create_app(
     app.state.context_audit = context_service.audit
     app.state.context_agent = context_agent
     app.state.context_tracker = context_tracker
+    app.state.discovery = discovery
+    app.state.conversation = conversation
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.origins),
         allow_methods=["GET", "POST", "DELETE"],
-        allow_headers=["Content-Type", "Accept", CONTEXT_PAGE_HEADER],
+        allow_headers=[
+            "Content-Type",
+            "Accept",
+            CONTEXT_PAGE_HEADER,
+            DISCOVERY_PAGE_HEADER,
+            CONVERSATION_PAGE_HEADER,
+            "X-BC-Client-Version",
+            "X-BC-Evaluation-Scope",
+        ],
         allow_credentials=True,
     )
     app.add_middleware(SecurityMiddleware, settings=settings, controls=controls, shared=shared)
@@ -205,8 +245,12 @@ def create_app(
         return catalog.locations(service, municipality)
 
     @app.get("/api/capabilities", response_model=Capabilities)
-    async def get_capabilities() -> Capabilities:
+    async def get_capabilities(request: Request) -> Capabilities:
         catalog.get()
+        grounded_client = (
+            request.headers.get("x-bc-client-version") == "6"
+            and settings.grounded_conversation_enabled
+        )
         labels = ["pathways"]
         checks = [runtime.ensure_ready()]
         if settings.general_agent_configured:
@@ -215,9 +259,23 @@ def create_app(
         if settings.contextual_agent_configured:
             labels.append("contextual")
             checks.append(runtime.ensure_contextual_ready())
-        if settings.general_agent_configured or settings.contextual_agent_configured:
+        if settings.conversation_agent_configured:
+            labels.append("conversation")
+            checks.append(runtime.ensure_conversation_ready())
+        if grounded_client:
+            labels.append("grounded")
+            checks.append(runtime.ensure_grounded_ready())
+        if (
+            settings.general_agent_configured
+            or settings.contextual_agent_configured
+            or (grounded_client and settings.grounded_agents_configured)
+        ):
             labels.append("sources")
-            checks.append(runtime.ensure_sources_ready())
+            checks.append(
+                runtime.ensure_grounded_sources_ready()
+                if grounded_client and settings.local_evidence_evaluation_enabled
+                else runtime.ensure_sources_ready()
+            )
         results = await asyncio.gather(*checks, return_exceptions=True)
         for result in results:
             if isinstance(result, BaseException) and not isinstance(result, ApiError):
@@ -227,8 +285,13 @@ def create_app(
         general_ready = settings.general_agent_configured and not isinstance(
             outcomes.get("general"), ApiError
         )
-        sources_ready = pathways_ready or (
-            (settings.general_agent_configured or settings.contextual_agent_configured)
+        sources_ready = (pathways_ready and not grounded_client) or (
+            (
+                settings.general_agent_configured
+                or settings.contextual_agent_configured
+                or grounded_client
+                and settings.grounded_agents_configured
+            )
             and not isinstance(outcomes.get("sources"), ApiError)
         )
         contextual_ready = (
@@ -237,13 +300,28 @@ def create_app(
             and sources_ready
         )
         connected = pathways_ready or general_ready or contextual_ready
+        conversation_ready = settings.conversation_agent_configured and not isinstance(
+            outcomes.get("conversation"), ApiError
+        )
+        if grounded_client:
+            conversation_ready = settings.grounded_agents_configured and not isinstance(
+                outcomes.get("grounded"), ApiError
+            )
+        connected = connected or conversation_ready
+        if grounded_client:
+            connected = conversation_ready
         return Capabilities(
             mode="foundry" if connected else "guided",
             ai_configured=connected,
-            general_chat_configured=general_ready,
+            general_chat_configured=conversation_ready if grounded_client else general_ready,
             retrieval_ready=sources_ready,
             message=(
-                "Verified Foundry chat is connected. Answers require available reviewed evidence. "
+                "Local non-commercial evaluation. Named licensed sources and dated snapshots "
+                "support the starter flows; runtime checks are not human publication approval. "
+                "Public/commercial redistribution and transactions are disabled."
+                if settings.local_evidence_evaluation_enabled
+                else "Verified Foundry chat is connected. "
+                "Answers require available reviewed evidence. "
                 "Guided pathways and synthetic context remain separately scoped; "
                 "live web research and transactions are disabled."
                 if connected
@@ -252,6 +330,60 @@ def create_app(
             ),
             journeys=runtime.journey_availability() if connected else {},
             synthetic_context_available=context_service.available(),
+            discovery_available=settings.conversation_discovery_enabled,
+            conversation_available=settings.ai_conversation_enabled,
+            conversation_agent_ready=conversation_ready,
+            task_assistance_available=settings.ai_conversation_enabled
+            and settings.task_assistance_enabled,
+            local_evidence_evaluation=settings.local_evidence_evaluation_enabled,
+            request_versions=[1, 2, 3]
+            + ([4] if settings.conversation_discovery_enabled else [])
+            + ([5] if settings.ai_conversation_enabled else [])
+            + ([6] if grounded_client else []),
+        )
+
+    @app.get("/api/conversation", response_model=ConversationSummary | None)
+    async def get_conversation(request: Request) -> ConversationSummary | None:
+        reject_context_query(request)
+        return await conversation.summary(
+            request.state.session.token, request.headers.get(CONVERSATION_PAGE_HEADER)
+        )
+
+    @app.delete("/api/conversation", status_code=204)
+    async def clear_conversation(request: Request) -> None:
+        reject_context_query(request)
+        await conversation.clear(
+            request.state.session.token, request.headers.get(CONVERSATION_PAGE_HEADER)
+        )
+
+    @app.post("/api/conversation/control", response_model=ConversationControlResponse)
+    async def conversation_control(
+        data: ConversationControl, request: Request
+    ) -> ConversationControlResponse:
+        reject_context_query(request)
+        return await conversation.control(
+            request.state.session.token, request.headers.get(CONVERSATION_PAGE_HEADER), data
+        )
+
+    @app.get("/api/conversation/task", response_model=ConversationControlResponse | None)
+    async def conversation_task(request: Request) -> ConversationControlResponse | None:
+        reject_context_query(request)
+        return await conversation.control_snapshot(
+            request.state.session.token, request.headers.get(CONVERSATION_PAGE_HEADER)
+        )
+
+    @app.get("/api/discovery", response_model=DiscoverySummary | None)
+    async def get_discovery(request: Request) -> DiscoverySummary | None:
+        reject_context_query(request)
+        return await discovery.summary(
+            request.state.session.token, request.headers.get(DISCOVERY_PAGE_HEADER)
+        )
+
+    @app.delete("/api/discovery", status_code=204)
+    async def clear_discovery(request: Request) -> None:
+        reject_context_query(request)
+        await discovery.clear(
+            request.state.session.token, request.headers.get(DISCOVERY_PAGE_HEADER)
         )
 
     def reject_context_query(request: Request) -> None:
@@ -330,6 +462,20 @@ def create_app(
             raise ApiError(422, "INVALID_JSON", "The request is not valid JSON.") from None
         data = validate_run(raw, settings)
         options = parse_options(data.forwarded_props)
+        discovery_plan = (
+            await discovery.prepare(
+                request.state.session.token, request.headers.get(DISCOVERY_PAGE_HEADER), data
+            )
+            if options.version == 4
+            else None
+        )
+        conversation_plan = (
+            await conversation.prepare(
+                request.state.session.token, request.headers.get(CONVERSATION_PAGE_HEADER), data
+            )
+            if options.version in (5, 6)
+            else None
+        )
         context_plan: ContextRunPlan | None = None
         if options.mode == "contextual-demo":
             context_plan = await context_agent.authorize(
@@ -337,6 +483,9 @@ def create_app(
                 request.headers.get(CONTEXT_PAGE_HEADER),
                 request.cookies.get(CONTEXT_COOKIE),
                 run_id=data.run_id,
+                question=(
+                    data.messages[-1].content if settings.conversation_discovery_enabled else None
+                ),
             )
         if options.research_requested:
             raise ApiError(
@@ -345,7 +494,13 @@ def create_app(
                 "Live public-web research is not enabled. "
                 "Use the approved sources or official service.",
             )
-        reply = dialogue_reply(data.messages[-1].content) if options.version == 2 else None
+        reply = (
+            discovery_plan.reply
+            if discovery_plan is not None
+            else dialogue_reply(data.messages[-1].content)
+            if options.version == 2
+            else None
+        )
         if (
             reply is None
             and options.mode not in ("general", "contextual-demo")
@@ -357,11 +512,12 @@ def create_app(
             data,
             contextual_enabled=context_plan is not None,
         )
-        if reply is None:
+        model_work = reply is None and (conversation_plan is None or conversation_plan.needs_model)
+        if model_work:
             binding_for_request(settings, data)
         if shared is not None:
             run = await shared.reserve(
-                data.run_id, data.thread_id, request.state.session.token, model_work=reply is None
+                data.run_id, data.thread_id, request.state.session.token, model_work=model_work
             )
             runs.runs = {
                 key: value for key, value in runs.runs.items() if value.status == "running"
@@ -412,6 +568,10 @@ def create_app(
                 context_plan=context_plan,
                 context_agent=context_agent,
                 context_tracker=context_tracker,
+                discovery_plan=discovery_plan,
+                discovery_service=discovery if discovery_plan is not None else None,
+                conversation_plan=conversation_plan,
+                conversation_service=conversation if conversation_plan is not None else None,
             ),
             run,
             audit_finalize=(

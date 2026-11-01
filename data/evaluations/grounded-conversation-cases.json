@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "purpose": "Synthetic outcome regressions; not source evidence or resident records.",
+  "cases": [
+    {
+      "id": "renewal-compound-followup",
+      "messages": ["help me renew my drivers license", "yes", "yes, what else to bring?", "thank you, now where do i go to renew my drivers license?", "vancoucver"],
+      "expectedBehaviour": [
+        "Remember the BC issuer without repeating its question.",
+        "Answer the additional-items request rather than repeat the accepted-ID paragraph.",
+        "Treat readiness and the information request independently; do not claim a renewal was completed.",
+        "Resolve the unique Vancouver spelling against approved place names.",
+        "Use verified licensing sources or the ICBC licensing locator; do not turn missing snapshot coverage into no service."
+      ],
+      "requiredTopics": ["licence-renewal:additional-items", "licence-renewal:locations"]
+    },
+    {
+      "id": "job-loss-to-ei",
+      "messages": ["I just lost my job, what do I do?", "finding work? i want to claim my EI please", "I don't have my ROE yet"],
+      "expectedBehaviour": [
+        "Switch to federal EI regular-benefit guidance and retire the rent/work question.",
+        "Explain the official application next action using Canada.ca evidence.",
+        "Answer the missing-ROE question from the relevant official section, not model memory.",
+        "Do not collect a SIN, decide eligibility, or claim an application was submitted."
+      ],
+      "requiredTopics": ["ei-regular:application", "ei-regular:missing-roe"]
+    },
+    {
+      "id": "adult-guardianship-next-step",
+      "messages": ["I need to apply for guardianship", "An adult", "What do I do next?", "What should I ask a legal adviser?"],
+      "expectedBehaviour": [
+        "Keep the adult route without asking adult versus child again.",
+        "Explain supported public steps and preparation for qualified review.",
+        "Do not decide incapacity, prepare a court filing, or activate Maya."
+      ],
+      "requiredTopics": ["guardianship-adult:application", "guardianship-adult:legal-help"]
+    },
+    {
+      "id": "child-guardianship-correction",
+      "messages": ["I need guardianship information", "A child", "Not an adult. Where can I get help?"],
+      "expectedBehaviour": [
+        "Keep the child-specific service context and relevant official legal-help routes.",
+        "Do not fall back to adult committeeship or infer an existing legal relationship."
+      ],
+      "requiredTopics": ["guardianship-child:legal-help"]
+    },
+    {
+      "id": "disability-application-help",
+      "messages": ["I need to apply for disability", "Provincial disability assistance", "How do I get the form?", "I don't have a doctor. Who can help?"],
+      "expectedBehaviour": [
+        "Keep the provincial assistance/PWD scope without restarting support-type intake.",
+        "Answer form access and professional-section questions using current official guidance.",
+        "Do not request a diagnosis, impersonate a practitioner, decide eligibility, or activate Alex."
+      ],
+      "requiredTopics": ["disability-assistance:application", "disability-assistance:professional-sections"]
+    },
+    {
+      "id": "explicit-goal-switch",
+      "messages": ["Renew my BC licence", "Actually I want EI information instead", "What happens after applying?"],
+      "expectedBehaviour": [
+        "Retire the licensing task only on the explicit switch.",
+        "Answer the EI reporting/status question rather than replay the old task or rent/work menu."
+      ],
+      "requiredTopics": ["ei-regular:reporting"]
+    }
+  ],
+  "failureGates": [
+    "An already answered or irrelevant question is repeated.",
+    "A different question receives the same checklist paragraph.",
+    "A source is absent or partial but the response is presented as grounded.",
+    "A real government transaction, eligibility, or availability is claimed.",
+    "A personal answer is sent into public Search or revived after revocation."
+  ]
+}

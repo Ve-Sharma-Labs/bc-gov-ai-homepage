@@ -17,13 +17,11 @@ class ModelBudget(ChatMiddleware):
         self.calls = 0
         self.input_bytes = 0
 
-    async def process(self, context: ChatContext, call_next: Callable[[], Awaitable[None]]) -> None:
+    def reserve(self, input_bytes: int) -> None:
         if self.tool_context.failure is not None:
             raise self.tool_context.failure
         self.calls += 1
-        self.input_bytes += self.overhead_bytes + sum(
-            len(message.to_json().encode("utf-8")) for message in context.messages
-        )
+        self.input_bytes += self.overhead_bytes + input_bytes
         if (
             self.calls > self.settings.api_model_calls_per_run
             or self.input_bytes > self.settings.api_model_input_byte_budget
@@ -35,7 +33,12 @@ class ModelBudget(ChatMiddleware):
                 "Please ask a more focused question.",
             )
             raise self.tool_context.failure
-        context.options["max_tokens"] = self.settings.api_model_output_tokens
         self.tool_context.model_work_started = True
         self.tool_context.mark_phase("model_started")
+
+    async def process(self, context: ChatContext, call_next: Callable[[], Awaitable[None]]) -> None:
+        if self.tool_context.assert_authorized is not None:
+            await self.tool_context.assert_authorized()
+        self.reserve(sum(len(message.to_json().encode("utf-8")) for message in context.messages))
+        context.options["max_tokens"] = self.settings.api_model_output_tokens
         await call_next()

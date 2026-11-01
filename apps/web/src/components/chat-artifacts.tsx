@@ -237,20 +237,25 @@ function AuditReceiptArtifact({ receipt }: {
 }
 
 export function ChatArtifacts({ artifacts }: { artifacts: Artifact[] }) {
-  const { checked, setChecked } = useAssistant();
+  const { checked, setChecked, state, taskControl, busy } = useAssistant();
   return (
     <div className="chat-artifacts">
       {artifacts.map((artifact) => {
         const prefix = `artifact-${artifact.id}-`;
         if (artifact.kind === "preparation") {
+          const task = state.task?.task;
+          const activeTask = task?.journeyId === artifact.journey.id && artifact.id === `task-${task.id}` ? task : null;
           return (
             <section className="chat-artifact" key={artifact.id} aria-label="Source-backed preparation">
               <TaskPanel
                 journey={artifact.journey}
                 sources={artifact.sources}
-                checked={checked}
+                checked={activeTask ? new Set(activeTask.reviewedStepIds.map((id) => `${activeTask.journeyId}:${id}`)) : checked}
+                disabled={!!activeTask && busy}
                 sourcePrefix={prefix}
-                onCheck={(key, value) => setChecked((previous) => {
+                onCheck={(key, value) => activeTask ? void taskControl(
+                  "review", key.slice(activeTask.journeyId.length + 1), value,
+                ) : setChecked((previous) => {
                   const next = new Set(previous);
                   if (value) next.add(key);
                   else next.delete(key);

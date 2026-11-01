@@ -4,7 +4,7 @@ import { useId, useLayoutEffect, type FormEvent, type RefObject } from "react";
 import { ArrowRight, Square } from "lucide-react";
 import { Button } from "./ui/button";
 
-export function Composer({ value, onChange, onSubmit, onStop, busy, inputRef, compact = false, onFocusChange }: {
+export function Composer({ value, onChange, onSubmit, onStop, busy, inputRef, compact = false, onFocusChange, submissionDisabled = false, privacyText = "Do not include names, ID numbers or personal details." }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -13,6 +13,8 @@ export function Composer({ value, onChange, onSubmit, onStop, busy, inputRef, co
   inputRef: RefObject<HTMLTextAreaElement | null>;
   compact?: boolean;
   onFocusChange?: (focused: boolean) => void;
+  privacyText?: string;
+  submissionDisabled?: boolean;
 }) {
   const id = useId();
   useLayoutEffect(() => {
@@ -38,7 +40,7 @@ export function Composer({ value, onChange, onSubmit, onStop, busy, inputRef, co
   }, [value, compact, inputRef]);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!busy && value.trim()) onSubmit();
+    if (!busy && !submissionDisabled && value.trim()) onSubmit();
   };
   return (
     <form
@@ -55,6 +57,7 @@ export function Composer({ value, onChange, onSubmit, onStop, busy, inputRef, co
       <textarea
         id={id}
         ref={inputRef}
+        data-assistant-composer
         value={value}
         rows={1}
         maxLength={4000}
@@ -65,7 +68,7 @@ export function Composer({ value, onChange, onSubmit, onStop, busy, inputRef, co
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
             event.preventDefault();
-            if (!busy && value.trim()) onSubmit();
+            if (!busy && !submissionDisabled && value.trim()) onSubmit();
           }
         }}
       />
@@ -75,12 +78,12 @@ export function Composer({ value, onChange, onSubmit, onStop, busy, inputRef, co
           event.preventDefault();
           onStop();
         }}><Square size={18} fill="currentColor" aria-hidden="true" /></Button>
-        : <Button className="send-button" size="icon" type="submit" disabled={!value.trim()} aria-label="Send question" onClick={(event) => {
+        : <Button className="send-button" size="icon" type="submit" disabled={submissionDisabled || !value.trim()} aria-label="Send question" onClick={(event) => {
           // Base UI normalizes press behavior; own the form action so a moved fixed composer cannot lose native submit.
           event.preventDefault();
-          if (value.trim()) onSubmit();
+          if (!submissionDisabled && value.trim()) onSubmit();
         }}><ArrowRight size={24} aria-hidden="true" /></Button>}
-      <span className="sr-only" id={`${id}-privacy`}>Do not include names, ID numbers or personal details.</span>
+      <span className="sr-only" id={`${id}-privacy`}>{privacyText}</span>
       <span className="sr-only" id={`${id}-keyboard`}>Enter sends your question. Shift and Enter adds a new line. Maximum 4,000 characters.</span>
       {value.length > 3600 && <span className="character-count" role="status">{4000 - value.length} characters left</span>}
     </form>

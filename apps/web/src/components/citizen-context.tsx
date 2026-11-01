@@ -25,9 +25,11 @@ import type {
   ConsentScope,
   ContextCategory,
   ContextSummary,
+  DemoPersonaId,
   DemoPersonaSummary,
 } from "@/lib/contract";
 import { formatDate } from "@/lib/links";
+import { retainComposerFocus } from "@/lib/utils";
 import { useAssistant } from "./assistant-provider";
 import { Button } from "./ui/button";
 
@@ -165,7 +167,7 @@ function PersonaList({
         onClick={onAnonymous}
       >
         <span className="persona-option-icon"><UserRound size={19} aria-hidden="true" /></span>
-        <span><strong>Anonymous</strong><small>Default. No citizen context is used.</small></span>
+        <span><strong>Anonymous</strong><small>No account or government records are used.</small></span>
         {!activePersona && <Check size={18} aria-hidden="true" />}
       </button>
       {personas.map((persona) => (
@@ -188,7 +190,7 @@ function PersonaList({
   );
 }
 
-export function CitizenContextControl() {
+export function CitizenContextControl({ recommendedPersonaId }: { recommendedPersonaId?: DemoPersonaId } = {}) {
   const assistant = useAssistant();
   const [chooserOpen, setChooserOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -250,14 +252,21 @@ export function CitizenContextControl() {
       <Dialog.Root open={chooserOpen} onOpenChange={closeChooser}>
         <Dialog.Trigger
           render={<Button variant="ghost" className="context-selector-trigger" />}
-          disabled={assistant.busy}
+          disabled={assistant.busy || (!!recommendedPersonaId && assistant.personasLoading)}
+          onMouseDown={recommendedPersonaId ? retainComposerFocus : undefined}
           aria-label={assistant.contextActive
             ? "Change synthetic persona or consent"
+            : recommendedPersonaId ? "Try the recommended fictional scenario"
             : "Choose a synthetic demo persona"}
+          onClick={() => {
+            if (!recommendedPersonaId) return;
+            const persona = assistant.personas.find((item) => item.id === recommendedPersonaId);
+            if (persona) choosePersona(persona);
+          }}
         >
           {assistant.contextActive && assistant.activePersona
             ? <><ShieldCheck size={15} aria-hidden="true" /><span>Synthetic: <strong>{assistant.activePersona.displayName}</strong></span></>
-            : <><UserRound size={15} aria-hidden="true" /><span>Context: <strong>Anonymous</strong></span></>}
+            : <><UserRound size={15} aria-hidden="true" /><span>{recommendedPersonaId ? "See this with fictional context" : "Try fictional context"}</span></>}
           <SlidersHorizontal size={15} aria-hidden="true" />
         </Dialog.Trigger>
         <Dialog.Portal>

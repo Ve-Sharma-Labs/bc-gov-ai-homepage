@@ -29,6 +29,7 @@ PROGRESS = {
 }
 TOOL_PHASES = {
     "search_approved_sources": "retrieving",
+    "read_programme_sources": "retrieving",
     "build_preparation_plan": "preparing",
     "find_service_locations": "locations",
     "read_consented_context": "thinking",
@@ -62,9 +63,11 @@ class ContextArtifactValidator:
             )
 
 
-def response_context_event(kind: ResponseKind, origin: ResponseOrigin) -> CustomEvent:
-    value = ResponseContext(kind=kind, origin=origin)
-    return CustomEvent(name="bc.response", value=value.model_dump(by_alias=True))
+def response_context_event(
+    kind: ResponseKind, origin: ResponseOrigin, *, decision_origin: ResponseOrigin | None = None
+) -> CustomEvent:
+    value = ResponseContext(kind=kind, origin=origin, decision_origin=decision_origin)
+    return CustomEvent(name="bc.response", value=value.model_dump(by_alias=True, exclude_none=True))
 
 
 def progress_event(phase: str) -> CustomEvent:

@@ -96,6 +96,52 @@ state; no independent Magic UI theme controller is installed.
 
 ## Trust and accessibility
 
+AI-led conversation keeps the same composer and visual identity. The initial
+message is understood by the model; a relevant follow-up is asked in ordinary
+chat. The main thread contains messages, actionable official links, and one
+composer, not answer widgets or checklists. People can type "not sure" or "skip"
+without finding a special control. **Details** is closed by default and holds
+the full guide, progress, sharing settings, and editable **What I understand**.
+It is a non-modal disclosure, never a prerequisite for continuing the chat.
+
+Four sentence-length starter questions appear in empty chat and beside the
+homepage's chat entry. They fill/focus the composer without sending. A
+non-empty draft requires explicit replacement. Active chats expose these through
+the compact **Examples** control; they do not compete with the latest answer.
+
+A compact notice by the composer discloses Azure processing. Personal-context
+sharing is an unchecked, optional control; its change applies to subsequent
+model inputs and never claims to erase earlier processing. AI-decided turns
+with application-reviewed wording are labeled separately from factual model
+answers and deterministic no-model commands. In this mode, no exact-keyword
+match or persona picker is a prerequisite to receiving help.
+
+Task assistance brings the current practical action into the main conversation.
+The full preparation guide in Details is expandable and persists through follow-ups;
+routine turns do not replace it with another introduction. User-reported
+readiness, step navigation, and checklist controls share the same task state.
+Progress controls may update the current action without adding chat bubbles.
+
+The sharing checkbox waits for the server's confirmation when turning on and
+shows a short status, not an invented user/assistant exchange. It does not show
+a fake model Stop state while saving. Task-level AI disclosure avoids repeated
+per-message boilerplate. Guide/context summaries retain composer focus on
+pointer activation so the fixed dock cannot move their target mid-click;
+native keyboard behavior remains available.
+
+The retained version-4 context-first increment preserves this visual world. Its warm,
+goal-specific follow-up questions use inline choices and skip/general-guidance
+actions, not an intake modal. **What I understand** is a compact, editable
+summary with clear self-report and unknown/not-shared labels. A visible current
+context panel counts as the latest conversation content, so a floating
+new-content notification does not cover its controls. Pointer actions retain
+composer focus until activation; keyboard focus remains native.
+
+The fictional-context entry is labeled **Try fictional context** rather than
+suggesting that anonymous users have no useful conversational context.
+Conversation-led fictional-scenario suggestions still open the existing
+granular consent sheet; they do not activate a persona automatically.
+
 Guided plans are explicitly not AI-generated. Unconfigured AI keeps the question
 and draft in chat and explains that guided plans/direct service links remain available. There are
 no fake answers, simulated bookings, uploads, voice buttons or transaction claims.

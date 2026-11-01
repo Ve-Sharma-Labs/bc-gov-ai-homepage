@@ -5,12 +5,17 @@ import {
   consentReceiptSchema,
   consentScopeSchema,
   contextSummarySchema,
+  conversationSummarySchema,
+  conversationControlSchema,
+  conversationControlResponseSchema,
   demoPersonaIds,
   demoPersonaIdSchema,
   demoPersonaSummarySchema,
+  discoverySummarySchema,
   locationSchema,
   type ConsentScope,
   type DemoPersonaId,
+  type ConversationControl,
 } from "./contract";
 
 export class ApiError extends Error {
@@ -26,6 +31,26 @@ export class ApiError extends Error {
 }
 
 let contextPageToken: string | null = null;
+let discoveryPageToken: string | null = null;
+let conversationPageToken: string | null = null;
+
+export function getConversationPageToken(): string {
+  conversationPageToken ??= crypto.randomUUID();
+  return conversationPageToken;
+}
+
+export function resetConversationPageToken(): void {
+  conversationPageToken = null;
+}
+
+export function getDiscoveryPageToken(): string {
+  discoveryPageToken ??= crypto.randomUUID();
+  return discoveryPageToken;
+}
+
+export function resetDiscoveryPageToken(): void {
+  discoveryPageToken = null;
+}
 
 export function getContextPageToken(): string {
   contextPageToken ??= crypto.randomUUID();
@@ -45,6 +70,9 @@ async function requestApi<T>(
     signal?: AbortSignal;
     keepalive?: boolean;
     contextPage?: boolean;
+    discoveryPage?: boolean;
+    conversationPage?: boolean;
+    clientVersion?: 6;
   } = {},
 ): Promise<T> {
   let response: Response;
@@ -52,12 +80,15 @@ async function requestApi<T>(
     const headers = new Headers();
     if (options.body !== undefined) headers.set("content-type", "application/json");
     if (options.contextPage) headers.set("x-bc-context-page", getContextPageToken());
+    if (options.discoveryPage) headers.set("x-bc-discovery-page", getDiscoveryPageToken());
+    if (options.conversationPage) headers.set("x-bc-conversation-page", getConversationPageToken());
+    if (options.clientVersion) headers.set("x-bc-client-version", String(options.clientVersion));
     response = await fetch(path, {
       method: options.method ?? "GET",
       ...(options.body === undefined ? {} : {
         body: JSON.stringify(options.body),
       }),
-      ...(options.body !== undefined || options.contextPage ? { headers } : {}),
+      ...(options.body !== undefined || options.contextPage || options.discoveryPage || options.conversationPage || options.clientVersion ? { headers } : {}),
       signal: options.signal,
       keepalive: options.keepalive,
       cache: "no-store",
@@ -102,7 +133,7 @@ const consentChangeSchema = z.object({
 }).strict();
 
 export const getCatalog = (signal?: AbortSignal) => readApi("/api/catalog", catalogSchema, signal);
-export const getCapabilities = (signal?: AbortSignal) => readApi("/api/capabilities", capabilitiesSchema, signal);
+export const getCapabilities = (signal?: AbortSignal) => requestApi("/api/capabilities", capabilitiesSchema, { signal, clientVersion: 6 });
 export const getDemoPersonas = (signal?: AbortSignal) => readApi(
   "/api/demo/personas",
   demoPersonasSchema,
@@ -113,6 +144,51 @@ export const getContextSummary = (signal?: AbortSignal) => requestApi(
   contextSummarySchema,
   { signal, contextPage: true },
 );
+export const getDiscoverySummary = (signal?: AbortSignal) => requestApi(
+  "/api/discovery", discoverySummarySchema.nullable(), { signal, discoveryPage: true },
+);
+export const getConversationSummary = (signal?: AbortSignal) => requestApi(
+  "/api/conversation", conversationSummarySchema.nullable(), { signal, conversationPage: true },
+);
+export const getConversationTask = (signal?: AbortSignal) => requestApi(
+  "/api/conversation/task", conversationControlResponseSchema.nullable(), { signal, conversationPage: true },
+);
+export function updateConversationControl(control: ConversationControl, signal?: AbortSignal) {
+  return requestApi("/api/conversation/control", conversationControlResponseSchema, {
+    method: "POST", body: conversationControlSchema.parse(control), signal, conversationPage: true,
+  });
+}
+
+export async function deleteConversationSession(options: { keepalive?: boolean } = {}) {
+  let response: Response;
+  try {
+    response = await fetch("/api/conversation", {
+      method: "DELETE", headers: { "x-bc-conversation-page": getConversationPageToken() },
+      cache: "no-store", credentials: "same-origin", keepalive: options.keepalive,
+    });
+  } catch {
+    throw new ApiError(0, "DISCONNECTED", "AI conversation cleanup couldn't be confirmed.");
+  }
+  if (!response.ok) throw new ApiError(response.status, "CONVERSATION_UNAVAILABLE", "AI conversation cleanup couldn't be confirmed.");
+}
+
+export async function deleteDiscoverySession(options: { keepalive?: boolean } = {}) {
+  let response: Response;
+  try {
+    response = await fetch("/api/discovery", {
+      method: "DELETE",
+      headers: { "x-bc-discovery-page": getDiscoveryPageToken() },
+      keepalive: options.keepalive,
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+  } catch {
+    throw new ApiError(0, "DISCONNECTED", "Conversation context couldn't be cleared on the server.");
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, "DISCOVERY_UNAVAILABLE", "Conversation context couldn't be cleared on the server.");
+  }
+}
 
 export function createDemoSession(personaId: DemoPersonaId, signal?: AbortSignal) {
   return requestApi("/api/demo/session", demoSessionSchema, {

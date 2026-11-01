@@ -244,7 +244,7 @@ test("selector, consent, drawer and active-run consent change are keyboard safe"
   await page.reload();
   await expect(page.getByRole("button", {
     name: "Choose a synthetic demo persona",
-  })).toContainText("Anonymous");
+  })).toContainText("Try fictional context");
   await expect(page.locator(".synthetic-context-banner")).toHaveCount(0);
   const staleGrantStatus = await page.evaluate(async (pageToken) => {
     const response = await fetch("/api/context/summary", {

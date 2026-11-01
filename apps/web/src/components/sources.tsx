@@ -12,8 +12,24 @@ const statusLabels = {
 
 const documentLabels = { guidance: "Guidance", legal: "Legal document", "service-directory": "Service directory", notice: "Notice" };
 const legalLabels = { "in-force": "In force", "not-yet-in-force": "Not yet in force", repealed: "Repealed", historical: "Historical", unknown: "Unknown" };
+const originLabels = {
+  "official-live": "Official page read at the checked time",
+  "official-snapshot": "Dated copy of an official page",
+  "project-catalogue": "Project preparation notes",
+} as const;
 
 function SourceProvenance({ metadata }: { metadata: EvidenceMetadata }) {
+  if (metadata.version === 2) return <>
+    <p>{metadata.attribution}</p>
+    <dl className="source-dates">
+      <div><dt>Source type</dt><dd>{originLabels[metadata.retrievalOrigin]}</dd></div>
+      {metadata.consolidationDate && <div><dt>Publisher consolidation</dt><dd><time dateTime={metadata.consolidationDate}>{metadata.consolidationDate}</time></dd></div>}
+      <div><dt>Use scope</dt><dd>Local non-commercial evaluation only</dd></div>
+      <div><dt>Publication review</dt><dd>Not human-reviewed for publication</dd></div>
+    </dl>
+    <p className="source-freshness">{metadata.notice}</p>
+    {metadata.licenceUrl && <OfficialLink href={metadata.licenceUrl}>Source licence and terms</OfficialLink>}
+  </>;
   const calendarDates = [
     ["Effective from (inclusive)", metadata.effectiveFrom],
     ["Effective to (exclusive)", metadata.effectiveTo],
@@ -57,8 +73,9 @@ export function SourceCard({ source, prefix = "source-", index }: { source: Sour
           <span className="source-publisher">{source.publisher}</span>
           <span className="source-title">{source.title}</span>
           <span className={`source-status ${review ? "needs-review" : ""}`}>
-            {review ? <AlertCircle size={12} aria-hidden="true" /> : <Check size={12} aria-hidden="true" />}
-            {source.status === "available" && review ? "Recheck before acting" : statusLabels[source.status]}
+            {source.metadata?.version === 2 ? <FileText size={12} aria-hidden="true" /> : review ? <AlertCircle size={12} aria-hidden="true" /> : <Check size={12} aria-hidden="true" />}
+            {source.metadata?.version === 2 ? originLabels[source.metadata.retrievalOrigin]
+              : source.status === "available" && review ? "Recheck before acting" : statusLabels[source.status]}
           </span>
         </span>
         <ChevronDown className="disclosure-chevron" size={18} aria-hidden="true" />
@@ -70,7 +87,9 @@ export function SourceCard({ source, prefix = "source-", index }: { source: Sour
           <div><dt>Publisher updated</dt><dd>{formatDate(source.publisherUpdatedAt)}</dd></div>
         </dl>
         {source.metadata && <SourceProvenance metadata={source.metadata} />}
-        <p className="source-freshness">A dated source snapshot, not live verification. Confirm changing requirements on the official site.</p>
+        <p className="source-freshness">{source.metadata?.version === 2
+          ? "Source checks are not a service decision or proof of your eligibility. Confirm changing requirements before acting."
+          : "A dated source snapshot, not live verification. Confirm changing requirements on the official site."}</p>
         <OfficialLink href={source.url}>Open {sourceDomain(source.url)}</OfficialLink>
       </div>
     </details>

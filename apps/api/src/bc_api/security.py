@@ -15,7 +15,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from bc_api.authentication import ApiAuthenticator
-from bc_api.config import Settings
+from bc_api.config import Settings, is_loopback_host
 from bc_api.errors import ApiError
 
 if TYPE_CHECKING:
@@ -150,6 +150,28 @@ class SecurityMiddleware:
             return
         headers = Headers(scope=scope)
         try:
+            if self.settings.local_evidence_evaluation_enabled:
+                endpoints = (scope.get("client"), scope.get("server"))
+                if (
+                    any(not endpoint or not is_loopback_host(endpoint[0]) for endpoint in endpoints)
+                    or any(
+                        headers.get(name)
+                        for name in (
+                            "forwarded",
+                            "x-forwarded-for",
+                            "x-forwarded-host",
+                        )
+                    )
+                    or (
+                        scope["path"].startswith("/api/")
+                        and headers.get("x-bc-evaluation-scope") != "local-noncommercial"
+                    )
+                ):
+                    raise ApiError(
+                        403,
+                        "LOCAL_EVALUATION_ONLY",
+                        "These sources are available only through the loopback evaluation app.",
+                    )
             host = headers.get("host", "").split("]")[0].lstrip("[")
             if ":" in host and not headers.get("host", "").startswith("["):
                 host = host.split(":", 1)[0]

@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import re
 from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
@@ -18,6 +19,7 @@ from bc_api.config import Settings
 from bc_api.dialogue import source_topics
 from bc_api.embeddings import AzureEmbeddings
 from bc_api.errors import ApiError
+from bc_api.grounded_quotes import mark_source_quotes, quote_registry
 from bc_api.models import JOURNEY_IDS, Evidence, EvidenceBundle, EvidenceMetadata, SourceReference
 
 SELECT_FIELDS = [
@@ -376,6 +378,18 @@ def diversify_evidence(candidates: list[Evidence], limit: int = 5) -> list[Evide
         if rank not in selected:
             add(rank, item)
     return [item for rank, item in unique if rank in selected]
+
+
+def model_evidence_json(bundle: EvidenceBundle) -> str:
+    payload = bundle.model_dump(mode="json", by_alias=True)
+    quotes = quote_registry(bundle.evidence)
+    for item in payload["evidence"]:
+        item["content"] = mark_source_quotes(item["content"], item["reference"]["url"], quotes)
+        metadata = item["reference"].get("metadata")
+        if metadata and metadata["version"] == 2:
+            for key in ("notice", "attribution", "licenceUrl", "contentHash"):
+                metadata.pop(key, None)
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 class EvidenceLedger:

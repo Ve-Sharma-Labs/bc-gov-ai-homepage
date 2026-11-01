@@ -16,6 +16,26 @@ function eventsResponse(events: object[]) {
 }
 
 describe("published AG-UI HttpAgent integration", () => {
+  it("sends version 4 discovery with a separate page binding and no client profile", async () => {
+    const fetcher = vi.fn().mockResolvedValue(eventsResponse([
+      { type: "RUN_STARTED", runId, threadId }, { type: "RUN_FINISHED", runId, threadId },
+    ]));
+    vi.stubGlobal("fetch", fetcher);
+    await startAgentRun({
+      runId, threadId, mode: "general", messages: [],
+      discovery: { action: "respond", revision: 1, questionId: "fixture-question" },
+      onEvent: vi.fn(), onFailure: vi.fn(), onClose: vi.fn(),
+    }).done;
+    const init = fetcher.mock.calls[0][1];
+    expect(JSON.parse(init.body).forwardedProps).toEqual({ bc: {
+      version: 4, mode: "general",
+      discovery: { action: "respond", revision: 1, questionId: "fixture-question" },
+    } });
+    expect(new Headers(init.headers).get("x-bc-discovery-page")).toMatch(/^[A-Za-z0-9-]{20,128}$/u);
+    expect(new Headers(init.headers).has("x-bc-context-page")).toBe(false);
+    expect(JSON.parse(init.body)).toMatchObject({ state: {}, tools: [], context: [] });
+  });
+
   it("sends the agreed input and decodes real SSE framing with native annotations", async () => {
     const events = [
       { type: "RUN_STARTED", runId, threadId },

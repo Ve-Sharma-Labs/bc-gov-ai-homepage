@@ -154,6 +154,131 @@ application-created workflows. This documentation does not change those settings
 
 ## 3. Chat, grounding and cancellation
 
+### Local grounded conversation (version 6)
+
+The opt-in local profile uses distinct planner/writer bindings and a typed
+programme source reader. It separates the person's current question from
+preparation progress, preserves explicit EI/adult/child/PWD context, and
+keeps canonical answers and necessary follow-ups application-owned. It does
+not expose legacy plan/office tools to the grounded writer or send private
+context into free-text retrieval queries.
+
+Named licensed statutory reads, existing project notes and integrity-pinned,
+dated Canada.ca copies are a separate local non-commercial evaluation source
+profile. They are not publication approval for the original source blueprints.
+Both services remain loopback-only; metadata and UI disclose provenance,
+copyright/licence notices and the evaluation restriction.
+
+Core factual answers are buffered until source validation succeeds, with at
+most one output-only correction inside the original model budget. Progress
+and usage remain visible/accounted; rejected text is not emitted or saved.
+The producer still owns and closes the native response stream on cancellation.
+Other journeys retain their existing general-agent/tool contract, and
+version-5 incremental validation is unchanged.
+
+### Repository-only context-first increment
+
+The subsequent AI-led mode is gated by `AI_CONVERSATION_ENABLED` and request
+version 5. It uses an isolated `FOUNDRY_CONVERSATION_AGENT`, not an edit to the
+public general or pathway agents. After admission, a single bounded Responses
+API call to the pinned prompt agent returns one strict function proposal.
+The server validates it, emits reviewed conversational wording, selects a
+canonical preparation guide, or invokes the existing grounded-answer runtime.
+Planning and answer generation share one `ModelBudget`; inference does not
+become free merely because the displayed text is application-rendered.
+Privacy commands, replayed results, and canonical answers to pending questions
+require no fresh inference. All other model work still goes through admission.
+
+Version-5 state has its own page binding, notice, namespace, expiry, and revision
+contract. It contains minimized user-stated categories, not a raw transcript.
+The optional sharing control starts off. When on, relevant personal context
+may enter model reasoning but never the public Search query or embeddings.
+Version 4 retains its stronger no-personal-answers-to-model rule, and its data
+is not imported into version 5. Provider conversation storage remains disabled.
+Model changes, endpoint errors, and lost metadata cannot silently fall back to
+a fake successful AI answer.
+
+The server renders accepted decision types rather than arbitrary uncited
+planner prose. Essential questions use reviewed vocabulary. An unconfirmed
+model guess cannot count as an answer to an essential question. Model-selected
+navigation updates require an exact current-message quote and bounded value
+checks; personal fields additionally require sharing permission and explicit
+value evidence. A category remains self-reported, never a government fact.
+Full factual claims continue through the existing evidence verifier.
+
+Question definitions also own canonical value/label decoding. A whole explicit
+answer is resolved during preparation, after page/question/revision checks,
+and advances through the same atomic state commit without letting the model
+overwrite it. Longer free-form replies still use the bounded planner.
+Unknown/declined answers are retained rather than interpreted as an affirmative.
+
+Public service-topic answers (non-B.C. renewal versus exchange, adult/child
+guardianship guidance, and disability-support kind) are minimal server-owned
+state, not personal profile facts. They use the existing intent-question wire
+shape, so no new browser fact keys or response fields are required. The
+planner's optional typed `serviceAnswer` is validated against reviewed choices
+and current-message evidence. Revoked personal answers are never copied into
+this public state. Navigation handoffs do not publish new Search documents
+or widen the official-domain allowlist.
+
+`TASK_ASSISTANCE_ENABLED` extends this flow with catalogue-owned, expiring task
+state. It records stable task/step identity, the last action, user-reported
+reviewed/skipped items, an explicitly chosen visit city, and an official-handoff
+phase. The planner sees this compact state and the current catalogue step, not
+unrestricted old conversation prose. A social classification cannot reset an
+active task; an explicit goal change is required.
+
+Sharing and task-review/navigation controls bypass model inference through a
+revision-checked API. They preserve the task and valid pending questions.
+Control idempotency, page binding, expiry, and compare-and-set use the existing
+state repository; revocation cancels local work and every later model/tool
+request still revalidates current state. Source-version changes invalidate only
+affected reviewed-step entries. Office selection uses the existing capability
+and exclusion snapshot, never inferred live availability.
+
+The text-first frontend renders the next step in chat and moves the task guide,
+context, progress, and sharing controls to optional Details. Starter selection
+only edits the shared draft and focus; it performs no request or task switch.
+Only sending the resulting message can change the active service.
+
+Malformed planner structures get at most one schema-correction attempt within
+the same model budget and run deadline. Both calls are charged; unknown usage
+keeps conservative reservation handling. Diagnostics contain error codes, not
+model argument bodies. Invalid authorization or unsupported facts are not
+made valid by retrying.
+
+`CONVERSATION_DISCOVERY_ENABLED` adds a version-4 pre-answer coordinator without
+changing the deployed version-1/2/3 contracts or publishing a new agent. It is
+disabled by default and is not included in the deployment claims above.
+Reviewed goal/question metadata selects one relevant, application-authored
+question at a time. At most three questions precede a catalogue preparation
+plan or honest handoff. This path does not require model inference or source
+search to ask a non-factual question.
+
+The server owns a short-lived discovery state, pending question IDs, revisions,
+explicit-answer provenance, and per-goal question counts. Local previews use a
+bounded memory store; deployments with shared controls use Redis compare-and-set
+and expiry, without a local fallback. The state is separately bound to the
+anonymous owner and `X-BC-Discovery-Page`, not the fictional-context grant.
+Reset/reload rotates the page binding; deletion leaves a bounded tombstone to
+reject an in-flight recreation. Concurrent or stale answers require an explicit
+refresh rather than being assigned to another question.
+
+The browser commits `bc.discovery` metadata only with terminal success and
+excludes all discovery turns from later legacy/pathway/demo histories.
+Factual follow-ups pass only allowlisted public service intent to the existing
+Foundry/AG-UI pipeline. Personal answers never enter model prompts, Search,
+embeddings, or value-free telemetry. Source validation is unchanged.
+
+A fictional-scenario suggestion has no authorization effect. Explicit selection
+and consent remain necessary. With discovery enabled, a recognized goal outside
+the active fixture's purpose fails before its facts reach a model; the person
+can return to anonymous guidance without automatically resending the question.
+Public collection requires privacy and release review. Real sign-in, permanent
+profiles, and government-record integration remain outside this increment.
+
+### Existing general and pathway runtime
+
 The browser immediately navigates a valid homepage question to `/chat`.
 It retains the draft and conversation in tab memory while the request proceeds.
 Dispatch does not wait for capability discovery. Public metadata reads do not

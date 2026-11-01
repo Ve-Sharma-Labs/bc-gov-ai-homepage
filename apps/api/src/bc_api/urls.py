@@ -8,7 +8,15 @@ from collections.abc import Awaitable, Callable
 from urllib.parse import unquote, urlsplit
 
 OFFICIAL_DOMAINS = frozenset(
-    {"gov.bc.ca", "icbc.com", "bchousing.org", "workbc.ca", "healthlinkbc.ca"}
+    {
+        "gov.bc.ca",
+        "icbc.com",
+        "bchousing.org",
+        "workbc.ca",
+        "healthlinkbc.ca",
+        "canada.ca",
+        "trustee.bc.ca",
+    }
 )
 PUBLIC_RESEARCH_HOSTS = frozenset(
     {
@@ -57,7 +65,7 @@ def official_url(value: str) -> str:
     https_url(value)
     host = urlsplit(value).hostname or ""
     if not any(host == domain or host.endswith("." + domain) for domain in OFFICIAL_DOMAINS):
-        raise ValueError("The destination must be an official BC publisher.")
+        raise ValueError("The destination must be a registered official publisher.")
     return value
 
 

@@ -8,6 +8,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import type { Catalog, Source } from "@/lib/contract";
 import { needsSources, type ChatMessage, type Citation, type StreamState } from "@/lib/stream";
 import { safeOfficialUrl, sourceDomain } from "@/lib/links";
+import { retainComposerFocus } from "@/lib/utils";
 import { OfficialLink } from "./official-link";
 import { SourceCard } from "./sources";
 import { Button as UiButton } from "./ui/button";
@@ -19,6 +20,7 @@ export function resolveCitation(citation: Citation, catalog: Catalog | null, ind
   if (existing) return {
     ...existing,
     id: `${existing.id}-${index}`,
+    publisher: citation.publisher || existing.publisher,
     ...(url ? { url, title: citation.title || existing.title } : {}),
     ...(citation.section ? { description: `Source section: ${citation.section}` } : {}),
     ...(citation.checkedAt !== undefined ? { checkedAt: citation.checkedAt } : {}),
@@ -31,7 +33,8 @@ export function resolveCitation(citation: Citation, catalog: Catalog | null, ind
     title: citation.title || "Official source reference",
     publisher: citation.publisher || sourceDomain(url),
     url,
-    description: "A reference returned by the connected assistant, outside the curated catalogue. Review the original page before acting.",
+    description: citation.section ? `Source section: ${citation.section}`
+      : "A reference returned by the connected assistant, outside the curated catalogue. Review the original page before acting.",
     checkedAt: citation.checkedAt ?? null,
     publisherUpdatedAt: citation.publisherUpdatedAt ?? null,
     status: "limited",
@@ -63,10 +66,7 @@ export const SafeMarkdown = memo(function SafeMarkdown({ children }: { children:
 
 function AnswerSources({ sources, messageId }: { sources: Source[]; messageId: string }) {
   return <Dialog.Root>
-    <Dialog.Trigger render={<UiButton variant="ghost" className="answer-sources-trigger" />} onMouseDown={(event) => {
-      // Keep the inline target still while focus leaves the fixed composer.
-      if (event.button === 0) event.preventDefault();
-    }}><BookOpen size={16} aria-hidden="true" />{sources.length} {sources.length === 1 ? "source" : "sources"}</Dialog.Trigger>
+    <Dialog.Trigger render={<UiButton variant="ghost" className="answer-sources-trigger" />} onMouseDown={retainComposerFocus}><BookOpen size={16} aria-hidden="true" />{sources.length} {sources.length === 1 ? "source" : "sources"}</Dialog.Trigger>
     <Dialog.Portal>
       <Dialog.Backdrop className="sources-backdrop" />
       <Dialog.Popup className="sources-panel">
@@ -78,13 +78,14 @@ function AnswerSources({ sources, messageId }: { sources: Source[]; messageId: s
   </Dialog.Root>;
 }
 
-const ConversationMessage = memo(function ConversationMessage({ message, catalog }: { message: ChatMessage; catalog: Catalog | null }) {
+const ConversationMessage = memo(function ConversationMessage({ message, catalog, compactAttribution = false }: { message: ChatMessage; catalog: Catalog | null; compactAttribution?: boolean }) {
   const sources = useMemo(() => message.citations
     .map((citation, index) => resolveCitation(citation, catalog, index))
     .filter((source): source is Source => !!source), [message.citations, catalog]);
   if (message.role === "assistant" && !message.content.trim()) return null;
   const heading = message.role === "user" ? "Your question"
-    : message.response?.origin === "application" ? "BC service assistant"
+    : message.response?.decisionOrigin === "model" ? "BC service assistant"
+      : message.response?.origin === "application" ? "BC service assistant"
       : message.response?.kind === "dialogue" ? "AI assistant" : "AI answer";
   return <article className={`message message-${message.role}`}>
     <div className="message-heading">
@@ -96,6 +97,7 @@ const ConversationMessage = memo(function ConversationMessage({ message, catalog
       ? <p className="question-text">{message.content}</p>
       : <div className="answer-content">
         <SafeMarkdown>{message.content}</SafeMarkdown>
+        {!compactAttribution && message.response?.decisionOrigin === "model" && <p className="ai-decision-notice">AI-assisted guidance · reviewed wording and preparation</p>}
         {message.status === "partial" && <p className="answer-warning">{needsSources(message)
           ? "This answer is unfinished. Do not rely on it as complete guidance."
           : "This response was interrupted."}</p>}
@@ -105,21 +107,29 @@ const ConversationMessage = memo(function ConversationMessage({ message, catalog
   </article>;
 });
 
-export function Conversation({ state, catalog, children }: { state: StreamState; catalog: Catalog | null; children?: ReactNode }) {
+export function Conversation({ state, catalog, children, hasDiscoveryContext = false, textFirst = false }: { state: StreamState; catalog: Catalog | null; children?: ReactNode; hasDiscoveryContext?: boolean; textFirst?: boolean }) {
   const bottom = useRef<HTMLDivElement>(null);
   const visible = useRef(true);
   const positioned = useRef(false);
   const [newContent, setNewContent] = useState(false);
   const lastMessageByRun = useMemo(() => new Map(state.messages.map((message) => [message.runId, message.id])), [state.messages]);
+  const licenceNotices = useMemo(() => [...new Set(state.messages.flatMap((message) => message.citations
+    .flatMap(({ metadata }) => metadata?.version === 2 && metadata.documentType === "legal" ? [metadata.notice] : [])))], [state.messages]);
   useEffect(() => {
     if (!bottom.current || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(([entry]) => {
-      visible.current = entry.isIntersecting;
-      if (entry.isIntersecting) setNewContent(false);
+    const intersections = new Map<Element, boolean>();
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) intersections.set(entry.target, entry.isIntersecting);
+      visible.current = [...intersections.values()].some(Boolean);
+      if (visible.current) setNewContent(false);
     });
     observer.observe(bottom.current);
+    const context = hasDiscoveryContext
+      ? bottom.current.closest(".conversation")?.querySelector("[data-conversation-latest]")
+      : null;
+    if (context) observer.observe(context);
     return () => observer.disconnect();
-  }, []);
+  }, [hasDiscoveryContext]);
   useEffect(() => {
     if (!state.messages.length) return;
     // Route scroll restoration and composer measurement must settle before following content.
@@ -141,14 +151,20 @@ export function Conversation({ state, catalog, children }: { state: StreamState;
   return (
     <section className="conversation" aria-label="Conversation">
       {state.messages.map((message) => {
-        const artifacts = Object.hasOwn(state.artifacts, message.runId) ? state.artifacts[message.runId] : [];
+        const artifacts = (Object.hasOwn(state.artifacts, message.runId) ? state.artifacts[message.runId] : [])
+          .filter((artifact) => !textFirst || artifact.kind !== "preparation")
+          .filter((artifact) => !(state.expectsTask || state.task?.task) || !artifact.id.startsWith("task-"));
         return (
           <Fragment key={message.id}>
-            <ConversationMessage message={message} catalog={catalog} />
+            <ConversationMessage message={message} catalog={catalog} compactAttribution={textFirst || state.expectsTask} />
             {lastMessageByRun.get(message.runId) === message.id && !!artifacts.length && <ChatArtifacts artifacts={artifacts} />}
           </Fragment>
         );
       })}
+      {!!licenceNotices.length && <aside className="source-licence-notice" aria-label="Source licence notice">
+        <strong>BC Laws source notice</strong>
+        {licenceNotices.map((notice) => <p key={notice}>{notice}</p>)}
+      </aside>}
       {state.warning && <p className="answer-warning conversation-warning" role="status">{state.warning}</p>}
       {state.progress && <div className="run-progress"><span className="thinking-mark" aria-hidden="true"><Compass size={20} /></span><span>{state.progress}</span></div>}
       {children}

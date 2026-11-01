@@ -32,6 +32,41 @@ JourneyId = Literal[
 ChatMode = Literal["general", "pathway", "contextual-demo"]
 ResponseKind = Literal["dialogue", "grounded", "handoff"]
 ResponseOrigin = Literal["application", "model"]
+DiscoveryGoalId = Literal[
+    "motorcycle",
+    "licence",
+    "road-test",
+    "rent",
+    "health",
+    "pharmacare",
+    "primary-care",
+    "service-bc",
+    "job-loss",
+    "caregiving",
+    "disability",
+]
+DiscoveryFactKey = Literal[
+    "age",
+    "licence-experience",
+    "timeframe",
+    "priority",
+    "bc-residency",
+    "phn-status",
+    "support-for",
+]
+ConversationFactKey = Literal[
+    "licence-jurisdiction",
+    "road-test-kind",
+    "housing-need",
+    "coverage-need",
+    "primary-care-need",
+    "service-need",
+    "age-range",
+    "phn-status",
+    "bc-residency",
+    "care-recipient",
+    "priority",
+]
 DemoPersonaId = Literal["maya-caregiver", "alex-disability-support", "sam-job-loss"]
 ContextCategory = Literal[
     "identity-residency",
@@ -201,14 +236,134 @@ class AgentBinding(WireModel):
     model_deployment: Identifier | None = None
 
 
+class DiscoveryCommand(WireModel):
+    action: Literal["respond", "skip", "general", "correct", "remove", "explore", "refine"] = (
+        "respond"
+    )
+    revision: Annotated[StrictInt, Field(ge=0)]
+    question_id: Identifier | None = None
+    fact_key: DiscoveryFactKey | None = None
+
+    @model_validator(mode="after")
+    def bounded_command(self) -> Self:
+        if (self.action in ("correct", "remove")) != (self.fact_key is not None):
+            raise ValueError("Only a correction or removal may name an existing fact.")
+        if self.action == "skip" and self.question_id is None:
+            raise ValueError("Skipping requires the current server-owned question.")
+        if self.action not in ("respond", "skip") and self.question_id is not None:
+            raise ValueError("This command cannot answer a question.")
+        return self
+
+
+class DiscoveryFact(WireModel):
+    key: DiscoveryFactKey
+    label: Annotated[str, Field(min_length=1, max_length=100)]
+    value: Annotated[str, Field(min_length=1, max_length=100)] | None = None
+    status: Literal["provided", "unknown", "declined", "disputed"]
+    provenance: Literal["citizen-answer"] = "citizen-answer"
+
+    @model_validator(mode="after")
+    def explicit_value(self) -> Self:
+        if (self.status == "provided") != (self.value is not None):
+            raise ValueError("Only an explicit answer may supply a fact value.")
+        return self
+
+
+class DiscoveryQuestion(WireModel):
+    id: Identifier
+    fact_key: DiscoveryFactKey
+    text: Annotated[str, Field(min_length=1, max_length=500)]
+    reason: Annotated[str, Field(min_length=1, max_length=500)]
+    choices: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        default_factory=list, max_length=6
+    )
+
+
+class PathwaySuggestion(WireModel):
+    journey_id: JourneyId
+    reason: Annotated[str, Field(min_length=1, max_length=300)]
+
+
+class PageSummary(WireModel):
+    thread_id: Identifier
+    revision: Annotated[StrictInt, Field(ge=1)]
+    expires_at: IsoDateTime
+
+
+class DiscoverySummary(PageSummary):
+    version: Literal[1] = 1
+    phase: Literal["understand", "plan"]
+    goal_id: DiscoveryGoalId | None = None
+    goal_label: Annotated[str, Field(min_length=1, max_length=100)]
+    about: Literal["you", "someone-else", "unspecified"] = "unspecified"
+    question_count: Annotated[StrictInt, Field(ge=0, le=3)]
+    facts: list[DiscoveryFact] = Field(default_factory=list, max_length=7)
+    question: DiscoveryQuestion | None = None
+    suggestions: list[PathwaySuggestion] = Field(default_factory=list, max_length=3)
+    suggested_demo_id: DemoPersonaId | None = None
+
+    @model_validator(mode="after")
+    def coherent_discovery(self) -> Self:
+        require_unique([fact.key for fact in self.facts], "Discovery facts")
+        require_unique([item.journey_id for item in self.suggestions], "Pathway suggestions")
+        if self.question is not None and (self.phase != "understand" or self.goal_id is None):
+            raise ValueError("A discovery question requires a current goal.")
+        if self.phase != "plan" and (self.suggestions or self.suggested_demo_id):
+            raise ValueError("Recommendations follow discovery.")
+        return self
+
+
+class ConversationCommand(WireModel):
+    action: Literal["respond", "skip", "general", "correct", "remove", "explore", "sharing"]
+    revision: Annotated[StrictInt, Field(ge=0)]
+    question_id: Identifier | None = None
+    fact_key: ConversationFactKey | None = None
+    notice_version: Literal["ai-conversation-v1"]
+    share_context: StrictBool
+
+    @model_validator(mode="after")
+    def narrow_command(self) -> Self:
+        if (self.action in ("correct", "remove")) != (self.fact_key is not None):
+            raise ValueError("Only corrections and removals may name an existing fact.")
+        if self.action == "skip" and self.question_id is None:
+            raise ValueError("Skipping requires a pending question.")
+        if self.action not in ("respond", "skip") and self.question_id is not None:
+            raise ValueError("This command does not answer a question.")
+        return self
+
+
 class RunOptions(WireModel):
-    version: Literal[1, 2, 3]
+    version: Literal[1, 2, 3, 4, 5, 6]
     mode: ChatMode | None = None
     journey_id: JourneyId | None = None
     research_requested: bool = Field(default=False, strict=True)
+    discovery: DiscoveryCommand | None = None
+    conversation: ConversationCommand | None = None
 
     @model_validator(mode="after")
     def explicit_conversation_scope(self) -> Self:
+        if self.version not in (5, 6) and "conversation" in self.model_fields_set:
+            raise ValueError("AI conversation requires version 5 or 6.")
+        if self.version != 4 and "discovery" in self.model_fields_set:
+            raise ValueError("Discovery requires version 4.")
+        if self.version in (5, 6):
+            if (
+                self.mode != "general"
+                or self.journey_id is not None
+                or self.research_requested
+                or self.conversation is None
+            ):
+                raise ValueError("Conversation versions require a general command and notice.")
+            return self
+        if self.version == 4:
+            if (
+                self.mode != "general"
+                or self.journey_id is not None
+                or self.research_requested
+                or self.discovery is None
+            ):
+                raise ValueError("Version 4 requires an explicit, general discovery command.")
+            return self
         if self.version == 1:
             if "mode" in self.model_fields_set:
                 raise ValueError("Conversation modes require version 2 or 3.")
@@ -232,6 +387,7 @@ class ResponseContext(WireModel):
     version: Literal[1] = 1
     kind: ResponseKind
     origin: ResponseOrigin
+    decision_origin: ResponseOrigin | None = None
 
 
 class Source(WireModel):
@@ -343,6 +499,33 @@ class EvidenceMetadata(WireModel):
         return self
 
 
+class LocalEvidenceMetadata(WireModel):
+    version: Literal[2] = 2
+    source_ids: list[Identifier] = Field(min_length=1, max_length=30)
+    document_type: Literal["guidance", "legal", "service-directory"]
+    retrieval_origin: Literal["official-live", "official-snapshot", "project-catalogue"]
+    use_scope: Literal["local-noncommercial-evaluation"] = "local-noncommercial-evaluation"
+    human_reviewed: Literal[False] = False
+    content_hash: Sha256
+    licence_url: OfficialUrl | None
+    attribution: str = Field(min_length=1, max_length=2000)
+    notice: str = Field(min_length=1, max_length=3000)
+    consolidation_date: CalendarDate | None = None
+    legal_status: Literal["publisher-current-collection"] | None = None
+
+    @model_validator(mode="after")
+    def explicit_provenance(self) -> Self:
+        require_unique(self.source_ids, "Source IDs")
+        if self.document_type == "legal" and (
+            self.consolidation_date is None
+            or self.legal_status is None
+            or self.retrieval_origin != "official-live"
+            or self.licence_url is None
+        ):
+            raise ValueError("Live legal evidence needs explicit current-collection provenance.")
+        return self
+
+
 class SourceReference(WireModel):
     source_id: Identifier
     document_id: Identifier
@@ -354,7 +537,7 @@ class SourceReference(WireModel):
     publisher_updated_at: IsoDate | None
     section: str = Field(max_length=1000)
     chunk_id: Identifier | None = None
-    metadata: EvidenceMetadata | None = None
+    metadata: EvidenceMetadata | LocalEvidenceMetadata | None = None
 
 
 class Evidence(WireModel):
@@ -828,11 +1011,16 @@ class Capabilities(WireModel):
     journeys: dict[JourneyId, bool] = Field(default_factory=dict)
     general_chat_configured: bool = False
     retrieval_ready: bool = False
-    request_versions: list[Literal[1, 2, 3]] = Field(
+    request_versions: list[Literal[1, 2, 3, 4, 5, 6]] = Field(
         default_factory=lambda: [1, 2, 3],
         min_length=1,
-        max_length=3,
+        max_length=6,
     )
+    discovery_available: StrictBool = False
+    conversation_available: StrictBool = False
+    conversation_agent_ready: StrictBool = False
+    task_assistance_available: StrictBool = False
+    local_evidence_evaluation: StrictBool = False
     synthetic_context_available: StrictBool = False
     real_identity_integrated: Literal[False] = False
     real_citizen_identity_configured: Literal[False] = False
@@ -842,4 +1030,12 @@ class Capabilities(WireModel):
         require_unique(self.request_versions, "Request versions")
         if self.synthetic_context_available and 3 not in self.request_versions:
             raise ValueError("Synthetic context requires request version 3.")
+        if self.discovery_available != (4 in self.request_versions):
+            raise ValueError("Discovery availability must match request version 4.")
+        if self.conversation_available != (5 in self.request_versions):
+            raise ValueError("AI conversation availability must match request version 5.")
+        if 6 in self.request_versions and not (
+            self.conversation_available and self.task_assistance_available
+        ):
+            raise ValueError("Grounded conversation requires AI conversation and task support.")
         return self

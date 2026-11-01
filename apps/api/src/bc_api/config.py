@@ -1,3 +1,4 @@
+import ipaddress
 from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit
@@ -7,6 +8,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from bc_api.models import JOURNEY_IDS, LEGACY_JOURNEY_IDS, AgentBinding
 from bc_api.urls import azure_endpoint
+
+
+def is_loopback_host(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+        if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+            address = address.ipv4_mapped
+        return address.is_loopback
+    except ValueError:
+        return False
 
 
 def default_catalog_path() -> Path:
@@ -37,6 +50,9 @@ class Settings(BaseSettings):
     foundry_agents: list[AgentBinding] = Field(default_factory=list, max_length=7)
     foundry_general_agent: AgentBinding | None = None
     foundry_contextual_agent: AgentBinding | None = None
+    foundry_conversation_agent: AgentBinding | None = None
+    foundry_grounded_conversation_agent: AgentBinding | None = None
+    foundry_grounded_answer_agent: AgentBinding | None = None
     azure_client_id: str | None = None
     azure_search_endpoint: str = ""
     azure_search_index: str = ""
@@ -44,6 +60,9 @@ class Settings(BaseSettings):
     azure_search_vector_enabled: bool = False
     azure_search_metadata_enabled: bool = False
     azure_search_metadata_reviewed: bool = False
+    azure_search_metadata_index: str = Field(
+        default="bc-pilot-public-v2", pattern=r"^[a-z][a-z0-9-]{1,126}$"
+    )
     azure_openai_endpoint: str = ""
     azure_openai_embedding_deployment: str = ""
     azure_openai_embedding_dimensions: int | None = Field(default=None, ge=1, le=3072)
@@ -60,7 +79,19 @@ class Settings(BaseSettings):
     api_run_timeout_seconds: float = Field(default=60, ge=1, le=120)
     api_upstream_timeout_seconds: float = Field(default=15, ge=1, le=30)
     azure_cli_process_timeout_seconds: int = Field(default=15, ge=5, le=30)
+    azure_cli_subscription: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")
     api_max_sessions: int = Field(default=1000, ge=1, le=10000)
+    conversation_discovery_enabled: bool = False
+    ai_conversation_enabled: bool = False
+    task_assistance_enabled: bool = False
+    grounded_conversation_enabled: bool = False
+    local_evidence_evaluation_enabled: bool = False
+    local_evidence_snapshot_path: Path | None = None
+    local_evidence_snapshot_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    grounded_conversation_privacy_reviewed: bool = False
+    ai_conversation_privacy_reviewed: bool = False
+    conversation_discovery_privacy_reviewed: bool = False
+    conversation_context_ttl_seconds: int = Field(default=1800, ge=60, le=3600)
     synthetic_context_enabled: bool = False
     synthetic_context_session_ttl_seconds: int = Field(default=1800, ge=60, le=3600)
     synthetic_context_consent_ttl_seconds: int = Field(default=900, ge=60, le=1800)
@@ -131,14 +162,53 @@ class Settings(BaseSettings):
                     "FOUNDRY_CONTEXTUAL_AGENT must pin a distinct contextual-demo agent "
                     "and model deployment without a journey scope."
                 )
+        if self.foundry_conversation_agent is not None:
+            conversation = self.foundry_conversation_agent
+            used = {binding.name for binding in self.foundry_agents}
+            used.update(
+                binding.name
+                for binding in (self.foundry_general_agent, self.foundry_contextual_agent)
+                if binding is not None
+            )
+            used.add(self.foundry_agent_name)
+            if (
+                conversation.journey_id
+                or not conversation.model_deployment
+                or conversation.name in used
+            ):
+                raise ValueError("FOUNDRY_CONVERSATION_AGENT must use a distinct pinned binding.")
+        used_names = {
+            binding.name
+            for binding in (
+                *self.foundry_agents,
+                self.foundry_general_agent,
+                self.foundry_contextual_agent,
+                self.foundry_conversation_agent,
+            )
+            if binding is not None
+        }
+        if self.foundry_agent_name:
+            used_names.add(self.foundry_agent_name)
+        for binding in (
+            self.foundry_grounded_conversation_agent,
+            self.foundry_grounded_answer_agent,
+        ):
+            if binding is None:
+                continue
+            if binding.journey_id or not binding.model_deployment or binding.name in used_names:
+                raise ValueError("Grounded conversation requires distinct pinned agent bindings.")
+            used_names.add(binding.name)
         return self
 
     @model_validator(mode="after")
     def reviewed_metadata_index(self) -> Self:
-        selected = self.azure_search_index == "bc-pilot-public-v2"
+        if self.azure_search_metadata_index == "bc-pilot-public":
+            raise ValueError("The live legacy index cannot be a metadata experiment target.")
+        selected = self.azure_search_index == self.azure_search_metadata_index
         if any(
             (
                 selected,
+                self.azure_search_index == "bc-pilot-public-v2",
                 self.azure_search_metadata_enabled,
                 self.azure_search_metadata_reviewed,
             )
@@ -159,6 +229,58 @@ class Settings(BaseSettings):
     def bounded_synthetic_context(self) -> Self:
         if self.synthetic_context_consent_ttl_seconds > self.synthetic_context_session_ttl_seconds:
             raise ValueError("Synthetic context consent cannot outlive its server-owned session.")
+        return self
+
+    @model_validator(mode="after")
+    def reviewed_conversation_discovery(self) -> Self:
+        if self.grounded_conversation_enabled and not (
+            self.ai_conversation_enabled and self.task_assistance_enabled
+        ):
+            raise ValueError("Grounded conversation requires AI conversation and task assistance.")
+        if (
+            self.app_env == "production"
+            and self.grounded_conversation_enabled
+            and not self.grounded_conversation_privacy_reviewed
+        ):
+            raise ValueError("Public grounded conversation requires its own privacy review.")
+        if (
+            self.app_env == "production"
+            and self.ai_conversation_enabled
+            and not self.ai_conversation_privacy_reviewed
+        ):
+            raise ValueError("Public AI context processing requires a separate privacy review.")
+        if (
+            self.app_env == "production"
+            and self.conversation_discovery_enabled
+            and not self.conversation_discovery_privacy_reviewed
+        ):
+            raise ValueError("Public conversational context requires a recorded privacy review.")
+        return self
+
+    @model_validator(mode="after")
+    def local_evaluation_scope(self) -> Self:
+        if not self.local_evidence_evaluation_enabled:
+            if self.local_evidence_snapshot_path or self.local_evidence_snapshot_sha256:
+                raise ValueError("Local snapshots require the explicit local evaluation mode.")
+            return self
+        if (
+            self.app_env != "development"
+            or not self.grounded_conversation_enabled
+            or not all(is_loopback_host(host.strip()) for host in self.api_allowed_hosts.split(","))
+            or not self.origins
+            or not all(is_loopback_host(urlsplit(origin).hostname or "") for origin in self.origins)
+        ):
+            raise ValueError(
+                "Local source evaluation requires development, grounded conversation, "
+                "and exclusively loopback hosts/origins. Public/commercial use is not enabled."
+            )
+        if bool(self.local_evidence_snapshot_path) != bool(self.local_evidence_snapshot_sha256):
+            raise ValueError("Pin both the local snapshot path and its SHA-256 digest.")
+        if (
+            self.local_evidence_snapshot_path
+            and not self.local_evidence_snapshot_path.is_absolute()
+        ):
+            raise ValueError("The local snapshot path must be absolute.")
         return self
 
     @field_validator("foundry_project_endpoint")
@@ -252,12 +374,29 @@ class Settings(BaseSettings):
         return bool(self.foundry_project_endpoint and self.foundry_general_agent)
 
     @property
+    def conversation_agent_configured(self) -> bool:
+        return bool(
+            self.ai_conversation_enabled
+            and self.foundry_project_endpoint
+            and self.foundry_conversation_agent
+        )
+
+    @property
     def contextual_agent_configured(self) -> bool:
         return bool(
             self.synthetic_context_enabled
             and self.foundry_project_endpoint
             and self.foundry_contextual_agent
             and self.search_configured
+        )
+
+    @property
+    def grounded_agents_configured(self) -> bool:
+        return bool(
+            self.grounded_conversation_enabled
+            and self.foundry_project_endpoint
+            and self.foundry_grounded_conversation_agent
+            and self.foundry_grounded_answer_agent
         )
 
     @property

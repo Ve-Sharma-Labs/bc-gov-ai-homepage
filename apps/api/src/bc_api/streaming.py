@@ -30,7 +30,10 @@ from bc_api.context_tools import (
     ContextRunTracker,
     ContextToolContext,
 )
+from bc_api.conversation import ConversationReply, ConversationRun, ConversationService
+from bc_api.conversation_grounding import PROGRAMMES
 from bc_api.dialogue import ApplicationReply
+from bc_api.discovery import DiscoveryRun, DiscoveryService
 from bc_api.errors import ApiError
 from bc_api.foundry import FoundryRuntime, local_credential_timeout_error
 from bc_api.input import parse_options
@@ -110,6 +113,10 @@ async def stream_run(
     context_plan: ContextRunPlan | None = None,
     context_agent: ContextAgentService | None = None,
     context_tracker: ContextRunTracker | None = None,
+    discovery_plan: DiscoveryRun | None = None,
+    discovery_service: DiscoveryService | None = None,
+    conversation_plan: ConversationRun | None = None,
+    conversation_service: ConversationService | None = None,
 ) -> AsyncGenerator[str]:
     encoder = EventEncoder(accept="text/event-stream")
     context = (
@@ -126,12 +133,19 @@ async def stream_run(
     gate = OutputGate(
         catalog,
         context.ledger,
-        allow_clarification=options.mode == "general",
+        allow_clarification=options.mode == "general" and options.version not in (4, 5, 6),
         tool_names=CONTEXT_TOOL_NAMES if context_plan is not None else TOOL_NAMES,
         context_artifacts=context_plan.artifacts if context_plan is not None else (),
     )
     if context_plan is not None and context_tracker is not None:
         context_tracker.track(context_plan.authorization.session_ref, run)
+    if discovery_plan is not None and discovery_service is not None:
+        discovery_service.track(discovery_plan, run)
+        context.public_query = discovery_plan.public_query
+        context.assert_authorized = lambda: discovery_service.assert_current(discovery_plan)
+    if conversation_plan is not None and conversation_service is not None:
+        conversation_service.track(conversation_plan, run)
+        context.assert_authorized = lambda: conversation_service.assert_current(conversation_plan)
     queue: asyncio.Queue[BaseEvent | ApplicationReply | Exception | None] = asyncio.Queue(
         maxsize=16
     )
@@ -149,7 +163,7 @@ async def stream_run(
                 response_sent = True
                 run.response_kind = gate.response_kind
                 run.response_origin = "model"
-                if options.version in (2, 3):
+                if options.version in (2, 3, 4, 5, 6):
                     yield response_context_event(gate.response_kind, "model")
             if validated.type == "TEXT_MESSAGE_CONTENT":
                 now = time.monotonic()
@@ -163,6 +177,35 @@ async def stream_run(
         # Keep the entire SDK iterator in one task: its tracing/context tokens
         # cannot be entered in one per-chunk task and reset in another.
         try:
+            if context.assert_authorized is not None:
+                await context.assert_authorized()
+            if conversation_plan is not None and conversation_service is not None:
+                context.grounded_conversation = conversation_plan.grounded
+                context.model_work_started = False
+                await queue.put(RunStartedEvent(run_id=request.run_id, thread_id=request.thread_id))
+                await queue.put(progress_event("thinking"))
+                await conversation_service.advance(
+                    conversation_plan, lambda text: runtime.decide_conversation(text, context)
+                )
+                if context.model_work_started is True:
+                    if not context.decision_usage_valid:
+                        run.usage_valid = False
+                    if context.decision_tokens is not None and context.decision_tokens > 0:
+                        await queue.put(
+                            CustomEvent(
+                                name="usage",
+                                value={"total_token_count": context.decision_tokens},
+                            )
+                        )
+                    else:
+                        run.usage_valid = False
+                if conversation_plan.reply is not None:
+                    await queue.put(conversation_plan.reply)
+                    await queue.put(
+                        RunFinishedEvent(run_id=request.run_id, thread_id=request.thread_id)
+                    )
+                    await queue.put(None)
+                    return
             if reply is not None:
                 context.model_work_started = False
                 await queue.put(RunStartedEvent(run_id=request.run_id, thread_id=request.thread_id))
@@ -172,13 +215,64 @@ async def stream_run(
                 )
                 await queue.put(None)
                 return
+            model_request = request
+            if conversation_plan is not None and conversation_service is not None:
+                context.public_query = conversation_plan.public_query
+                context.public_queries = conversation_plan.public_queries
+                context.programme_id = conversation_plan.programme_id
+                context.answer_topics = conversation_plan.answer_topics
+                if conversation_plan.grounded:
+                    gate.programme_id = conversation_plan.programme_id
+                if conversation_plan.grounded and conversation_plan.programme_id:
+                    context.source_ids = frozenset(
+                        PROGRAMMES[conversation_plan.programme_id].source_ids
+                    )
+                model_request = RunAgentInput.model_validate(
+                    {
+                        **request.model_dump(by_alias=True),
+                        "messages": [
+                            {
+                                "id": request.messages[-1].id,
+                                "role": "user",
+                                "content": conversation_service.grounded_input(conversation_plan),
+                            }
+                        ],
+                        "forwardedProps": {"bc": {"version": 2, "mode": "general"}},
+                    }
+                )
+            if discovery_plan is not None:
+                if not discovery_plan.public_query:
+                    raise ApiError(
+                        422, "DISCOVERY_ANSWER_INVALID", "Please choose a service topic to explore."
+                    )
+                # The model receives public intent, not raw answers or an editable client history.
+                model_request = RunAgentInput.model_validate(
+                    {
+                        **request.model_dump(by_alias=True),
+                        "messages": [
+                            {
+                                "id": request.messages[-1].id,
+                                "role": "user",
+                                "content": discovery_plan.public_query
+                                + ". Please explain the public guidance in warm, considerate "
+                                "plain language.",
+                            }
+                        ],
+                        "forwardedProps": {"bc": {"version": 2, "mode": "general"}},
+                    }
+                )
             events = (
-                runtime.events(request, context)
+                runtime.events(model_request, context)
                 if context_plan is None
                 else runtime.events(request, context, context_plan=context_plan)
             )
             async with contextlib.aclosing(events) as source:
                 async for event in source:
+                    if conversation_plan is not None and conversation_service is not None:
+                        if isinstance(event, ApplicationReply):
+                            event = conversation_service.source_fallback(conversation_plan)
+                        elif event.type == "RUN_STARTED":
+                            continue
                     await queue.put(event)
         except asyncio.CancelledError:
             raise
@@ -219,6 +313,8 @@ async def stream_run(
             pending = None
             if context.failure is not None:
                 raise context.failure
+            if context.assert_authorized is not None:
+                await context.assert_authorized()
             if isinstance(event, Exception):
                 raise event
             if event is None:
@@ -226,14 +322,22 @@ async def stream_run(
                     502, "STREAM_INCOMPLETE", "The AI response ended unexpectedly."
                 ) from None
             if isinstance(event, ApplicationReply):
-                if response_sent or context.model_work_started is True:
+                planned_reply = (
+                    isinstance(event, ConversationReply) and conversation_plan is not None
+                )
+                if response_sent or (context.model_work_started is True and not planned_reply):
                     raise ApiError(502, "OUTPUT_INVALID", "Mixed response authority was withheld.")
                 application_replied = True
                 response_sent = True
                 run.response_kind = event.kind
                 run.response_origin = "application"
                 message_id = f"{run.run_id}-reply"
-                yield encoder.encode(response_context_event(event.kind, "application"))
+                metadata = response_context_event(
+                    event.kind,
+                    "application",
+                    decision_origin=event.decision_origin if planned_reply else None,
+                )
+                yield encoder.encode(metadata)
                 yield encoder.encode(TextMessageStartEvent(message_id=message_id, role="assistant"))
                 run.first_response_at = time.monotonic()
                 yield encoder.encode(
@@ -264,6 +368,10 @@ async def stream_run(
                 if context.failure is not None:
                     raise context.failure
                 validated_events = [] if application_replied else gate.finish()
+                if discovery_plan is not None and discovery_service is not None:
+                    await discovery_service.commit(discovery_plan)
+                if conversation_plan is not None and conversation_service is not None:
+                    await conversation_service.commit(conversation_plan)
                 if context.model_work_started is False:
                     run.usage_tokens = 0
                 if run.finish is not None:
@@ -285,8 +393,45 @@ async def stream_run(
                     audit_event = await context_agent.complete_run(context_plan, "finished")
                 for validated in present(validated_events):
                     yield encoder.encode(validated)
+                if discovery_plan is not None and discovery_plan.summary is not None:
+                    yield encoder.encode(
+                        CustomEvent(
+                            name="bc.discovery",
+                            value=discovery_plan.summary.model_dump(by_alias=True),
+                        )
+                    )
+                    for artifact in discovery_plan.artifacts:
+                        yield encoder.encode(
+                            CustomEvent(
+                                name="bc.artifact",
+                                value=artifact.model_dump(by_alias=True),
+                            )
+                        )
                 if audit_event is not None:
                     yield encoder.encode(audit_event)
+                if conversation_plan is not None:
+                    if settings.task_assistance_enabled and conversation_service is not None:
+                        yield encoder.encode(
+                            CustomEvent(
+                                name="bc.task",
+                                value=conversation_service.task_view(conversation_plan).model_dump(
+                                    by_alias=True
+                                ),
+                            )
+                        )
+                    yield encoder.encode(
+                        CustomEvent(
+                            name="bc.conversation",
+                            value=conversation_plan.summary.model_dump(by_alias=True),
+                        )
+                    )
+                    for artifact in conversation_plan.artifacts:
+                        yield encoder.encode(
+                            CustomEvent(
+                                name="bc.artifact",
+                                value=artifact.model_dump(by_alias=True),
+                            )
+                        )
                 yield encoder.encode(event)
                 return
             else:
@@ -320,6 +465,30 @@ async def stream_run(
             )
             for message_id in sorted(gate.started):
                 yield encoder.encode(TextMessageEndEvent(message_id=message_id))
+            if discovery_plan is not None and discovery_service is not None:
+                try:
+                    await discovery_service.commit(discovery_plan)
+                except ApiError as context_error:
+                    run.status = "failed"
+                    yield encoder.encode(
+                        RunErrorEvent(
+                            code=context_error.code,
+                            message=context_error.message,
+                        )
+                    )
+                    return
+            if conversation_plan is not None and conversation_service is not None:
+                try:
+                    await conversation_service.commit(conversation_plan)
+                except ApiError as context_error:
+                    run.status = "failed"
+                    yield encoder.encode(
+                        RunErrorEvent(
+                            code=context_error.code,
+                            message=context_error.message,
+                        )
+                    )
+                    return
             if run.finish is not None:
                 status = await run.finish("finished", run.usage_tokens if run.usage_valid else None)
                 run.finalized = True
@@ -330,6 +499,29 @@ async def stream_run(
                     )
                     return
             run.status = "finished"
+            if conversation_plan is not None:
+                if settings.task_assistance_enabled and conversation_service is not None:
+                    yield encoder.encode(
+                        CustomEvent(
+                            name="bc.task",
+                            value=conversation_service.task_view(conversation_plan).model_dump(
+                                by_alias=True
+                            ),
+                        )
+                    )
+                yield encoder.encode(
+                    CustomEvent(
+                        name="bc.conversation",
+                        value=conversation_plan.summary.model_dump(by_alias=True),
+                    )
+                )
+            if discovery_plan is not None and discovery_plan.summary is not None:
+                yield encoder.encode(
+                    CustomEvent(
+                        name="bc.discovery",
+                        value=discovery_plan.summary.model_dump(by_alias=True),
+                    )
+                )
             yield encoder.encode(
                 RunFinishedEvent(run_id=request.run_id, thread_id=request.thread_id)
             )
@@ -359,6 +551,10 @@ async def stream_run(
     finally:
         # ASGI disconnects repeatedly cancel awaits; cleanup must finish before returning.
         with CancelScope(shield=True):
+            if conversation_plan is not None and conversation_service is not None:
+                conversation_service.untrack(conversation_plan, run)
+            if discovery_plan is not None and discovery_service is not None:
+                discovery_service.untrack(discovery_plan, run)
             if pending is not None:
                 pending.cancel()
                 with contextlib.suppress(asyncio.CancelledError, StopAsyncIteration, Exception):

@@ -45,6 +45,7 @@ from bc_api.demo_rules import (
     RuleEvaluationEvidence,
     reviewed_source_versions,
 )
+from bc_api.discovery_content import detect_goal
 from bc_api.errors import ApiError
 from bc_api.models import (
     ApplicationPreview,
@@ -972,6 +973,7 @@ class ContextAgentService:
         *,
         run_id: str | None = None,
         trace_ref: str | None = None,
+        question: str | None = None,
     ) -> ContextRunPlan:
         trace = trace_ref or new_trace_ref()
         run_ref = audit_run_ref(run_id or trace)
@@ -984,6 +986,20 @@ class ContextAgentService:
             )
             assert state.consent is not None and context_token is not None
             assert page_token is not None
+            if question is not None:
+                goal = detect_goal(question)
+                permitted_goals = {
+                    "maya-caregiver": {"caregiving", "service-bc"},
+                    "alex-disability-support": {"disability", "service-bc"},
+                    "sam-job-loss": {"job-loss", "rent", "service-bc"},
+                }[state.persona_id]
+                if goal is not None and goal not in permitted_goals:
+                    raise ApiError(
+                        409,
+                        "CONTEXT_PURPOSE_CHANGED",
+                        "That goal is outside this fictional scenario's consent. "
+                        "Return to anonymous conversation to explore it without these records.",
+                    )
             authorization = ContextAuthorization(
                 owner_token=owner_token,
                 page_token=page_token,
