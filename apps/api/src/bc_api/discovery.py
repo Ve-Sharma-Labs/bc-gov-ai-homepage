@@ -389,7 +389,7 @@ class DiscoveryService:
             text += "\n\nWe'll keep anything you skipped or weren't sure about general."
         sources = {source.id: source for source in self.catalog.get().sources}
         links = [
-            f"[{re.sub(r'[][()<>`!*_\\\\]', '', sources[key].title)}]({sources[key].url})"
+            f"[{re.sub(r'[][()<>`!*_\\]', '', sources[key].title)}]({sources[key].url})"
             for key in source_ids
             if key in sources
         ]

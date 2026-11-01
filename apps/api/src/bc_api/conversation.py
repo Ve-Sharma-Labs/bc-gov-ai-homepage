@@ -1025,7 +1025,7 @@ class ConversationService:
             plan.task = None
             sources = {source.id: source for source in self.catalog.get().sources}
             links = [
-                f"[{re.sub(r'[][()<>`!*_\\\\]', '', sources[key].title)}]({sources[key].url})"
+                f"[{re.sub(r'[][()<>`!*_\\]', '', sources[key].title)}]({sources[key].url})"
                 for key in spec.sources
                 if key in sources
             ]

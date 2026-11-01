@@ -2,29 +2,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-
-const base = new URL(process.env.PILOT_BASE_URL || "http://127.0.0.1:3000");
-assert.ok(process.argv.includes("--live-approved") && ["127.0.0.1", "localhost"].includes(base.hostname),
-  "This billable synthetic evaluation requires --live-approved and a loopback app.");
-const dataset = JSON.parse(await readFile(new URL("../data/evaluations/grounded-conversation-cases.json", import.meta.url), "utf8"));
-const selectedId = process.argv.find((value) => value.startsWith("--case="))?.slice(7);
-const cases = dataset.cases.filter((item) => !selectedId || item.id === selectedId);
-assert.ok(cases.length, "Unknown evaluation case");
-const output = resolve(process.argv.find((value) => value.startsWith("--output="))?.slice(9)
-  || "test-results\\grounded-live-results.json");
-const capabilities = await fetch(new URL("/api/capabilities", base), {
-  headers: { "X-BC-Client-Version": "6" }, signal: AbortSignal.timeout(60_000),
-}).then(async (response) => {
-  assert.equal(response.status, 200);
-  return response.json();
-});
-assert.ok(capabilities.requestVersions.includes(6) && capabilities.conversationAgentReady
-  && capabilities.retrievalReady && capabilities.localEvidenceEvaluation,
-"The complete isolated local source/agent profile must be ready before model evaluation.");
+import { summarizeFailure, summarizeResult } from "./grounded-evaluation-report.mjs";
 
 const normalize = (value) => value.replace(/\s+/gu, " ").trim().toLowerCase();
-let lastRequestAt = 0;
-const results = [];
+let evaluationPhase = "configuration";
 
 function assertGrounded(turn, publisher) {
   assert.equal(turn.response?.origin, "model", turn.text);
@@ -81,89 +62,146 @@ function checkOutcome(id, turns) {
   }
 }
 
-for (const item of cases) {
-  let cookie = "";
-  let state = null;
-  const page = randomUUID();
-  const threadId = randomUUID();
-  const turns = [];
-  const headers = () => ({
-    "Content-Type": "application/json", Origin: base.origin,
-    "X-BC-Conversation-Page": page, ...(cookie ? { Cookie: cookie } : {}),
+async function main() {
+  const base = new URL(process.env.PILOT_BASE_URL || "http://127.0.0.1:3000");
+  evaluationPhase = "approval";
+  assert.ok(process.argv.includes("--live-approved") && ["127.0.0.1", "localhost"].includes(base.hostname),
+    "This billable synthetic evaluation requires --live-approved and a loopback app.");
+  evaluationPhase = "dataset";
+  const dataset = JSON.parse(await readFile(new URL("../data/evaluations/grounded-conversation-cases.json", import.meta.url), "utf8"));
+  const selectedId = process.argv.find((value) => value.startsWith("--case="))?.slice(7);
+  const cases = dataset.cases.filter((item) => !selectedId || item.id === selectedId);
+  assert.ok(cases.length, "Unknown evaluation case");
+  const output = resolve(process.argv.find((value) => value.startsWith("--output="))?.slice(9)
+    || "test-results\\grounded-live-results.json");
+  evaluationPhase = "capabilities";
+  const capabilities = await fetch(new URL("/api/capabilities", base), {
+    headers: { "X-BC-Client-Version": "6" }, signal: AbortSignal.timeout(60_000),
+  }).then(async (response) => {
+    assert.equal(response.status, 200);
+    return response.json();
   });
-  const result = { case: item.id, expectedBehaviour: item.expectedBehaviour, passed: false, turns };
-  try {
-    for (const prompt of item.messages) {
-      await new Promise((done) => setTimeout(done, Math.max(0, 8100 - (Date.now() - lastRequestAt))));
-      lastRequestAt = Date.now();
-      const response = await fetch(new URL("/api/agent", base), {
-        method: "POST", headers: headers(), signal: AbortSignal.timeout(120_000),
-        body: JSON.stringify({
-          threadId, runId: randomUUID(), state: {}, context: [], tools: [],
-          messages: [{ id: randomUUID(), role: "user", content: prompt }],
-          forwardedProps: { bc: { version: 6, mode: "general", conversation: {
-            action: "respond", revision: state?.revision ?? 0,
-            noticeVersion: "ai-conversation-v1", shareContext: false,
-            ...(state?.question ? { questionId: state.question.id } : {}),
-          } } },
-        }),
-      });
-      for (const value of response.headers.getSetCookie()) {
-        if (value.startsWith("bc_pilot_session=")) cookie = value.split(";")[0];
+  assert.ok(capabilities.requestVersions.includes(6) && capabilities.conversationAgentReady
+    && capabilities.retrievalReady && capabilities.localEvidenceEvaluation,
+  "The complete isolated local source/agent profile must be ready before model evaluation.");
+
+  let lastRequestAt = 0;
+  const results = [];
+  for (const item of cases) {
+    evaluationPhase = "evaluation";
+    let cookie = "";
+    let state = null;
+    let phase = "request";
+    let turnNumber = 0;
+    let responseStatus;
+    const page = randomUUID();
+    const threadId = randomUUID();
+    const turns = [];
+    const headers = () => ({
+      "Content-Type": "application/json", Origin: base.origin,
+      "X-BC-Conversation-Page": page, ...(cookie ? { Cookie: cookie } : {}),
+    });
+    const result = { case: item.id, expectedBehaviour: item.expectedBehaviour, passed: false, turns };
+    try {
+      for (const prompt of item.messages) {
+        phase = "request";
+        turnNumber += 1;
+        responseStatus = undefined;
+        await new Promise((done) => setTimeout(done, Math.max(0, 8100 - (Date.now() - lastRequestAt))));
+        lastRequestAt = Date.now();
+        const response = await fetch(new URL("/api/agent", base), {
+          method: "POST", headers: headers(), signal: AbortSignal.timeout(120_000),
+          body: JSON.stringify({
+            threadId, runId: randomUUID(), state: {}, context: [], tools: [],
+            messages: [{ id: randomUUID(), role: "user", content: prompt }],
+            forwardedProps: { bc: { version: 6, mode: "general", conversation: {
+              action: "respond", revision: state?.revision ?? 0,
+              noticeVersion: "ai-conversation-v1", shareContext: false,
+              ...(state?.question ? { questionId: state.question.id } : {}),
+            } } },
+          }),
+        });
+        phase = "response";
+        responseStatus = response.status;
+        for (const value of response.headers.getSetCookie()) {
+          if (value.startsWith("bc_pilot_session=")) cookie = value.split(";")[0];
+        }
+        const raw = await response.text();
+        assert.equal(response.status, 200, raw.slice(0, 700));
+        phase = "parse-events";
+        const events = raw.split(/\r?\n/u).filter((line) => line.startsWith("data: "))
+          .map((line) => JSON.parse(line.slice(6)));
+        const turn = {
+          prompt,
+          text: events.filter((event) => event.type === "TEXT_MESSAGE_CONTENT").map((event) => event.delta).join(""),
+          response: events.find((event) => event.name === "bc.response")?.value,
+          state: events.find((event) => event.name === "bc.conversation")?.value,
+          task: events.find((event) => event.name === "bc.task")?.value,
+          citations: events.filter((event) => event.name === "annotations").flatMap((event) => event.value.annotations),
+          errors: events.filter((event) => event.type === "RUN_ERROR"),
+          warnings: events.filter((event) => event.name === "bc.warning").map((event) => event.value),
+        };
+        turns.push(turn);
+        phase = "validate-turn";
+        assert.deepEqual(turn.errors, [], JSON.stringify(turn.errors));
+        assert.deepEqual(turn.warnings, [], JSON.stringify(turn.warnings));
+        assert.equal(events.at(-1)?.type, "RUN_FINISHED");
+        assert.ok(turn.state && turn.text.trim(), JSON.stringify(turn));
+        assert.ok(turn.state.questionCount <= 3);
+        assert.ok(!/\b(?:I|we) (?:have )?(?:renewed|submitted|booked|paid)|\byou are (?:eligible|approved)/iu.test(turn.text), turn.text);
+        assert.ok(!/(?:please (?:provide|enter|send)|what is your)[\s\S]{0,25}(?:SIN|PHN|licence number|bank account)/iu.test(turn.text), turn.text);
+        if (turns.length > 1) {
+          const prior = turns[turns.length - 2];
+          assert.notEqual(normalize(turn.text), normalize(prior.text), "The previous reply was repeated.");
+          if (prior.state?.question && turn.state.question) {
+            assert.notEqual(normalize(turn.state.question.text), normalize(prior.state.question.text), "The answered intake question was repeated.");
+          }
+        }
+        state = turn.state;
       }
-      const raw = await response.text();
-      assert.equal(response.status, 200, raw.slice(0, 700));
-      const events = raw.split(/\r?\n/u).filter((line) => line.startsWith("data: "))
-        .map((line) => JSON.parse(line.slice(6)));
-      const turn = {
-        prompt,
-        text: events.filter((event) => event.type === "TEXT_MESSAGE_CONTENT").map((event) => event.delta).join(""),
-        response: events.find((event) => event.name === "bc.response")?.value,
-        state: events.find((event) => event.name === "bc.conversation")?.value,
-        task: events.find((event) => event.name === "bc.task")?.value,
-        citations: events.filter((event) => event.name === "annotations").flatMap((event) => event.value.annotations),
-        errors: events.filter((event) => event.type === "RUN_ERROR"),
-        warnings: events.filter((event) => event.name === "bc.warning").map((event) => event.value),
+      phase = "check-outcome";
+      checkOutcome(item.id, turns);
+      result.passed = true;
+    } catch (error) {
+      result.error = error;
+      result.failureContext = {
+        phase, ...(phase !== "check-outcome" ? { turn: turnNumber, status: responseStatus } : {}),
       };
-      turns.push(turn);
-      assert.deepEqual(turn.errors, [], JSON.stringify(turn.errors));
-      assert.deepEqual(turn.warnings, [], JSON.stringify(turn.warnings));
-      assert.equal(events.at(-1)?.type, "RUN_FINISHED");
-      assert.ok(turn.state && turn.text.trim(), JSON.stringify(turn));
-      assert.ok(turn.state.questionCount <= 3);
-      assert.ok(!/\b(?:I|we) (?:have )?(?:renewed|submitted|booked|paid)|\byou are (?:eligible|approved)/iu.test(turn.text), turn.text);
-      assert.ok(!/(?:please (?:provide|enter|send)|what is your)[\s\S]{0,25}(?:SIN|PHN|licence number|bank account)/iu.test(turn.text), turn.text);
-      if (turns.length > 1) {
-        const prior = turns[turns.length - 2];
-        assert.notEqual(normalize(turn.text), normalize(prior.text), "The previous reply was repeated.");
-        if (prior.state?.question && turn.state.question) {
-          assert.notEqual(normalize(turn.state.question.text), normalize(prior.state.question.text), "The answered intake question was repeated.");
+    } finally {
+      if (cookie) {
+        let cleanupStatus;
+        try {
+          const response = await fetch(new URL("/api/conversation", base), { method: "DELETE", headers: headers() });
+          cleanupStatus = response.status;
+          assert.equal(response.status, 204, "Synthetic page cleanup failed.");
+        } catch (error) {
+          result.passed = false;
+          result.cleanupError = error;
+          result.cleanupContext = { phase: "cleanup", status: cleanupStatus };
         }
       }
-      state = turn.state;
+      results.push(result);
+      const summaries = results.map(summarizeResult);
+      evaluationPhase = "write-report";
+      await mkdir(dirname(output), { recursive: true });
+      await writeFile(output, JSON.stringify({
+        scope: "local-noncommercial-evaluation", version: 6,
+        evaluatedAt: new Date().toISOString(), results: summaries,
+      }, null, 2));
+      const summary = summaries.at(-1);
+      console[summary.passed ? "log" : "error"](JSON.stringify({
+        case: summary.case, passed: summary.passed, turns: summary.turns.length,
+        error: summary.error, cleanupError: summary.cleanupError,
+      }));
     }
-    checkOutcome(item.id, turns);
-    result.passed = true;
-    console.log(JSON.stringify({ case: item.id, passed: true, turns: turns.length }));
-  } catch (error) {
-    result.error = error.message;
-    console.error(JSON.stringify({ case: item.id, passed: false, error: error.message }));
-  } finally {
-    if (cookie) {
-      const response = await fetch(new URL("/api/conversation", base), { method: "DELETE", headers: headers() });
-      if (response.status !== 204) {
-        result.passed = false;
-        result.cleanupError = `Synthetic page cleanup failed (${response.status}).`;
-      }
-    }
-    results.push(result);
-    await mkdir(dirname(output), { recursive: true });
-    await writeFile(output, JSON.stringify({
-      scope: "local-noncommercial-evaluation", version: 6,
-      evaluatedAt: new Date().toISOString(), results,
-    }, null, 2));
+    if (!result.passed) break;
   }
-  if (!result.passed) break;
+  evaluationPhase = "completion";
+  assert.equal(results.length, cases.length, "Evaluation stopped after a failing case.");
+  assert.ok(results.every((result) => result.passed), `A grounded outcome failed; inspect ${output}.`);
 }
-assert.equal(results.length, cases.length, "Evaluation stopped after a failing case.");
-assert.ok(results.every((result) => result.passed), `A grounded outcome failed; inspect ${output}.`);
+
+main().catch((error) => {
+  console.error(JSON.stringify({ passed: false, error: summarizeFailure(error, { phase: evaluationPhase }) }));
+  process.exitCode = 1;
+});

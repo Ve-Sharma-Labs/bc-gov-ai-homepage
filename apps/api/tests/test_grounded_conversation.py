@@ -439,12 +439,12 @@ def test_repeated_ei_rejection_phrases_do_not_backtrack_exponentially():
             sys.executable,
             "-c",
             "from bc_api.conversation_grounding import explicit_ei_rejection, "
-            "explicit_ei_request\n"
-            "text = 'not asking' + ' about asking' * 300\n"
-            "for suffix in (' about jobs', ' about EIghteen forms'):\n"
-            "    assert not explicit_ei_rejection(text + suffix)\n"
-            "assert explicit_ei_rejection(text + ' about EI')\n"
-            "assert not explicit_ei_request(text + ' about employment insurance')\n",
+            + "explicit_ei_request\n"
+            + "text = 'not asking' + ' about asking' * 300\n"
+            + "for suffix in (' about jobs', ' about EIghteen forms'):\n"
+            + "    assert not explicit_ei_rejection(text + suffix)\n"
+            + "assert explicit_ei_rejection(text + ' about EI')\n"
+            + "assert not explicit_ei_request(text + ' about employment insurance')\n",
         ],
         cwd=Path(__file__).resolve().parents[1] / "src",
         capture_output=True,
