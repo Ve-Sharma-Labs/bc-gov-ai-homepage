@@ -6,6 +6,8 @@ backend. This is not a live government transaction service.
 
 See the [as-built architecture](docs/architecture.md) for the Azure topology,
 chat/cancellation flow, reviewed-content lifecycle and current release boundaries.
+The [agentic workflows guide](docs/agentic-workflows.md) covers the official-source
+freshness watchdog and automatic bug-report regression tests and draft fixes.
 
 The reference-led interface includes locally hosted Unsplash BC photography,
 editorial serif/BC Sans typography, a compact adaptive composer, a persistent
