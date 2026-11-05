@@ -7,6 +7,10 @@ param foundryProjectEndpoint string
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
 param foundryContextualAgentJson string
+param foundryConversationAgentJson string
+param aiConversationEnabled string
+param taskAssistanceEnabled string
+param aiConversationPrivacyReviewed string
 param syntheticContextEnabled string
 param searchEndpoint string
 param searchIndex string
@@ -111,6 +115,12 @@ module api 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
       { name: 'FOUNDRY_AGENTS', value: foundryAgentsJson }
       { name: 'FOUNDRY_GENERAL_AGENT', value: foundryGeneralAgentJson }
       { name: 'FOUNDRY_CONTEXTUAL_AGENT', value: foundryContextualAgentJson }
+      { name: 'FOUNDRY_CONVERSATION_AGENT', value: foundryConversationAgentJson }
+      { name: 'AI_CONVERSATION_ENABLED', value: aiConversationEnabled }
+      { name: 'TASK_ASSISTANCE_ENABLED', value: taskAssistanceEnabled }
+      { name: 'AI_CONVERSATION_PRIVACY_REVIEWED', value: aiConversationPrivacyReviewed }
+      { name: 'GROUNDED_CONVERSATION_ENABLED', value: 'false' }
+      { name: 'LOCAL_EVIDENCE_EVALUATION_ENABLED', value: 'false' }
       { name: 'SYNTHETIC_CONTEXT_ENABLED', value: syntheticContextEnabled }
       { name: 'SYNTHETIC_CONTEXT_SESSION_TTL_SECONDS', value: '1800' }
       { name: 'SYNTHETIC_CONTEXT_CONSENT_TTL_SECONDS', value: '900' }
@@ -168,6 +178,9 @@ module web 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
     env: [
       { name: 'NODE_ENV', value: 'production' }
       { name: 'NEXT_TELEMETRY_DISABLED', value: '1' }
+      { name: 'AI_CONVERSATION_ENABLED', value: aiConversationEnabled }
+      { name: 'TASK_ASSISTANCE_ENABLED', value: taskAssistanceEnabled }
+      { name: 'GROUNDED_CONVERSATION_ENABLED', value: 'false' }
       { name: 'API_BASE_URL', value: api.outputs.uri }
       { name: 'API_AUTH_SCOPE', value: 'api://${apiApplicationClientId}/.default' }
       { name: 'AZURE_CLIENT_ID', value: webClientId }

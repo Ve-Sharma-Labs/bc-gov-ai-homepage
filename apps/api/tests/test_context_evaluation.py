@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,7 @@ from bc_api.context_flows import FLOW_OPTIONAL_SCOPES, FLOW_REQUIRED_SCOPES
 from bc_api.context_sessions import InMemoryContextSessionRepository
 from bc_api.context_tools import ContextAgentService
 from bc_api.demo_personas import DemoPersonaRepository
-from bc_api.demo_rules import default_demo_catalog_path
+from bc_api.demo_rules import DemoProgramRuleRepository, default_demo_catalog_path
 from bc_api.errors import ApiError
 from bc_api.input import validate_run
 from bc_api.main import create_app
@@ -42,10 +43,14 @@ def configured(settings):
 
 
 async def plan_for(settings, persona_id, scopes, *, run_id="evaluation-run"):
+    fixture_time = datetime.fromisoformat(
+        DemoProgramRuleRepository().get().reviewed_at + "T23:59:59+00:00"
+    )
     service = SyntheticContextService(
         settings,
         DemoPersonaRepository(),
         InMemoryContextSessionRepository(settings.api_max_sessions),
+        clock=lambda: fixture_time,
     )
     _, token = await service.create_session(
         "evaluation-owner",
@@ -87,6 +92,8 @@ def test_independent_case_file_and_read_only_evaluator_cover_all_three_compariso
     report = json.loads(process.stdout)
     assert report["passed"] is True
     assert report["remoteModelCalls"] == 0
+    assert report["currentSourceReadinessVerified"] is False
+    assert report["fixtureAsOf"] == DemoProgramRuleRepository().get().reviewed_at
     assert {case["caseId"] for case in report["cases"]} == {
         "maya-guardianship",
         "alex-disability-support",
@@ -288,9 +295,7 @@ async def test_output_gate_blocks_flow_overreach_and_confirmation_numbers(
 def test_route_inventory_has_no_submission_or_confirmation_surface(settings):
     app = create_app(configured(settings))
     routes = {
-        (method, route.path)
-        for route in app.routes
-        for method in getattr(route, "methods", set())
+        (method, route.path) for route in app.routes for method in getattr(route, "methods", set())
     }
     forbidden = ("submit", "apply", "sign", "pay", "confirm")
     assert not [
@@ -305,9 +310,7 @@ def test_personal_identifier_rejection_remains_active_in_contextual_mode(
     run_input,
 ):
     run_input["messages"][-1]["content"] = "My PHN is 123456789. What should I do?"
-    run_input["forwardedProps"] = {
-        "bc": {"version": 3, "mode": "contextual-demo"}
-    }
+    run_input["forwardedProps"] = {"bc": {"version": 3, "mode": "contextual-demo"}}
     with pytest.raises(ApiError) as rejected:
         validate_run(run_input, settings)
     assert rejected.value.code == "PERSONAL_DATA_NOT_SUPPORTED"

@@ -63,6 +63,12 @@ This file remains explicitly a snapshot if no refresh occurs. Publisher
 permission, complete extraction and accountable content review are required
 before full-text promotion. Robots permission alone is not a licence grant.
 
+The API's periodic Search health check is monitoring, **not scheduled content
+refresh**. It does not update this catalogue, its dates, rules, or source review
+records. A dated preparation guide can remain available while missing or
+expired detailed evidence is withheld. Do not make a release appear healthy by
+advancing snapshot timestamps or increasing the allowed evidence age.
+
 Edit only concise original summaries here; do not paste whole pages. Raw HTML,
 extracted text, version ledgers and dry-run plans live in ignored
 `ingestion\.generated`. No such cache belongs in a commit. The application reads
@@ -167,3 +173,6 @@ npm run evaluate:context
 The evaluator reads repository fixtures and rules, creates only in-memory demo
 sessions, makes no network or remote-model calls, writes no files, and returns a
 JSON report with `remoteModelCalls: 0`.
+Both comparison paths use the rules' reviewed fixture date. The report includes
+`fixtureAsOf` and `currentSourceReadinessVerified: false`; it is not a live-source
+currency check. Runtime source and rule checks continue to use the real clock.

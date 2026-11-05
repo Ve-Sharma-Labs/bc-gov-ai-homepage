@@ -80,6 +80,21 @@ describe("guided journeys", () => {
     expect(screen.getByText(/limited dynamic content/u)).toBeVisible();
   });
 
+  it("keeps preparation usable without calling expired sources ready", async () => {
+    vi.stubGlobal("fetch", mockApi({
+      ...guidedCapabilities, mode: "foundry", aiConfigured: true,
+      generalChatConfigured: true, retrievalReady: false,
+    }));
+    const user = userEvent.setup();
+    render(<Pilot />);
+    await screen.findByText("Reviewed preparation available · Detailed source answers limited");
+    expect(screen.queryByText("AI answers configured")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Prepare a licence renewal/u }));
+    expect(screen.getByRole("checkbox", { name: "Review the accepted identification guidance" })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Open the official service/u })).toBeVisible();
+    expect(screen.getByRole("textbox")).toBeEnabled();
+  });
+
   it("requires reset confirmation and clears drafts and checklist progress", async () => {
     const user = userEvent.setup();
     render(<Pilot />);

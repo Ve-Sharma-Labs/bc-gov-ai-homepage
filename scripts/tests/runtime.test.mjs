@@ -141,3 +141,36 @@ test("synthetic context requires explicit approval and a distinct pinned agent",
     SYNTHETIC_CONTEXT_ENABLED: "yes",
   }).some((message) => message.includes("SYNTHETIC_CONTEXT_ENABLED")));
 });
+
+test("AI conversation needs reviewed activation and its own pinned agent", () => {
+  const conversation = {
+    ...reviewedEnvironment,
+    AI_CONVERSATION_ENABLED: "true",
+    TASK_ASSISTANCE_ENABLED: "true",
+    AI_CONVERSATION_PRIVACY_REVIEWED: "true",
+    FOUNDRY_GENERAL_AGENT: JSON.stringify({
+      name: "fixture-general", version: "1", modelDeployment: "fixture",
+    }),
+    FOUNDRY_CONVERSATION_AGENT: JSON.stringify({
+      name: "fixture-conversation", version: "2", modelDeployment: "fixture",
+    }),
+  };
+  assert.deepEqual(deploymentBlockers(conversation), []);
+  for (const change of [
+    { AI_CONVERSATION_PRIVACY_REVIEWED: "false" },
+    { AI_CONVERSATION_ENABLED: "false" },
+    { AI_CONVERSATION_ENABLED: "yes" },
+    { TASK_ASSISTANCE_ENABLED: "yes" },
+    { AI_CONVERSATION_PRIVACY_REVIEWED: "1" },
+    { FOUNDRY_CONVERSATION_AGENT: "" },
+    { FOUNDRY_CONVERSATION_AGENT: JSON.stringify({ name: "fixture-general", version: "2", modelDeployment: "fixture" }) },
+    { FOUNDRY_CONVERSATION_AGENT: JSON.stringify({ name: "fixture-conversation", version: "latest", modelDeployment: "fixture" }) },
+    { FOUNDRY_CONVERSATION_AGENT: JSON.stringify({ name: "fixture-conversation", version: "2", modelDeployment: "unreviewed" }) },
+    { FOUNDRY_CONVERSATION_AGENT: JSON.stringify({ name: "fixture-conversation", version: "2", modelDeployment: "fixture", journeyId: "licence-renewal" }) },
+    { FOUNDRY_CONTEXTUAL_AGENT: conversation.FOUNDRY_CONVERSATION_AGENT },
+  ]) {
+    assert.ok(deploymentBlockers({ ...conversation, ...change }).some(
+      (message) => /CONVERSATION|TASK_ASSISTANCE/.test(message),
+    ), JSON.stringify(change));
+  }
+});

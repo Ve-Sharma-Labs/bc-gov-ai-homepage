@@ -1,5 +1,7 @@
 import json
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -174,3 +176,21 @@ def evidence():
             )
         ]
     )
+
+
+@pytest.fixture
+def ready_search(evidence):
+    item = evidence.evidence[0]
+    row = {
+        **item.reference.model_dump(by_alias=True),
+        "id": "test-chunk",
+        "content": item.content,
+        "status": "active",
+        "journeyIds": ["licence-renewal"],
+    }
+
+    class Results:
+        async def __aiter__(self):
+            yield row
+
+    return SimpleNamespace(search=AsyncMock(return_value=Results()), close=AsyncMock())

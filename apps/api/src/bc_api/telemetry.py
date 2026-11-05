@@ -3,8 +3,10 @@
 import json
 import logging
 import time
+from datetime import UTC, datetime
 
 from bc_api.config import Settings
+from bc_api.models import SourceHealth
 from bc_api.security import Run
 
 PHASES = frozenset(
@@ -29,6 +31,9 @@ class Telemetry:
         self.runs = None
         self.tokens = None
         self.phases = None
+        self.source_checks = None
+        self.source_documents = None
+        self.source_expiry = None
         self.logger = logging.getLogger("bc_api.operations")
         if not self.logger.handlers:
             self.logger.addHandler(logging.StreamHandler())
@@ -71,6 +76,23 @@ class Telemetry:
         self.runs = meter.create_counter("bc.run.count")
         self.tokens = meter.create_counter("bc.run.tokens")
         self.phases = meter.create_histogram("bc.run.phase_elapsed", unit="ms")
+        self.source_checks = meter.create_counter("bc.sources.checks")
+        self.source_documents = meter.create_histogram("bc.sources.usable_documents")
+        self.source_expiry = meter.create_histogram("bc.sources.hours_to_expiry", unit="h")
+
+    def sources(self, health: SourceHealth) -> None:
+        event = {"event": "bc.sources.checked", **health.model_dump(mode="json", by_alias=True)}
+        level = logging.INFO if health.status == "ready" else logging.WARNING
+        self.logger.log(level, json.dumps(event))
+        attributes = {"status": health.status, "error.code": health.error_code or "none"}
+        if self.source_checks is not None:
+            self.source_checks.add(1, attributes)
+            self.source_documents.record(health.usable_documents, attributes)
+            if health.next_expiry_at is not None:
+                hours = (
+                    datetime.fromisoformat(health.next_expiry_at) - datetime.now(UTC)
+                ).total_seconds() / 3600
+                self.source_expiry.record(max(0, hours), attributes)
 
     def finish(self, run: Run) -> None:
         duration = max(0, (time.monotonic() - run.created) * 1000)

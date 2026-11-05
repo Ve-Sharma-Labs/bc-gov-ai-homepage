@@ -810,6 +810,18 @@ export const auditReceiptSchema = z.object({
   }
 });
 
+export const sourceHealthSchema = z.object({
+  status: z.enum(["unknown", "ready", "expiring", "expired", "empty", "unusable", "unavailable"]),
+  checkedAt: z.string().datetime({ offset: true }).nullable(),
+  usableDocuments: z.number().int().nonnegative(),
+  expiredDocuments: z.number().int().nonnegative(),
+  rejectedChunks: z.number().int().nonnegative(),
+  nextExpiryAt: z.string().datetime({ offset: true }).nullable(),
+  coveredSourceIds: z.array(contractId).max(100),
+  missingSourceIds: z.array(contractId).max(100),
+  errorCode: z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/).nullable(),
+});
+
 export const capabilitiesSchema = z.object({
   mode: z.enum(["guided", "foundry"]),
   aiConfigured: z.boolean(),
@@ -819,6 +831,7 @@ export const capabilitiesSchema = z.object({
   journeys: z.record(journeyIdSchema, z.boolean()).optional(),
   generalChatConfigured: z.boolean().optional(),
   retrievalReady: z.boolean().optional(),
+  sourceHealth: sourceHealthSchema.optional(),
   requestVersions: z.array(z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)])).max(6).optional(),
   conversationAvailable: z.boolean().optional(),
   conversationAgentReady: z.boolean().optional(),

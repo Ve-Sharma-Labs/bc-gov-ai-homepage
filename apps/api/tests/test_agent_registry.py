@@ -70,9 +70,7 @@ def test_incomplete_or_unpinned_registries_are_rejected(repository, configured):
     definitions = agent_definitions(repository, prefix="test-bc", model_deployment="test-model")
     settings = registry_settings(configured, definitions)
     legacy = [
-        binding
-        for binding in settings.foundry_agents
-        if binding.journey_id in LEGACY_JOURNEY_IDS
+        binding for binding in settings.foundry_agents if binding.journey_id in LEGACY_JOURNEY_IDS
     ]
     assert Settings.model_validate(
         {**settings.model_dump(), "foundry_agents": legacy}
@@ -115,7 +113,9 @@ def test_routing_uses_context_but_does_not_force_an_old_topic(run_input):
     assert route_journey(RunAgentInput.model_validate(run_input)) is None
 
 
-async def test_one_invalid_agent_does_not_claim_all_journeys_are_ready(repository, configured):
+async def test_one_invalid_agent_does_not_claim_all_journeys_are_ready(
+    repository, configured, ready_search
+):
     definitions = agent_definitions(repository, prefix="test-bc", model_deployment="test-model")
     settings = registry_settings(configured, definitions)
     versions = {}
@@ -138,7 +138,7 @@ async def test_one_invalid_agent_does_not_claim_all_journeys_are_ready(repositor
             get_version=AsyncMock(side_effect=lambda name, version: versions[name])
         )
     )
-    search = SimpleNamespace(get_document_count=AsyncMock(return_value=5))
+    search = ready_search
     runtime = FoundryRuntime(settings, repository, project=project, search=search)
     await runtime.ensure_ready()
     assert runtime.journey_availability()["licence-renewal"]
@@ -147,7 +147,7 @@ async def test_one_invalid_agent_does_not_claim_all_journeys_are_ready(repositor
         await runtime.ensure_ready("health-coverage")
     await runtime.ensure_ready("licence-renewal")
     assert project.agents.get_version.call_count == len(JOURNEY_IDS)
-    assert search.get_document_count.call_count == 1
+    assert search.search.call_count == 1
 
 
 @pytest.mark.parametrize("missing", [False, True])
@@ -155,9 +155,15 @@ async def test_unpublished_or_empty_index_does_not_report_an_agent_failure(
     repository, configured, missing
 ):
     project = SimpleNamespace(agents=SimpleNamespace(get_version=AsyncMock()))
+
+    class EmptyResults:
+        async def __aiter__(self):
+            for row in []:
+                yield row
+
     search = SimpleNamespace(
-        get_document_count=AsyncMock(
-            return_value=0,
+        search=AsyncMock(
+            return_value=EmptyResults(),
             side_effect=ResourceNotFoundError("private upstream details") if missing else None,
         )
     )
@@ -171,13 +177,15 @@ async def test_unpublished_or_empty_index_does_not_report_an_agent_failure(
     project.agents.get_version.assert_not_called()
 
 
-async def test_missing_agent_is_not_misreported_as_a_missing_index(repository, configured):
+async def test_missing_agent_is_not_misreported_as_a_missing_index(
+    repository, configured, ready_search
+):
     project = SimpleNamespace(
         agents=SimpleNamespace(
             get_version=AsyncMock(side_effect=ResourceNotFoundError("private agent details"))
         )
     )
-    search = SimpleNamespace(get_document_count=AsyncMock(return_value=1))
+    search = ready_search
     runtime = FoundryRuntime(configured, repository, project=project, search=search)
     with pytest.raises(ApiError, match="AGENT_UNAVAILABLE"):
         await runtime.ensure_ready()
@@ -189,11 +197,9 @@ async def test_other_search_failures_are_not_misreported_as_an_unpublished_index
     repository, configured, error_type
 ):
     project = SimpleNamespace(agents=SimpleNamespace(get_version=AsyncMock()))
-    search = SimpleNamespace(
-        get_document_count=AsyncMock(side_effect=error_type("private upstream details"))
-    )
+    search = SimpleNamespace(search=AsyncMock(side_effect=error_type("private upstream details")))
     runtime = FoundryRuntime(configured, repository, project=project, search=search)
-    with pytest.raises(ApiError, match="AGENT_UNAVAILABLE") as error:
+    with pytest.raises(ApiError, match="SEARCH_UNAVAILABLE") as error:
         await runtime.ensure_ready()
     assert "private upstream details" not in error.value.message
     assert not any(runtime.journey_availability().values())

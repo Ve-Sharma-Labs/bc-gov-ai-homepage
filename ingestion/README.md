@@ -14,6 +14,17 @@ automatic crawl or blanket approval of the source inventory. See the
 [content-lifecycle diagram](../docs/architecture.md#4-reviewed-content-lifecycle)
 and [current architecture](../docs/architecture.md).
 
+The API rejects evidence outside its configured freshness window even if the
+index contains active chunks. Its read-only `sourceHealth` check and operational
+metrics now expose that state; they do not authorize a refresh or publication.
+For a refresh, reacquire only the reviewed scope, inspect the actual new
+content/extraction/review hashes, and obtain a new exact-snapshot approval.
+Retain the authoritative publication ledger and validate the old chunk keys
+that a replacement will retire. A fresh worktree's empty ledger is not proof
+that the live index has no previous versions. Any additive index-schema change
+also needs its own explicit review; do not silently drop metadata to fit an old
+schema or publish competing active versions.
+
 ## Install and verify locally
 
 Run from the repository root; Python 3.11+ is supported and Python 3.14 was tested.

@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -166,10 +166,15 @@ async def _contextual_metrics(case: dict[str, Any]) -> dict[str, Any]:
     audit_logger.propagate = False
     audit_logger.addHandler(logging.NullHandler())
     audit_logger.setLevel(logging.CRITICAL)
+    # Compare both synthetic paths at the reviewed fixture date, not today's source currency.
+    fixture_time = datetime.fromisoformat(
+        DemoProgramRuleRepository().get().reviewed_at + "T23:59:59+00:00"
+    )
     service = SyntheticContextService(
         settings,
         DemoPersonaRepository(),
         InMemoryContextSessionRepository(settings.api_max_sessions),
+        clock=lambda: fixture_time,
         audit=ContextAuditTrail(
             InMemoryContextAuditRepository(
                 settings.synthetic_context_audit_max_events,
@@ -317,6 +322,8 @@ async def evaluate(path: Path) -> dict[str, Any]:
         "passed": not failures,
         "syntheticOnly": True,
         "remoteModelCalls": 0,
+        "fixtureAsOf": DemoProgramRuleRepository().get().reviewed_at,
+        "currentSourceReadinessVerified": False,
         "measurementBoundary": suite["measurementBoundary"],
         "cases": results,
         "failures": failures,

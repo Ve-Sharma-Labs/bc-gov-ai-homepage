@@ -17,6 +17,15 @@ param foundryAgentsJson string = '[]'
 param foundryGeneralAgentJson string = ''
 @description('Separately published and pinned synthetic contextual-demo agent.')
 param foundryContextualAgentJson string = ''
+@description('Distinct, published and pinned version-5 conversation agent.')
+param foundryConversationAgentJson string = ''
+@allowed(['false', 'true'])
+param aiConversationEnabled string = 'false'
+@allowed(['false', 'true'])
+param taskAssistanceEnabled string = 'false'
+@allowed(['false', 'true'])
+@description('Requires an actual review of public AI conversation processing, not just deployment approval.')
+param aiConversationPrivacyReviewed string = 'false'
 @allowed(['false', 'true'])
 @description('Enable only for the reviewed, synthetic-only citizen-context demonstration.')
 param syntheticContextEnabled string = 'false'
@@ -71,6 +80,10 @@ module pilot './modules/pilot.bicep' = {
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
     foundryContextualAgentJson: foundryContextualAgentJson
+    foundryConversationAgentJson: foundryConversationAgentJson
+    aiConversationEnabled: aiConversationEnabled
+    taskAssistanceEnabled: taskAssistanceEnabled
+    aiConversationPrivacyReviewed: aiConversationPrivacyReviewed
     syntheticContextEnabled: syntheticContextEnabled
     searchIndex: searchIndex
     searchMetadataEnabled: searchMetadataEnabled

@@ -8,15 +8,23 @@ or public-release approval is inferred from an authenticated Azure CLI session.
 that reviews or live verification happened.
 
 The isolated pilot infrastructure and real application images are deployed.
-One general and five pathway version-1 agents, and 12 chunks from four explicitly approved source
-snapshots are active. The private-origin connection is approved, and the real
-web/API path produces source-validated Foundry answers using managed identity.
+One general and seven pathway agents, and 12 chunks from four explicitly approved
+source snapshots are configured. The private-origin connection is approved, and
+the initial real web/API release exercised source-validated Foundry answers
+using managed identity.
 The [public pilot](https://bcassist-xufhsendpx-ddabgxfdera9azbp.b01.azurefd.net/)
 is live, with public-browser answer, follow-up and terminal cancellation
 verified for the general-chat release on October 27, 2026. The temporary `ValidationOnly` rule is removed;
 WAF Prevention, managed rules, API rate protection and private ingress remain.
 These pilot-specific approvals do not authorize another target, new content
 snapshots or optional Web IQ processing.
+
+The November 5, 2026 investigation found the public app still advertising only
+request versions 1--3, with all four published source reviews beyond their
+seven-day runtime freshness limit. The conversation-restoration changes in this
+repository are a release candidate, not evidence of public activation or renewed
+content approval. Recheck live capabilities and evidence, not this historical
+deployment record, before declaring the service ready.
 
 The [as-built architecture](../docs/architecture.md) contains the deployment
 diagram, full resource inventory and identity/data-flow relationships. This
@@ -80,8 +88,11 @@ In particular:
 |---|---|
 | `AZURE_SUBSCRIPTION_ID`, `AZURE_ENV_NAME`, `AZURE_LOCATION` | Confirmed target, not the CLI's incidental default |
 | `AZURE_MODEL_DEPLOYMENTS` | JSON array of `deploymentName`, `modelName`, `modelVersion`, `sku`, positive `capacity`; actual availability/quota must be checked |
-| `FOUNDRY_AGENTS` | Actual five-agent publication registry; empty during closed bootstrap only |
+| `FOUNDRY_AGENTS` | Actual seven-pathway publication registry; empty during closed bootstrap only |
 | `FOUNDRY_GENERAL_AGENT` | Separate published name/version/model binding without journey scope; required by the new general-chat release preflight before validation/public traffic |
+| `FOUNDRY_CONVERSATION_AGENT` | Distinct published name/version/model binding for the version-5 planner; verify its policy and tool declarations before reuse |
+| `AI_CONVERSATION_ENABLED`, `TASK_ASSISTANCE_ENABLED` | Explicit `true`/`false`; task assistance requires AI conversation in the same API revision |
+| `AI_CONVERSATION_PRIVACY_REVIEWED` | Explicit `true` only after the actual public conversation-processing review; deployment or model-test approval alone is insufficient |
 | `AZURE_SEARCH_SKU`, `AZURE_REDIS_SKU` | Reviewed regional SKUs and service costs |
 | `AZURE_API_APPLICATION_CLIENT_ID` | Existing internal API Entra application; see identity prerequisites below |
 | `AZURE_PILOT_CONTROLS` | JSON `runLimit`, `tokenLimit`, `costLimitMicrousd`, `tokenPriceMicrousd`, `apiMaxReplicas`, `webMaxReplicas` |
@@ -126,6 +137,12 @@ not inherit the generated publisher identity's roles.
 
 ## Rollout and rollback
 
+For the conversation release, set all four conversation inputs explicitly,
+retain the existing general/pathway bindings, and verify the isolated planner's
+actual returned version. The template keeps version 6 and local evidence
+evaluation off. Do not copy a local privacy setting into production or set a
+review flag solely to satisfy preflight.
+
 1. Confirm target, policy, quota, model processing, service costs, internal
    identity and publication permissions. Complete Azure validation and review
    the real provision preview before authorizing resource creation.
@@ -138,12 +155,12 @@ not inherit the generated publisher identity's roles.
 4. Verify and approve the exact private-origin connection. `validation` enables
    only the explicitly allowed IPv4 CIDRs; preflight requires private-origin
    approval and pinned application images. Exercise the real browser/API path,
-   all five journeys, streaming, cancellation, budgets, source gates and errors.
+   all seven journeys, streaming, cancellation, budgets, source gates and errors.
 5. `public` additionally requires actual source publication, live evaluation,
-   public-preview and BC brand approvals plus five published agent bindings.
+   public-preview and BC brand approvals plus seven published pathway bindings.
    Privacy, domain and release review cannot be replaced by booleans.
 
-Keep the previous verified image digests, five-agent registry and corpus
+Keep the previous verified image digests, agent registry and corpus
 publication record for rollback. Close the edge first if the candidate cannot
 be trusted, restore the reviewed bindings/images, and reverify before reopening.
 Do not delete source or shared-control resources as an automatic rollback.
@@ -151,7 +168,11 @@ Do not delete source or shared-control resources as an automatic rollback.
 `.github/workflows/azure-pilot.yml` is **manual only**. It needs an explicitly
 configured/protected `pilot` GitHub environment, OIDC deployment identity and
 the reviewed variables above. Provision and image deployment are separate
-operations. It does not create its own GitHub approvals, publish unreviewed
+operations. The separate `verify` operation requires an exact `public_url`;
+it checks version-5/task readiness, current baseline evidence, and all seven
+preparation guides without a model call by default. `live_checks=true` also
+requires `AZURE_LIVE_EVALUATION_APPROVED=1` and performs at most 18 synthetic
+turns, clearing its own conversation sessions. It does not create its own GitHub approvals, publish unreviewed
 content/agents, or enable Web IQ. Before image replacement it checks the actual
 Front Door endpoint is disabled, rather than trusting a stage variable. New
 images must pass validation before their immutable digests are promoted and

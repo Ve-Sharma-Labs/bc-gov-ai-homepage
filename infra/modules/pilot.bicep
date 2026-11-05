@@ -7,6 +7,10 @@ param modelDeployments array
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
 param foundryContextualAgentJson string
+param foundryConversationAgentJson string
+param aiConversationEnabled string
+param taskAssistanceEnabled string
+param aiConversationPrivacyReviewed string
 param syntheticContextEnabled string
 param searchIndex string
 param searchMetadataEnabled string
@@ -96,6 +100,10 @@ module hosting './hosting.bicep' = {
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
     foundryContextualAgentJson: foundryContextualAgentJson
+    foundryConversationAgentJson: foundryConversationAgentJson
+    aiConversationEnabled: aiConversationEnabled
+    taskAssistanceEnabled: taskAssistanceEnabled
+    aiConversationPrivacyReviewed: aiConversationPrivacyReviewed
     syntheticContextEnabled: syntheticContextEnabled
     searchEndpoint: ai.outputs.searchEndpoint
     searchIndex: searchIndex

@@ -233,6 +233,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def reviewed_conversation_discovery(self) -> Self:
+        if self.task_assistance_enabled and not self.ai_conversation_enabled:
+            raise ValueError("Task assistance requires AI conversation.")
         if self.grounded_conversation_enabled and not (
             self.ai_conversation_enabled and self.task_assistance_enabled
         ):

@@ -125,7 +125,17 @@ def client_for(settings, repository, decisions):
     return TestClient(app, headers=HEADERS), runtime
 
 
-def test_exact_typo_request_gets_essential_question_then_reviewed_guide(ai_settings, repository):
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "please help me renew my drivers license",
+        "PLEASE HELP ME RENEW MY DRIVERS LICENESE PELASE",
+        "please help me renew my driver's licence",
+    ],
+)
+def test_exact_typo_request_gets_essential_question_then_reviewed_guide(
+    ai_settings, repository, prompt
+):
     client, runtime = client_for(
         ai_settings,
         repository,
@@ -134,9 +144,7 @@ def test_exact_typo_request_gets_essential_question_then_reviewed_guide(ai_setti
         ],
     )
     with client:
-        first = sse(
-            client.post("/api/agent", json=body("PLEASE HELP ME RENEW MY DRIVERS LICENESE PELASE"))
-        )
+        first = sse(client.post("/api/agent", json=body(prompt)))
         summary = snapshot(first)
         assert summary["question"]["factKey"] == "licence-jurisdiction"
         text = "".join(item.get("delta", "") for item in first)
@@ -159,6 +167,7 @@ def test_exact_typo_request_gets_essential_question_then_reviewed_guide(ai_setti
         )
         assert any(item.get("name") == "bc.artifact" for item in second)
         assert "unsupported" not in json.dumps(second).lower()
+        assert "I don't have current, reviewed source information" not in json.dumps(second)
         assert len(runtime.inputs) == 1
 
 

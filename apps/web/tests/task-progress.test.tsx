@@ -43,6 +43,7 @@ function Harness() {
     <p role="status">{assistant.notice}</p>
     <label>Message<input value={assistant.draft} onChange={(event) => assistant.setDraft(event.target.value)} /></label>
     <button disabled={assistant.loading || assistant.busy} onClick={() => { void assistant.submit(); }}>Send</button>
+    <button onClick={() => { void assistant.load(); }}>Reload capabilities</button>
   </>;
 }
 
@@ -122,6 +123,25 @@ async function ready() {
 }
 
 describe("useful preparation continuation", () => {
+  it("keeps sharing on the non-model control endpoint through a capability outage", async () => {
+    const user = await ready();
+    const original = vi.mocked(fetch).getMockImplementation();
+    if (!original) throw new Error("Missing test transport");
+    vi.mocked(fetch).mockImplementation((url, init) => (
+      url === "/api/capabilities"
+        ? Promise.reject(new TypeError("Synthetic discovery outage"))
+        : original(url, init)
+    ));
+    await user.click(screen.getByRole("button", { name: "Reload capabilities" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
+    const messages = document.querySelectorAll(".message").length;
+    await user.click(screen.getByRole("checkbox", { name: /Use personal details/ }));
+    await waitFor(() => expect(controls).toHaveLength(1));
+    expect(controls[0]).toMatchObject({ action: "sharing", shareContext: true });
+    expect(runs).toHaveLength(1);
+    expect(document.querySelectorAll(".message")).toHaveLength(messages);
+  });
+
   it("changes sharing without creating messages, invoking the model, or clearing the draft", async () => {
     const user = await ready();
     const messages = document.querySelectorAll(".message").length;

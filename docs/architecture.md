@@ -6,6 +6,14 @@
 **Primary resource region:** Canada Central; Front Door, WAF and private DNS are global resources.
 **Public site:** https://bcassist-xufhsendpx-ddabgxfdera9azbp.b01.azurefd.net/
 
+**Subsequent incident observation (November 5, 2026):** The public app still
+advertises request versions 1--3. Its 12 Search chunks remain from four
+October 25 checks and are outside the seven-day evidence window. The exact
+renewal request and a previously covered Health Connect Registry question both
+returned application-authored source-gap handoffs. The restoration described
+below is repository implementation, not a claim that the public deployment or
+source approvals have been updated.
+
 This document describes the deployed application and the current repository,
 not the larger target architecture in the [original specification](pilot-specification.md).
 The assistant provides official information, preparation plans and handoffs.
@@ -153,6 +161,52 @@ subscription and inherited diagnostics must not be omitted or portrayed as
 application-created workflows. This documentation does not change those settings.
 
 ## 3. Chat, grounding and cancellation
+
+### Source health and release restoration
+
+The version-5 planner/task flags and its distinct pinned binding are now carried
+through the deployment templates and protected workflow, with disabled defaults
+and an actual public privacy-review prerequisite. Intended conversation releases
+must verify live capability negotiation rather than accepting a healthy legacy
+deployment as equivalent.
+
+The web shell reads its two public feature flags at request time, rather than
+baking them into the container build. This lets a cold-page Send select the
+intended version-5 contract immediately while readiness is still being checked.
+The hint does not claim that a model or evidence source is ready; the API still
+enforces activation, privacy, admission, and binding checks. Protocol/task
+selection stays pinned for the page conversation, including after a capability
+request fails, and sharing controls remain non-model operations.
+
+Source readiness uses the same row validator as factual retrieval, including
+publisher/URL provenance, metadata eligibility, content validation, and source
+age. A bounded non-model scan reports usable/expired documents, rejected chunks,
+source coverage, and the next expiry through `sourceHealth`. It scans no more
+than 1,000 active allowed-source chunks; an incomplete or failed scan reports an
+explicit error, not success based on a partial sample. The cache cannot outlive
+the next evidence expiry. Neither a successful query nor pathway readiness can
+overwrite this health assessment with a document-count shortcut.
+
+When metrics and Search are configured, an owned lifespan task checks source
+health on startup and every five minutes, even with no user traffic. It records
+`bc.sources.checked` operational events and `bc.sources.checks`,
+`bc.sources.usable_documents`, and `bc.sources.hours_to_expiry` metrics. Operators
+should investigate zero usable documents, failed checks, or an expiring status;
+missing telemetry is not a healthy check. This task performs no model/embedding
+calls, acquisition, publication, or automatic date updates.
+
+Detailed factual generation still requires current evidence. Version-5
+preparation remains available through the existing catalogue/task coordinator
+when Search lacks the relevant detail. Its handoff preserves task progress and
+names the specific source gap. Legacy driver/drivers/driver's wording also keeps
+the appropriate ICBC renewal links instead of falling back to the government
+homepage.
+
+`scripts\verify-pilot-chat.mjs` and the protected workflow's `verify` operation
+check this release contract. Explicitly approved live verification additionally
+tests the reported renewal continuation, the non-B.C. route, starter navigation,
+and a genuinely cited health response. A 200 response with a generic refusal is
+a failed outcome.
 
 ### Local grounded conversation (version 6)
 

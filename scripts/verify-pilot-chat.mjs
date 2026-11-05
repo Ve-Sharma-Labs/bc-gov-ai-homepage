@@ -1,0 +1,218 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
+
+const journeyIds = [
+  "licence-renewal", "road-test-booking", "rental-assistance", "health-coverage",
+  "pharmacare-registration", "primary-care", "service-bc",
+];
+const genericRefusal = /I don't have current, reviewed source information|gov\/content\/home/;
+
+export function releaseTarget(value) {
+  const url = new URL(value);
+  assert.ok(!url.username && !url.password && !url.search && !url.hash && url.pathname === "/",
+    "Select an exact app origin without credentials, path, query, or fragment.");
+  assert.ok(url.protocol === "https:" || (
+    url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+  ), "Release checks require HTTPS, or an explicitly selected loopback candidate.");
+  return url;
+}
+
+export function assertReleaseCapabilities(capabilities) {
+  assert.ok(capabilities.mode === "foundry" && capabilities.aiConfigured
+    && capabilities.generalChatConfigured
+    && capabilities.conversationAvailable && capabilities.conversationAgentReady
+    && capabilities.taskAssistanceAvailable && capabilities.requestVersions?.includes(5),
+  "The intended version-5 conversation and task assistance are not ready.");
+  assert.ok(journeyIds.every((id) => capabilities.journeys?.[id] === true),
+    "The seven existing pathway agent bindings are not all ready.");
+  assert.ok(!capabilities.requestVersions.includes(6) && !capabilities.localEvidenceEvaluation,
+    "This public release must not enable the experimental/local-only evidence profile.");
+  assert.equal(capabilities.transactionsEnabled, false, "Transactions must remain disabled.");
+  assert.equal(capabilities.webIqEnabled, false, "Unreviewed live research must remain disabled.");
+  const health = capabilities.sourceHealth;
+  assert.ok(capabilities.retrievalReady && health?.status === "ready"
+    && health.usableDocuments >= 4
+    && ["health", "healthlink-bc", "service-bc"].every((id) => health.coveredSourceIds?.includes(id)),
+  "The existing four-document factual baseline does not have current, verified source coverage.");
+}
+
+export function decodeReleaseTurn(raw, threadId, previousRevision) {
+  const events = raw.split(/\r?\n/).filter((line) => line.startsWith("data: "))
+    .map((line) => JSON.parse(line.slice(6)));
+  assert.equal(events[0]?.type, "RUN_STARTED", "The response did not start an agent run.");
+  assert.ok(!events.some((event) => event.type === "RUN_ERROR"), "The conversation returned a run error.");
+  assert.equal(events.at(-1)?.type, "RUN_FINISHED", "The run did not finish normally.");
+  const text = events.filter((event) => event.type === "TEXT_MESSAGE_CONTENT")
+    .map((event) => event.delta).join("");
+  assert.ok(text.trim() && !genericRefusal.test(text),
+    "A supported task returned the generic source-unavailable dead end.");
+  const summary = events.find((event) => event.name === "bc.conversation")?.value;
+  const task = events.find((event) => event.name === "bc.task")?.value;
+  assert.ok(summary && task, "The conversation/task state was not returned.");
+  assert.equal(summary.threadId, threadId, "The reply belongs to a different conversation.");
+  assert.equal(summary.revision, previousRevision + 1, "The conversation revision did not advance.");
+  assert.equal(task.revision, summary.revision, "Task and conversation revisions diverged.");
+  assert.equal(task.threadId, threadId, "The task belongs to a different conversation.");
+  assert.equal(summary.shareContext, false, "The check must not enable personal-context sharing.");
+  return { text, summary, task, events };
+}
+
+export async function verifyPilotChat({
+  baseUrl, liveApproved = false, fetchImpl = fetch,
+  pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+}) {
+  const base = releaseTarget(baseUrl);
+  const get = async (path) => {
+    const response = await fetchImpl(new URL(path, base), {
+      redirect: "error", signal: AbortSignal.timeout(30_000),
+    });
+    assert.equal(response.status, 200, `The ${path} release check failed.`);
+    return response.json();
+  };
+  const capabilities = await get("/api/capabilities");
+  assertReleaseCapabilities(capabilities);
+  const catalog = await get("/api/catalog");
+  for (const id of journeyIds) {
+    const journey = catalog.journeys?.find((item) => item.id === id);
+    assert.ok(journey?.steps?.length && journey?.handoffs?.length,
+      `The reviewed ${id} preparation guide is missing.`);
+  }
+  const report = {
+    target: base.origin, mode: liveApproved ? "live-synthetic" : "read-only",
+    sourceHealth: {
+      status: capabilities.sourceHealth.status,
+      usableDocuments: capabilities.sourceHealth.usableDocuments,
+      baselineSources: ["health", "healthlink-bc", "service-bc"],
+    },
+    cases: [], turns: 0,
+  };
+  if (!liveApproved) return report;
+  let lastSent = 0;
+  const runCase = async (name, check) => {
+    const page = randomUUID();
+    const threadId = randomUUID();
+    let cookie = "";
+    let summary;
+    const before = report.turns;
+    const headers = () => ({
+      "Content-Type": "application/json", Origin: base.origin,
+      "x-bc-conversation-page": page, ...(cookie ? { Cookie: cookie } : {}),
+    });
+    const send = async (text) => {
+      assert.ok(report.turns < 18, "The bounded release check exceeded its 18-turn limit.");
+      await pause(Math.max(0, 8000 - (Date.now() - lastSent)));
+      lastSent = Date.now();
+      report.turns++;
+      const response = await fetchImpl(new URL("/api/agent", base), {
+        method: "POST", redirect: "error", headers: headers(),
+        signal: AbortSignal.timeout(90_000),
+        body: JSON.stringify({
+          threadId, runId: randomUUID(), tools: [], context: [], state: {},
+          messages: [{ id: randomUUID(), role: "user", content: text }],
+          forwardedProps: { bc: { version: 5, mode: "general", conversation: {
+            action: "respond", revision: summary?.revision ?? 0,
+            noticeVersion: "ai-conversation-v1", shareContext: false,
+            ...(summary?.question ? { questionId: summary.question.id } : {}),
+          } } },
+        }),
+      });
+      for (const value of response.headers.getSetCookie()) {
+        if (value.startsWith("bc_pilot_session=")) cookie = value.split(";")[0];
+      }
+      assert.equal(response.status, 200, `The ${name} request failed; no limits will be reset or bypassed.`);
+      const result = decodeReleaseTurn(await response.text(), threadId, summary?.revision ?? 0);
+      summary = result.summary;
+      return result;
+    };
+    try {
+      await check(send);
+      report.cases.push({ name, passed: true, turns: report.turns - before });
+    } finally {
+      if (cookie) {
+        const response = await fetchImpl(new URL("/api/conversation", base), {
+          method: "DELETE", redirect: "error", headers: headers(),
+          signal: AbortSignal.timeout(30_000),
+        });
+        assert.equal(response.status, 204, "The check could not clear its own synthetic conversation.");
+      }
+    }
+  };
+  await runCase("reported renewal and continuation", async (send) => {
+    let result = await send("please help me renew my drivers license");
+    assert.equal(result.summary.question?.factKey, "licence-jurisdiction");
+    result = await send("Yes");
+    assert.equal(result.summary.journeyId, "licence-renewal");
+    assert.equal(result.summary.question, null);
+    assert.equal(result.task.task?.activeStepId, "prepare-identification");
+    assert.ok(result.text.includes("Accepted-ID"), "Renewal preparation needs the specific ID guidance.");
+    const taskId = result.task.task.id;
+    result = await send("are you helping?");
+    assert.equal(result.task.task?.id, taskId);
+    assert.equal(result.task.task.activeStepId, "prepare-identification");
+    assert.equal(result.summary.question, null, "A check-in must not restart issuer intake.");
+    result = await send("I have my ID");
+    assert.equal(result.task.task?.waitingFor, "municipality");
+    assert.ok(result.task.task.reviewedStepIds.includes("prepare-identification"));
+    result = await send("Vancouver");
+    assert.equal(result.task.task?.municipality, "Vancouver");
+    assert.ok(result.text.includes("icbc.com/locators"), "Unavailable snapshot coverage needs ICBC's locator.");
+    result = await send("What else should I bring?");
+    assert.equal(result.task.task?.id, taskId, "A source gap must not discard task progress.");
+    assert.ok(result.text.includes("icbc.com/"), "Missing detail needs a specific official next action.");
+  });
+  for (const item of [
+    { name: "guardianship starter", prompt: "I need to apply for guardianship", goal: "caregiving", answer: "An adult", link: "substitute-decision-making" },
+    { name: "disability starter", prompt: "I need to apply for disability", goal: "disability", answer: "Provincial disability assistance", link: "disability-assistance" },
+    { name: "job-loss starter", prompt: "I just lost my job, what do I do?", goal: "job-loss", answer: "Finding work", link: "workbc.ca" },
+  ]) {
+    await runCase(item.name, async (send) => {
+      let result = await send(item.prompt);
+      assert.equal(result.summary.goal, item.goal);
+      assert.ok(result.summary.question, "The starter needs its essential service-topic question.");
+      result = await send(item.answer);
+      assert.equal(result.summary.question, null);
+      assert.ok(result.text.toLowerCase().includes(item.link.toLowerCase()),
+        "The starter did not provide its reviewed official next action.");
+    });
+  }
+  await runCase("non-B.C. issuer", async (send) => {
+    let result = await send("help me renew my drivers license");
+    assert.equal(result.summary.question?.factKey, "licence-jurisdiction");
+    result = await send("Issued somewhere else");
+    assert.equal(result.summary.journeyId, null);
+    assert.notEqual(result.summary.question?.factKey, "licence-jurisdiction");
+    result = await send("Renew with the original issuer");
+    assert.equal(result.summary.journeyId, null);
+    assert.equal(result.summary.question, null);
+    assert.ok(result.text.includes("original issuer"));
+  });
+  await runCase("previously covered health answer", async (send) => {
+    const result = await send("What is the Health Connect Registry?");
+    assert.ok(result.events.some((event) => event.name === "bc.response"
+      && event.value.kind === "grounded" && event.value.origin === "model"),
+    "The refreshed health control did not return a grounded answer.");
+    assert.ok(result.events.some((event) => event.name === "annotations"
+      && event.value.annotations?.length), "The health answer needs verified citations.");
+  });
+  return report;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const target = process.argv.find((argument) => argument.startsWith("--url="))?.slice(6);
+  try {
+    assert.ok(target, "Select the exact app with --url=https://your-reviewed-app/.");
+    const report = await verifyPilotChat({
+      baseUrl: target, liveApproved: process.argv.includes("--live-approved"),
+    });
+    console.log(JSON.stringify({ passed: true, ...report }, null, 2));
+  } catch (error) {
+    console.error(JSON.stringify({
+      passed: false,
+      error: error instanceof assert.AssertionError
+        ? error.message.split("\n")[0]
+        : "Release verification failed; inspect the selected target, transport, and response contract.",
+    }));
+    process.exitCode = 1;
+  }
+}
