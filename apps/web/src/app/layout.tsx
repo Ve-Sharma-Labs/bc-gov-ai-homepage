@@ -5,6 +5,7 @@ import { AssistantProvider } from "@/components/assistant-provider";
 import { ComposerDock } from "@/components/composer-dock";
 import { MotionProvider } from "@/components/motion-provider";
 import { themeBootstrap } from "@/lib/theme";
+import { siteMetadata } from "./site-metadata";
 import "@bcgov/design-tokens/css-prefixed/variables.css";
 import "./globals.css";
 
@@ -27,16 +28,7 @@ const displaySerif = localFont({
   fallback: ["Georgia", "serif"],
 });
 
-export const metadata: Metadata = {
-  title: { default: "B.C. Service Assistant · Pilot", template: "%s · B.C. Service Assistant" },
-  description: "Find your way through British Columbia services with source-backed preparation plans and honest handoffs. A local service assistant pilot.",
-  robots: { index: false, follow: false },
-  icons: {
-    icon: { url: "/favicon.ico", type: "image/x-icon", sizes: "16x16 32x32 48x48" },
-    shortcut: "/favicon.ico",
-    apple: { url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" },
-  },
-};
+export const metadata: Metadata = siteMetadata;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
