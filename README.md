@@ -185,6 +185,9 @@ turns covering the exact renewal, continuation, non-B.C. branch, four starter
 outcomes, and a cited health answer. It clears its own page sessions and never
 resets usage limits. The protected deployment workflow's `verify` operation
 exposes these same checks; HTTP 200 with a generic refusal is a failed outcome.
+Official handoffs must contain Markdown links to the exact reviewed HTTPS
+destinations; a domain or path mentioned in prose, a link label, or an unrelated
+URL cannot satisfy the check.
 
 ### Grounded conversation candidate (version 6)
 

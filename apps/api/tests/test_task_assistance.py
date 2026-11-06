@@ -1,4 +1,5 @@
 import json
+import re
 import time
 import uuid
 from types import SimpleNamespace
@@ -119,11 +120,11 @@ def test_informational_job_loss_starter_can_give_a_direct_workbc_handoff(task_se
         assert summary["question"] is None
         assert summary["limitation"] == "source-coverage"
         assert not any(item["key"] == "priority" for item in summary["facts"])
-        assert "https://www.workbc.ca/" in text
+        assert re.findall(r"\[WorkBC\]\(([^()\s]+)\)", text) == ["https://www.workbc.ca/"]
         assert "If paying rent is more urgent" in text
         summary, _, text = turn(client, "Finding work", summary)
         assert summary["question"] is None
-        assert "https://www.workbc.ca/" in text
+        assert re.findall(r"\[WorkBC\]\(([^()\s]+)\)", text) == ["https://www.workbc.ca/"]
 
 
 def test_reported_exchange_progresses_to_an_official_handoff(task_settings):

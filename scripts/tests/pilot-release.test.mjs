@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  assertReleaseCapabilities, decodeReleaseTurn, releaseTarget, verifyPilotChat,
+  assertReleaseCapabilities, decodeReleaseTurn, hasOfficialHandoff, releaseTarget, verifyPilotChat,
 } from "../verify-pilot-chat.mjs";
 
 const capabilities = {
@@ -43,6 +43,42 @@ test("the release target never accepts credentials or an insecure remote origin"
     "http://pilot.example", "https://user:secret@pilot.example", "https://pilot.example/chat",
     "https://pilot.example/?token=secret", "file:///tmp/app", "https://pilot.example/#fragment",
   ]) assert.throws(() => releaseTarget(url));
+});
+
+test("official handoffs require the reviewed HTTPS link destination", () => {
+  for (const expected of [
+    "https://www.icbc.com/driver-licensing/getting-licensed/Renew-your-licence-or-ID",
+    "https://www.icbc.com/locators/Pages/default.aspx?type=1&subtype=0",
+    "https://www.workbc.ca/",
+  ]) {
+    const url = new URL(expected);
+    assert.ok(hasOfficialHandoff(`Use [the official service](${expected}).`, expected));
+    assert.ok(hasOfficialHandoff(
+      `Use [the official service](https://${url.hostname.toUpperCase()}:443${url.pathname}${url.search}).`,
+      expected,
+    ));
+    for (const target of [
+      `https://untrusted.example/${url.hostname}${url.pathname}`,
+      `https://${url.hostname}.untrusted.example${url.pathname}`,
+      `https://${url.hostname}@untrusted.example${url.pathname}`,
+      `https://visitor@${url.hostname}${url.pathname}`,
+      `https://untrusted.example/?next=${expected}`,
+      `https://untrusted.example/#${expected}`,
+      `https://${url.hostname}:8443${url.pathname}`,
+      `http://${url.hostname}${url.pathname}`,
+      `//${url.hostname}${url.pathname}`,
+      `https:/${url.hostname}${url.pathname}`,
+      `${expected}/unreviewed`,
+      `${expected}#unreviewed`,
+      `${expected}${url.search ? "&" : "?"}redirect=unreviewed`,
+      "https://[invalid]",
+    ]) {
+      assert.equal(hasOfficialHandoff(`[Official service](${target})`, expected), false, target);
+    }
+    assert.equal(hasOfficialHandoff(`[${expected}](https://untrusted.example/)`, expected), false);
+    assert.equal(hasOfficialHandoff(`![Official service](${expected})`, expected), false);
+    assert.equal(hasOfficialHandoff(`The expected destination is ${expected}`, expected), false);
+  }
 });
 
 const frame = (events) => events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
@@ -152,7 +188,12 @@ test("verification discovers experimental capabilities using the browser's proto
   assert.equal(calls, 1);
 });
 
-for (const directJobLoss of [false, true]) test(`bounded outcomes and cleanup (direct job-loss: ${directJobLoss})`, async () => {
+for (const scenario of [
+  { name: "bounded outcomes and cleanup (direct job-loss: false)", directJobLoss: false },
+  { name: "bounded outcomes and cleanup (direct job-loss: true)", directJobLoss: true },
+  { name: "live verification rejects a spoofed ICBC handoff and still cleans up", spoofedHandoff: true },
+]) test(scenario.name, async () => {
+  const { directJobLoss = false, spoofedHandoff = false } = scenario;
   const states = new Map();
   const calls = [];
   let cleaned = 0;
@@ -185,7 +226,7 @@ for (const directJobLoss of [false, true]) test(`bounded outcomes and cleanup (d
     let goal = prior?.goal ?? "licence-renewal";
     let journeyId = prior?.journeyId ?? null;
     let task = prior?.task ?? null;
-    let answer = "Open https://www.icbc.com/driver-licensing/visit-dl-office/Accepted-ID";
+    let answer = "Open [ICBC's accepted ID](https://www.icbc.com/driver-licensing/visit-dl-office/Accepted-ID)";
     if (text.includes("renew my drivers license")) question = { id: "issuer", factKey: "licence-jurisdiction" };
     if (text === "Yes") {
       journeyId = "licence-renewal";
@@ -194,14 +235,17 @@ for (const directJobLoss of [false, true]) test(`bounded outcomes and cleanup (d
     if (text === "I have my ID") task = { ...task, waitingFor: "municipality", reviewedStepIds: ["prepare-identification"] };
     if (text === "Vancouver") {
       task = { ...task, municipality: "Vancouver" };
-      answer = "Open https://www.icbc.com/locators";
+      answer = "Open [ICBC's locator](https://www.icbc.com/locators/Pages/default.aspx?type=1&subtype=0)";
+    }
+    if (text === "What else should I bring?") {
+      answer = "Open [ICBC's renewal guidance](https://www.icbc.com/driver-licensing/getting-licensed/Renew-your-licence-or-ID)";
     }
     if (text === "Issued somewhere else") question = { id: "route", factKey: null };
     if (text === "Renew with the original issuer") answer = "Use the original issuer.";
     for (const [phrase, selected, response] of [
-      ["guardianship", "caregiving", "substitute-decision-making"],
-      ["disability", "disability", "disability-assistance"],
-      ["lost my job", "job-loss", "workbc.ca"],
+      ["guardianship", "caregiving", "https://www2.gov.bc.ca/gov/content/family-social-supports/seniors/financial-legal-matters/substitute-decision-making"],
+      ["disability", "disability", "https://www2.gov.bc.ca/gov/content/family-social-supports/services-for-people-with-disabilities/disability-assistance"],
+      ["lost my job", "job-loss", "https://www.workbc.ca/"],
     ]) {
       if (text.includes(phrase)) {
         goal = selected;
@@ -209,7 +253,10 @@ for (const directJobLoss of [false, true]) test(`bounded outcomes and cleanup (d
           question = { id: `${goal}-question`, factKey: null };
         }
       }
-      if (goal === selected) answer = `Official fixture link: ${response}`;
+      if (goal === selected) answer = `[Official fixture link](${response})`;
+    }
+    if (spoofedHandoff && text === "What else should I bring?") {
+      answer = "Use [ICBC](https://untrusted.example/icbc.com/renewal).";
     }
     const grounded = text === "What is the Health Connect Registry?";
     const summary = { threadId: input.threadId, revision, shareContext: false, goal, journeyId, question };
@@ -227,9 +274,22 @@ for (const directJobLoss of [false, true]) test(`bounded outcomes and cleanup (d
       "Content-Type": "text/event-stream", "Set-Cookie": "bc_pilot_session=fixture-owner; HttpOnly",
     } });
   };
-  const report = await verifyPilotChat({
+  const verification = verifyPilotChat({
     baseUrl: "https://pilot.example/", liveApproved: true, fetchImpl, pause: async () => {},
   });
+  if (spoofedHandoff) {
+    await assert.rejects(verification, (failure) => {
+      assert.equal(failure.releaseCase, "reported renewal and continuation");
+      assert.equal(failure.releaseTurn, 6);
+      assert.match(failure.message, /Missing detail needs a specific official next action/);
+      return true;
+    });
+    assert.equal(calls.length, 6);
+    assert.equal(cleaned, 1);
+    assert.equal(states.size, 0);
+    return;
+  }
+  const report = await verification;
   assert.equal(report.turns, 16);
   assert.equal(calls.length, 16);
   assert.equal(report.cases.length, 6);

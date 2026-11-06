@@ -7,6 +7,16 @@ const journeyIds = [
   "pharmacare-registration", "primary-care", "service-bc",
 ];
 const genericRefusal = /I don't have current, reviewed source information|gov\/content\/home/;
+const officialHandoffs = {
+  acceptedId: "https://www.icbc.com/driver-licensing/visit-dl-office/Accepted-ID",
+  locator: "https://www.icbc.com/locators/Pages/default.aspx?type=1&subtype=0",
+  renewal: "https://www.icbc.com/driver-licensing/getting-licensed/Renew-your-licence-or-ID",
+  guardianship: "https://www2.gov.bc.ca/gov/content/family-social-supports/seniors/"
+    + "financial-legal-matters/substitute-decision-making",
+  disability: "https://www2.gov.bc.ca/gov/content/family-social-supports/"
+    + "services-for-people-with-disabilities/disability-assistance",
+  workbc: "https://www.workbc.ca/",
+};
 
 export function releaseTarget(value) {
   const url = new URL(value);
@@ -16,6 +26,20 @@ export function releaseTarget(value) {
     url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
   ), "Release checks require HTTPS, or an explicitly selected loopback candidate.");
   return url;
+}
+
+export function hasOfficialHandoff(text, expectedUrl) {
+  const expected = new URL(expectedUrl);
+  const links = text.matchAll(/(?<!!)\[[^[\]\r\n]+\]\((https:\/\/[^()\s]+)\)/gi);
+  return [...links].some(([, target]) => {
+    try {
+      const url = new URL(target);
+      return url.protocol === "https:" && !url.username && !url.password
+        && url.href === expected.href;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function assertReleaseCapabilities(capabilities) {
@@ -155,7 +179,8 @@ export async function verifyPilotChat({
     assert.equal(result.summary.journeyId, "licence-renewal");
     assert.equal(result.summary.question, null);
     assert.equal(result.task.task?.activeStepId, "prepare-identification");
-    assert.ok(result.text.includes("Accepted-ID"), "Renewal preparation needs the specific ID guidance.");
+    assert.ok(hasOfficialHandoff(result.text, officialHandoffs.acceptedId),
+      "Renewal preparation needs the specific ID guidance.");
     const taskId = result.task.task.id;
     result = await send("are you helping?");
     assert.equal(result.task.task?.id, taskId);
@@ -166,27 +191,29 @@ export async function verifyPilotChat({
     assert.ok(result.task.task.reviewedStepIds.includes("prepare-identification"));
     result = await send("Vancouver");
     assert.equal(result.task.task?.municipality, "Vancouver");
-    assert.ok(result.text.includes("icbc.com/locators"), "Unavailable snapshot coverage needs ICBC's locator.");
+    assert.ok(hasOfficialHandoff(result.text, officialHandoffs.locator),
+      "Unavailable snapshot coverage needs ICBC's locator.");
     result = await send("What else should I bring?");
     assert.equal(result.task.task?.id, taskId, "A source gap must not discard task progress.");
-    assert.ok(result.text.includes("icbc.com/"), "Missing detail needs a specific official next action.");
+    assert.ok(hasOfficialHandoff(result.text, officialHandoffs.renewal),
+      "Missing detail needs a specific official next action.");
   });
   for (const item of [
-    { name: "guardianship starter", prompt: "I need to apply for guardianship", goal: "caregiving", answer: "An adult", link: "substitute-decision-making" },
-    { name: "disability starter", prompt: "I need to apply for disability", goal: "disability", answer: "Provincial disability assistance", link: "disability-assistance" },
-    { name: "job-loss starter", prompt: "I just lost my job, what do I do?", goal: "job-loss", answer: "Finding work", link: "workbc.ca" },
+    { name: "guardianship starter", prompt: "I need to apply for guardianship", goal: "caregiving", answer: "An adult", link: officialHandoffs.guardianship },
+    { name: "disability starter", prompt: "I need to apply for disability", goal: "disability", answer: "Provincial disability assistance", link: officialHandoffs.disability },
+    { name: "job-loss starter", prompt: "I just lost my job, what do I do?", goal: "job-loss", answer: "Finding work", link: officialHandoffs.workbc },
   ]) {
     await runCase(item.name, async (send) => {
       let result = await send(item.prompt);
       assert.equal(result.summary.goal, item.goal);
       if (!result.summary.question) {
         assert.equal(item.goal, "job-loss", "The starter needs its essential service-topic question.");
-        assert.ok(result.text.toLowerCase().includes(item.link.toLowerCase()),
+        assert.ok(hasOfficialHandoff(result.text, item.link),
           "A direct job-loss response needs its reviewed WorkBC next action.");
       }
       result = await send(item.answer);
       assert.equal(result.summary.question, null);
-      assert.ok(result.text.toLowerCase().includes(item.link.toLowerCase()),
+      assert.ok(hasOfficialHandoff(result.text, item.link),
         "The starter did not provide its reviewed official next action.");
     });
   }
