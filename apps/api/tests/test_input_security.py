@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
@@ -147,6 +149,35 @@ def test_rate_limiter_ignores_spoofed_forwarded_ip(settings, run_input):
             "/api/agent", json=run_input, headers={"X-Forwarded-For": "203.0.113.20"}
         )
         assert response.status_code == 429 and response.headers["retry-after"] == "60"
+
+
+async def test_http_budget_survives_new_clients_and_recovers_at_window_boundary(
+    settings, monkeypatch
+):
+    now = [1000.0]
+    monkeypatch.setattr("bc_api.security.time", SimpleNamespace(monotonic=lambda: now[0]))
+    assert settings.api_requests_per_minute == 180
+    app = create_app(settings)
+
+    async def request_from(ip, port, cookie=None):
+        async with AsyncClient(
+            transport=ASGITransport(app, client=(ip, port)),
+            base_url="http://testserver",
+        ) as client:
+            headers = {"Cookie": f"{SESSION_COOKIE}={cookie}"} if cookie else {}
+            return await client.get("/api/catalog", headers=headers)
+
+    for _ in range(180):
+        assert (await request_from("127.0.0.1", 40000)).status_code == 200
+    rejected = await request_from("127.0.0.1", 50000, "new-session")
+    assert rejected.status_code == 429
+    assert rejected.json()["error"]["code"] == "RATE_LIMITED"
+    assert rejected.headers["retry-after"] == "60"
+    assert (await request_from("127.0.0.2", 50000)).status_code == 200
+    now[0] += 59
+    assert (await request_from("127.0.0.1", 50000)).status_code == 429
+    now[0] += 1
+    assert (await request_from("127.0.0.1", 50000)).status_code == 200
 
 
 def test_cancel_requires_originating_session(settings, run_input):

@@ -362,6 +362,25 @@ and must not share a real user conversation or Azure model session.
 The discovery flag selects the focused discovery browser suite; the default
 suite exercises the unchanged legacy modes. CI runs both configurations.
 
+Pilot checks runs on both pushes and pull requests, so a branch update can show
+two runs of the same suite. Browser functional tests share a loopback client and
+use a bounded 1,000-request/minute HTTP budget only on their own offline preview.
+The application's default remains 180; dedicated API tests verify rejection,
+client isolation and recovery at that limit. External previews and live grounded
+evaluation do not receive this test override. Browser retries remain disabled.
+Inspect the retained trace's API responses when a missing card or banner is
+reported; a transport error can be the cause rather than a rendering defect.
+
+Context regression tests use an explicit historical clock. To reproduce their
+offline comparison, run `npm run evaluate:context -- --snapshot-date 2026-10-29`.
+The report labels this as `evaluationMode: "snapshot"` and records `evaluatedAt`;
+it is not evidence that sources are current. Without `--snapshot-date`, the
+evaluator uses one current UTC instant for both sides of the comparison and
+returns a nonzero, structured error for expired reviews. Do not extend
+`reviewDue` dates just to make checks pass: current readiness requires genuine
+source re-review. The source watchdog's catalogue-age checks do not yet monitor
+the separate demo-rule review deadlines.
+
 ## Containers and Azure deployment
 
 `docker compose up --build` is an alternative local launch when a Docker engine
