@@ -6,6 +6,7 @@ import hashlib
 import json
 import unittest
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 from bc_ingestion.freshness import (
     FreshnessStore, LIMITS, collect, initial_state, targets, validate_state,
@@ -102,7 +103,10 @@ class FreshnessTests(unittest.TestCase):
         })
         report, network = self.collect(network=network)
         self.assertEqual(self.target(report)["refresh"], "access-or-network-unavailable")
-        self.assertFalse(any("example.com" in url for url, *_ in network.calls))
+        self.assertEqual(
+            {urlsplit(url).hostname for url, *_ in network.calls},
+            {urlsplit(URL).hostname},
+        )
 
     def test_robots_denial_blocks_document(self):
         network = Network(self.clock, robots=b"User-agent: *\nDisallow: /\n")
@@ -135,7 +139,10 @@ class FreshnessTests(unittest.TestCase):
     def test_denied_sources_are_never_requested(self):
         report, network = self.collect()
         self.assertTrue(any("source-access-hold" in row["findings"] for row in report["sources"]))
-        self.assertFalse(any("icbc.com" in url or "workbc.ca" in url for url, *_ in network.calls))
+        self.assertEqual(
+            {urlsplit(url).hostname for url, *_ in network.calls},
+            {urlsplit(URL).hostname},
+        )
 
     def test_malformed_checkpoint_and_provenance_fail_closed(self):
         with self.assertRaises(AcquisitionError):
