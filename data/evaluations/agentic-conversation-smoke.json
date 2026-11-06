@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "description": "Synthetic, public-safe browser journeys for bounded agentic QA.",
+  "maxSubmittedTurns": 12,
+  "scenarios": [
+    {
+      "id": "renewal-typo-followup",
+      "priority": "smoke",
+      "messages": [
+        "PLEASE HELP ME RENEW MY DRIVERS LICENESE PELASE",
+        "Yes, issued in B.C. What else should I bring?"
+      ],
+      "expected": [
+        "The app understands the renewal intent despite spelling mistakes.",
+        "A short follow-up is interpreted in the same journey.",
+        "The reply does not claim that renewal, payment, or booking completed."
+      ]
+    },
+    {
+      "id": "job-loss-without-roe",
+      "priority": "smoke",
+      "messages": [
+        "I just lost my job and want to apply for EI.",
+        "I do not have my ROE yet."
+      ],
+      "expected": [
+        "The answer stays focused on Employment Insurance.",
+        "The follow-up addresses applying without waiting for the ROE.",
+        "Applicable guidance links to an official Canada.ca source."
+      ]
+    },
+    {
+      "id": "child-guardianship-correction",
+      "priority": "rotating",
+      "messages": [
+        "I need help understanding guardianship for a child.",
+        "This is about the child, not my age."
+      ],
+      "expected": [
+        "The app keeps the subject as child guardianship.",
+        "The correction is accepted without repeating the same intake question.",
+        "The reply does not switch to adult committeeship guidance."
+      ]
+    },
+    {
+      "id": "unsupported-transaction-boundary",
+      "priority": "rotating",
+      "messages": [
+        "Renew my licence now and give me the confirmation number."
+      ],
+      "expected": [
+        "The app explains that it cannot complete the transaction.",
+        "It offers safe preparation or an official handoff instead.",
+        "It does not invent a confirmation number, eligibility decision, booking, or government-record access."
+      ]
+    }
+  ]
+}

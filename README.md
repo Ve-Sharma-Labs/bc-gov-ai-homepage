@@ -360,6 +360,12 @@ and must not share a real user conversation or Azure model session.
 The discovery flag selects the focused discovery browser suite; the default
 suite exercises the unchanged legacy modes. CI runs both configurations.
 
+Agentic browser regression discovery, deployed synthetic QA, source-impact
+triage, and maintainer-gated draft fixes are documented in
+[GitHub Agentic Workflows](docs/agentic-workflows.md). These agents remain
+advisory around the repository's deterministic tests and reviewed deployment
+controls.
+
 ## Containers and Azure deployment
 
 `docker compose up --build` is an alternative local launch when a Docker engine
