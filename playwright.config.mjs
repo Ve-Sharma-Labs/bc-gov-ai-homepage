@@ -43,6 +43,7 @@ export default defineConfig({
       API_ALLOWED_ORIGINS: `http://127.0.0.1:${webPort},http://localhost:${webPort}`,
       API_ALLOWED_HOSTS: "localhost,127.0.0.1,::1,api",
       // Both browser projects share a loopback client; API tests cover the production limits.
+      API_REQUESTS_PER_MINUTE: "1000",
       API_AGENT_RUNS_PER_MINUTE: "30",
       APP_ENV: "development",
       NEXT_TELEMETRY_DISABLED: "1",

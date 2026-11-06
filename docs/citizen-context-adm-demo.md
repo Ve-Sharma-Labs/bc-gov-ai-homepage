@@ -195,7 +195,7 @@ deployed contextual release.
 
 | Claim | Automated evidence | Reproducible result |
 |---|---|---|
-| Three anonymous/contextual comparisons and exact measures | [Evaluation manifest](../data/citizen-context-evaluation-cases.json), [read-only evaluator](../scripts/evaluate-context-demo.py), [evaluation test](../apps/api/tests/test_context_evaluation.py) | `npm run evaluate:context`: passed; three cases; zero failures; `remoteModelCalls: 0` |
+| Three anonymous/contextual comparisons and exact measures | [Evaluation manifest](../data/citizen-context-evaluation-cases.json), [read-only evaluator](../scripts/evaluate-context-demo.py), [evaluation test](../apps/api/tests/test_context_evaluation.py) | Reproduce the historical comparison with `npm run evaluate:context -- --snapshot-date 2026-10-29`: three cases; zero failures; `remoteModelCalls: 0`. Snapshot success is not current readiness. |
 | Fixed personas, fixture provenance, and scope contracts | [Persona fixture](../data/demo-personas.json), [persona tests](../apps/api/tests/test_demo_personas.py), [API context tests](../apps/api/tests/test_context_api.py) | Included in 121 passing targeted API tests |
 | Deterministic rules, source versions, and flow boundaries | [Rule fixture](../data/demo-program-rules.json), [rule tests](../apps/api/tests/test_demo_rules.py), [Maya](../apps/api/tests/test_guardianship_flow.py), [Alex](../apps/api/tests/test_context_flow_disability.py), [Sam](../apps/api/tests/test_context_flow_job_loss.py) | Included in 121 passing targeted API tests |
 | Consent, isolation, revocation, audit, no submission route, and overreach blocking | [Runtime tests](../apps/api/tests/test_context_agent_runtime.py), [audit tests](../apps/api/tests/test_context_audit.py), [contract tests](../apps/api/tests/test_context_contracts.py), [evaluation tests](../apps/api/tests/test_context_evaluation.py) | 121 targeted API tests passed |
@@ -270,6 +270,11 @@ The governing rule is:
       `syntheticContextAvailable` is true, and retrieval is ready. This is not
       sufficient by itself; complete one rehearsal run.
 - [ ] Run `npm run evaluate:context` and retain the JSON output.
+      Keep its current-date default for readiness. An explicit `--snapshot-date`
+      is for historical regression comparisons only. Both comparison modes use
+      the same UTC instant, reported as `evaluatedAt`. A source-review expiry
+      must remain a nonzero failure until the source is genuinely re-reviewed;
+      do not substitute a passing snapshot or merely extend approval dates.
 - [ ] Run the targeted API, web, and browser context suites in the intended
       build. Record failures; do not waive them verbally.
 - [ ] Open a fresh browser tab and complete the primary path once.

@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a reproducible application bug for an automatic regression-test and draft-fix attempt.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports may be processed by a coding agent, which can propose a draft PR.
+        Do not include personal information, real citizen conversations, credentials,
+        government records, or private documents. Use fictional examples.
+        Report security vulnerabilities privately rather than in this public form.
+  - type: textarea
+    id: bug-report
+    attributes:
+      label: Bug report
+      description: Describe the application problem using synthetic data.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the page, conversation sequence or local test and relevant feature flags.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true

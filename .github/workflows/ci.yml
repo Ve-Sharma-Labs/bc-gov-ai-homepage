@@ -8,6 +8,24 @@ permissions:
   contents: read
 
 jobs:
+  agentic-workflows:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install the pinned workflow compiler
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-aw --pin v0.89.21
+      - name: Check compiled workflows match their sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh aw compile official-source-watchdog bug-regression-fix --no-check-update
+          git diff --exit-code -- .github/workflows/official-source-watchdog.lock.yml .github/workflows/bug-regression-fix.lock.yml .github/aw/actions-lock.json
   web:
     runs-on: ubuntu-latest
     steps:
