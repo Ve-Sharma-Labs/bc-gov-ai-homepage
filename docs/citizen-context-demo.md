@@ -650,7 +650,7 @@ Example match:
 {
   "programId": "example-program",
   "status": "potential-match",
-  "ruleVersion": "2026-10-28.1",
+  "ruleVersion": "2026-11-05.1",
   "policyEffectiveDate": "2026-10-28",
   "satisfiedConditions": [
     "bc-resident",

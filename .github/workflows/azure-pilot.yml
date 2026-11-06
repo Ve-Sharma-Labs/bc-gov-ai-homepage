@@ -111,6 +111,26 @@ jobs:
       - name: Deploy candidate images
         if: inputs.operation == 'deploy'
         run: azd deploy --no-prompt
+      - name: Record the successful deployment
+        if: inputs.operation == 'deploy'
+        shell: bash
+        run: |
+          jq -n \
+            --arg operation "${{ inputs.operation }}" \
+            --arg repository "${{ github.repository }}" \
+            --arg environment "$AZURE_ENV_NAME" \
+            --arg sha "${{ github.sha }}" \
+            --arg runId "${{ github.run_id }}" \
+            '{version: 1, operation: $operation, repository: $repository, environment: $environment, sha: $sha, runId: $runId}' \
+            > deployment-marker.json
+      - name: Publish the deployment marker
+        if: inputs.operation == 'deploy'
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-marker
+          path: deployment-marker.json
+          if-no-files-found: error
+          retention-days: 7
   verify:
     if: inputs.operation == 'verify'
     runs-on: ubuntu-latest

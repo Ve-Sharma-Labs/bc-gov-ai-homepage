@@ -69,8 +69,8 @@ def rule_matches(facts: list[ContextFact]):
         citizen_answers=[fact for fact in facts if fact.provenance == "citizen-answer"],
         evidence=RuleEvaluationEvidence(
             rule_set_version=rule_set.rule_set_version,
-            policy_effective_date=date(2026, 10, 28),
-            evaluated_at=date(2026, 10, 28),
+            policy_effective_date=date(2026, 11, 5),
+            evaluated_at=date(2026, 11, 5),
             source_versions=reviewed_source_versions(rule_set),
         ),
     )

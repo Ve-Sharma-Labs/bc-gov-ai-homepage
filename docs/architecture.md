@@ -41,6 +41,13 @@ managed identities, a private application origin and a reviewed Search corpus.
 Azure-native hosting does **not** mean every service endpoint is private or that
 Global Standard model processing stays in Canada.
 
+Repository maintenance is separate from the resident request path. The
+[agentic workflows guide and diagrams](agentic-workflows.md#workflow-diagrams)
+describe the official-source freshness watchdog and bug-report-to-draft-fix
+automation, including deterministic checks, agent boundaries and human review.
+These workflows require repository activation; they are not deployed Azure
+services and cannot publish sources, merge fixes or deploy the application.
+
 ## 1. System overview
 
 There are two complementary experiences:

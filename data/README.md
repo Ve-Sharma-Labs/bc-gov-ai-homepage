@@ -1,23 +1,31 @@
 # Curated pilot catalogue
 
 `pilot-catalog.json` is the shared **camelCase schemaVersion 1** contract. It
-contains twelve source registrations, five read-only preparation journeys and
+contains twelve source registrations, seven read-only preparation journeys and
 seven Service BC offices. It is a manually curated dated snapshot, **not a live
 index, complete service directory, generated AI answer or eligibility decision**.
-The UTC `asOf` is October 25, 2026; the checks occurred on October 24 in B.C.
+The UTC catalogue `asOf` is November 6, 2026 (November 5 in B.C.). This reflects
+a navigation-only review renewal of Service BC, housing/tenancy,
+family/social supports and employment/business, not a new acquisition of all
+documents or a recheck of office rows.
 
-`provenance.json` records the fifteen direct-publisher HTML responses, their
+`provenance.json` records the seventeen direct-publisher HTML responses, their
 SHA-256 hashes and check dates, six robots-policy endpoints, handoff verification,
 and the source-to-journey evidence mapping. Dates not explicitly present in
 publisher metadata are null. A stated content-currency date is **not** a
 publisher-modified date or legal effective date.
+Its `catalogueReviews` records the limited renewal and the commit that made it.
+The top-level dates describe the catalogue snapshot; `acquisition.asOf` and
+`acquisition.localReviewDate` retain the historical acquisition snapshot dates.
+Document hashes and check dates, robots evidence, and location coverage remain
+unchanged and must not be interpreted as newly acquired or reviewed content.
 
 ## What was actually checked
 
-- Fifteen public documents returned HTTP 200. Ten robots requests were made
+- Seventeen public documents returned HTTP 200. Ten robots requests were made
   across six hosts, including conservative parser diagnosis/rechecks. No full
   sitemap crawl, PDFs, accounts, forms, registration portals or user uploads were
-  collected. All journey handoff URLs are among those fifteen checked pages.
+  collected. All journey handoff URLs are among those seventeen checked pages.
 - The outdated Service BC seed remains documented in the source inventory. The
   catalogue and parser use the verified replacement URL, not the 404 seed.
 - ICBC delivered useful visible text alongside unresolved dynamic components.
@@ -31,7 +39,7 @@ publisher-modified date or legal effective date.
   was fetched**, and CiviX access/licensing is still pending.
 - Raw extraction quality is intentionally stricter than a reviewed short
   navigation description. Eleven raw pages are quarantined (navigation-region,
-  freshness or dynamic limitations); four are review-required. None is approved
+  freshness or dynamic limitations); six are review-required. None is approved
   for full-text publication. A source marked `available` means the described
   curated guidance is available, not that its entire website has passed ingestion.
 
@@ -109,7 +117,7 @@ rule, application form, eligibility decision, or submission capability.
 ## Synthetic program-screening rules
 
 `demo-program-rules.json` is the separate **schemaVersion 1** deterministic rule
-set for the three synthetic flows. Version `2026-10-28.1` contains ordered
+set for the three synthetic flows. Version `2026-11-05.1` contains ordered
 navigation indicators for caregiving, disability support, job loss, and related
 service discovery. Results are limited to `potential-match`,
 `needs-information`, `already-enrolled`, and `not-indicated`. Every result keeps
@@ -164,15 +172,20 @@ The measures cover deterministic clarification needs, consented context use,
 program artifacts, and preview availability; they do not score generated answer
 quality or claim production eligibility accuracy.
 
-Run the read-only local evaluator from the repository root:
+Run the read-only local evaluator from the repository root, using an explicit
+historical date for regression:
 
 ```powershell
-npm run evaluate:context
+npm run evaluate:context -- --snapshot-date 2026-11-06
 ```
 
 The evaluator reads repository fixtures and rules, creates only in-memory demo
 sessions, makes no network or remote-model calls, writes no files, and returns a
 JSON report with `remoteModelCalls: 0`.
-Both comparison paths use the rules' reviewed fixture date. The report includes
-`fixtureAsOf` and `currentSourceReadinessVerified: false`; it is not a live-source
-currency check. Runtime source and rule checks continue to use the real clock.
+Both comparison paths use the same selected UTC instant. Without
+`--snapshot-date`, that is the current time and expired rule reviews fail with
+a structured, nonzero error. The report includes `evaluationMode`, `evaluatedAt`,
+the rules' reviewed date as `fixtureAsOf`, and
+`currentSourceReadinessVerified: false`. Neither mode queries deployed source
+readiness; a historical pass is not current-source evidence. Runtime source and
+rule checks continue to use the real clock.

@@ -7,6 +7,11 @@ authenticate to a publisher, or create Azure resources on startup.
 `data\pilot-catalog.json` is the application's curated snapshot; this tool does
 not manufacture eligibility results or replace the API.
 
+The [official-source watchdog](../docs/agentic-workflows.md) separately checks
+metadata and permits bounded refreshes only with valid rights and durable
+accounting. `python -m bc_ingestion.freshness` is offline by default; it never
+approves or publishes replacement evidence.
+
 The initial public release published 12 chunks from four approved snapshots:
 Service BC, Health Connect Registry, MSP and Fair PharmaCare. Eleven acquired
 documents remained withheld. This is a limited reviewed publication, not an

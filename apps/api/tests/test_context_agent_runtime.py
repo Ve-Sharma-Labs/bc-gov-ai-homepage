@@ -53,7 +53,7 @@ from bc_api.telemetry import Telemetry
 from bc_api.tools import function_declarations
 
 ORIGIN = "http://localhost:3000"
-NOW = datetime(2026, 10, 29, 5, 0, tzinfo=UTC)
+NOW = datetime(2026, 11, 6, 3, 0, tzinfo=UTC)
 PAGE_TOKEN = "context-runtime-page-00000001"
 HEADERS = {"Origin": ORIGIN, "X-BC-Context-Page": PAGE_TOKEN}
 

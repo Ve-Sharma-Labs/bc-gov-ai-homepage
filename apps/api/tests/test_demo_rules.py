@@ -23,7 +23,7 @@ from bc_api.demo_rules import (
 )
 from bc_api.models import SCREENING_NOTICE, ContextFact, ProgramMatch, ProgramSourceVersion
 
-POLICY_DATE = date(2026, 10, 28)
+POLICY_DATE = date(2026, 11, 5)
 PERSONA_FLOW_CASES = (
     (
         "maya-caregiver",
@@ -146,7 +146,7 @@ def test_rule_dataset_is_versioned_source_pinned_and_navigation_only():
     catalog_source_ids = {source["id"] for source in catalog["sources"]}
 
     assert rule_set.schema_version == 1
-    assert rule_set.rule_set_version == "2026-10-28.1"
+    assert rule_set.rule_set_version == "2026-11-05.1"
     assert rule_set.catalog_as_of == catalog["asOf"]
     assert {rule.flow_id for rule in rule_set.rules} == set(FLOW_ORDER)
     assert all(rule.owner and rule.version and rule.reviewed_at for rule in rule_set.rules)
@@ -180,7 +180,7 @@ def test_all_three_personas_produce_expected_program_matches(
     assert all(type(result) is ProgramMatch for result in results)
     assert all(result.status == "potential-match" for result in results)
     assert all(result.notice == SCREENING_NOTICE for result in results)
-    assert all(result.rule_version == "2026-10-28.1" for result in results)
+    assert all(result.rule_version == "2026-11-05.1" for result in results)
     assert all(
         result.source_ids == [item.source_id for item in result.source_versions]
         for result in results
@@ -241,13 +241,13 @@ def test_policy_and_review_date_boundaries_fail_closed():
     assert engine.evaluate(
         flow_id="guardianship-intake",
         context_facts=facts,
-        evidence=_evidence(evaluated_at=date(2026, 11, 4)),
+        evidence=_evidence(evaluated_at=date(2026, 11, 12)),
     )
     with pytest.raises(DemoRuleEvaluationError) as source_expired:
         engine.evaluate(
             flow_id="guardianship-intake",
             context_facts=facts,
-            evidence=_evidence(evaluated_at=date(2026, 11, 5)),
+            evidence=_evidence(evaluated_at=date(2026, 11, 13)),
         )
     assert source_expired.value.code == "source-version-unavailable"
 

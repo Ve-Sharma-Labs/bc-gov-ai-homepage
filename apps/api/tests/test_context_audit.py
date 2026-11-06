@@ -33,7 +33,7 @@ from bc_api.retrieval import EvidenceLedger
 from bc_api.synthetic_context import ConsentChangeRequest, SyntheticContextService
 
 ORIGIN = "http://localhost:3000"
-NOW = datetime(2026, 10, 29, 7, 0, tzinfo=UTC)
+NOW = datetime(2026, 11, 6, 7, 0, tzinfo=UTC)
 PAGE_TOKEN = "context-audit-page-00000001"
 
 
