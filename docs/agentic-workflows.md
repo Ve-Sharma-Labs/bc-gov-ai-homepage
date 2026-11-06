@@ -5,6 +5,65 @@ source content, approve rights, or run the application's live model evaluations.
 They become active after their compiled workflows reach the default branch and
 the repository's Actions and inference configuration permits them to run.
 
+## Workflow diagrams
+
+These are repository-maintenance flows, not part of a resident's chat request.
+Standard Actions performs deterministic collection; GH-AW agents interpret
+findings or propose fixes. Only separate safe-output jobs can write issues or
+draft PRs, and only after the agent job succeeds.
+
+### Official-source freshness watchdog
+
+```mermaid
+flowchart TD
+    Trigger["Daily schedule or manual dispatch<br/>Default branch only"] --> Collector
+    State[("Latest trusted checkpoint<br/>Cumulative requests, bytes and holds")] --> Collector
+    Metadata["Catalogue and provenance<br/>Public URLs, dates and hashes"] --> Collector
+    Collector["Standard Actions collector<br/>Deterministic metadata checks"] --> Refresh{"Refresh authorized?<br/>Rights, hash, publisher policy,<br/>checkpoint and budgets"}
+    Refresh -->|"Yes"| Fetch["Bounded official-page requests<br/>Robots, DNS, pacing and response limits"]
+    Refresh -->|"No authorization"| Blocked["Metadata-only findings<br/>No publisher requests"]
+    Fetch --> Persist["Persist charged state<br/>Sanitized report without page bodies"]
+    Blocked --> Persist
+    Persist --> Success{"Collection succeeded?"}
+    Success -->|"No"| Stop["Stop downstream processing<br/>State failures block further refreshes"]
+    Success -->|"Yes"| Preflight["Trusted report and issue preflight<br/>Compare current source fingerprints"]
+    Preflight --> Changed{"Findings changed?"}
+    Changed -->|"No"| Noop["No-op before inference"]
+    Changed -->|"Yes"| Agent["Watchdog GH-AW<br/>No publisher-network access"]
+    Agent -->|"Successful agent job"| Output["Safe outputs<br/>Create or update one issue per source"]
+    Output --> Review["Human review<br/>No automatic publication or issue closure"]
+```
+
+Missing rights permit metadata checks, not network acquisition. Invalid rights
+or broken checkpoint continuity fail closed. Private rights and response bodies
+do not enter the agent context; changed response bytes are not proof of a
+semantic policy change.
+
+### Bug report to regression test to fix
+
+```mermaid
+flowchart TD
+    Trigger["New bug report, bug label added<br/>or manual issue-number dispatch"] --> Preflight
+    Preflight["Deterministic eligibility and deduplication<br/>Open issue, non-bot author, no prior repair PR"] --> Eligible{"Eligible?"}
+    Eligible -->|"No"| Noop["No-op before inference"]
+    Eligible -->|"Yes"| Agent["Bug-repair GH-AW<br/>Treat report as untrusted data<br/>Read-only credentials and constrained network"]
+    Agent --> Reproduce["Synthetic regression test<br/>Record assertion failure before fix"]
+    Reproduce --> Fix["Minimal repair in allowed files<br/>Keep regression expectations unchanged"]
+    Fix --> Retest["Run the identical command<br/>Record passing result after fix"]
+    Retest --> Evidence["Trusted post-step checks evidence contract<br/>Issue, base SHA, changed test and exit codes"]
+    Evidence --> Ready{"Valid evidence<br/>and successful agent job?"}
+    Ready -->|"Yes"| Outputs["Safe outputs<br/>One draft PR and issue comment at most"]
+    Ready -->|"No"| Blocked["No fix PR<br/>Blocked comment only if safe-output gates allow"]
+    Outputs --> Human["Maintainer triggers or confirms CI<br/>Reviews regression, fix and evidence"]
+    Human --> Release["Existing reviewed merge and deployment process<br/>Outside these workflows"]
+```
+
+Evidence checks validate the recorded contract, not independent execution of
+the claimed commands. Draft fixes cannot modify protected workflow, deployment,
+rights or other excluded files. Neither workflow merges, deploys or calls the
+application's live models. Default-token-created PRs do not automatically start
+PR CI.
+
 ## Setup
 
 1. Enable GitHub Actions and allow Actions to create pull requests in the
