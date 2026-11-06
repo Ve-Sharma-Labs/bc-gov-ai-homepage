@@ -28,8 +28,8 @@ from bc_api.demo_rules import (
 )
 from bc_api.models import ContextArtifact, ContextFact
 
-NOW = date(2026, 10, 28)
-EXPIRES_AT = "2026-10-28T20:30:00Z"
+NOW = date(2026, 11, 5)
+EXPIRES_AT = "2026-11-05T20:30:00Z"
 
 
 def _alex() -> tuple[list[ContextFact], tuple[str, ...]]:

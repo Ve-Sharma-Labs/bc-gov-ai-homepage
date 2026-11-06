@@ -103,7 +103,7 @@ rule, application form, eligibility decision, or submission capability.
 ## Synthetic program-screening rules
 
 `demo-program-rules.json` is the separate **schemaVersion 1** deterministic rule
-set for the three synthetic flows. Version `2026-10-28.1` contains ordered
+set for the three synthetic flows. Version `2026-11-05.1` contains ordered
 navigation indicators for caregiving, disability support, job loss, and related
 service discovery. Results are limited to `potential-match`,
 `needs-information`, `already-enrolled`, and `not-indicated`. Every result keeps
