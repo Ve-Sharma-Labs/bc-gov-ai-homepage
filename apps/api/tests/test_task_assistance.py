@@ -60,6 +60,12 @@ def control(client, summary, task=None, action="sharing", **fields):
     return response.json(), request
 
 
+async def unavailable_detail(request, context):
+    yield RunStartedEvent(run_id=request.run_id, thread_id=request.thread_id)
+    yield ApplicationReply("Unavailable source detail.", "handoff")
+    yield RunFinishedEvent(run_id=request.run_id, thread_id=request.thread_id)
+
+
 @pytest.mark.parametrize("repeated_city", ["Vancouver", "Victoria"])
 def test_additional_requirements_preserve_progress_and_ignore_only_an_unchanged_city(
     task_settings, repeated_city
@@ -80,11 +86,6 @@ def test_additional_requirements_preserve_progress_and_ignore_only_an_unchanged_
         ],
     )
 
-    async def unavailable_detail(request, context):
-        yield RunStartedEvent(run_id=request.run_id, thread_id=request.thread_id)
-        yield ApplicationReply("Unavailable source detail.", "handoff")
-        yield RunFinishedEvent(run_id=request.run_id, thread_id=request.thread_id)
-
     runtime.events = unavailable_detail
     with client:
         summary, _, _ = turn(client, "please help me renew my drivers license")
@@ -102,6 +103,27 @@ def test_additional_requirements_preserve_progress_and_ignore_only_an_unchanged_
         assert updated["task"]["municipality"] == "Vancouver"
         assert updated["task"]["reviewedStepIds"] == ["prepare-identification"]
         assert "missing requirements" in "".join(event.get("delta", "") for event in events)
+
+
+def test_informational_job_loss_starter_can_give_a_direct_workbc_handoff(task_settings):
+    client, runtime = make_client(
+        task_settings,
+        [
+            proposal("job-loss", intent="information", action="answer", focus="overview"),
+            proposal("job-loss", updates=[fact("priority", "work", "Finding work")]),
+        ],
+    )
+    runtime.events = unavailable_detail
+    with client:
+        summary, _, text = turn(client, "I just lost my job, what do I do?")
+        assert summary["question"] is None
+        assert summary["limitation"] == "source-coverage"
+        assert not any(item["key"] == "priority" for item in summary["facts"])
+        assert "https://www.workbc.ca/" in text
+        assert "If paying rent is more urgent" in text
+        summary, _, text = turn(client, "Finding work", summary)
+        assert summary["question"] is None
+        assert "https://www.workbc.ca/" in text
 
 
 def test_reported_exchange_progresses_to_an_official_handoff(task_settings):

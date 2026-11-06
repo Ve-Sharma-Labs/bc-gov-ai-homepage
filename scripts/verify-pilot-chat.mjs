@@ -179,7 +179,11 @@ export async function verifyPilotChat({
     await runCase(item.name, async (send) => {
       let result = await send(item.prompt);
       assert.equal(result.summary.goal, item.goal);
-      assert.ok(result.summary.question, "The starter needs its essential service-topic question.");
+      if (!result.summary.question) {
+        assert.equal(item.goal, "job-loss", "The starter needs its essential service-topic question.");
+        assert.ok(result.text.toLowerCase().includes(item.link.toLowerCase()),
+          "A direct job-loss response needs its reviewed WorkBC next action.");
+      }
       result = await send(item.answer);
       assert.equal(result.summary.question, null);
       assert.ok(result.text.toLowerCase().includes(item.link.toLowerCase()),

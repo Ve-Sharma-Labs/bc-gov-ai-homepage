@@ -152,7 +152,7 @@ test("verification discovers experimental capabilities using the browser's proto
   assert.equal(calls, 1);
 });
 
-test("the approved probe is bounded, follows pending questions, and clears only its own sessions", async () => {
+for (const directJobLoss of [false, true]) test(`bounded outcomes and cleanup (direct job-loss: ${directJobLoss})`, async () => {
   const states = new Map();
   const calls = [];
   let cleaned = 0;
@@ -205,7 +205,9 @@ test("the approved probe is bounded, follows pending questions, and clears only 
     ]) {
       if (text.includes(phrase)) {
         goal = selected;
-        if (!prior) question = { id: `${goal}-question`, factKey: null };
+        if (!prior && !(directJobLoss && goal === "job-loss")) {
+          question = { id: `${goal}-question`, factKey: null };
+        }
       }
       if (goal === selected) answer = `Official fixture link: ${response}`;
     }
