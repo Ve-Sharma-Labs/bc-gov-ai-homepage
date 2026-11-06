@@ -71,6 +71,12 @@ This file remains explicitly a snapshot if no refresh occurs. Publisher
 permission, complete extraction and accountable content review are required
 before full-text promotion. Robots permission alone is not a licence grant.
 
+The API's periodic Search health check is monitoring, **not scheduled content
+refresh**. It does not update this catalogue, its dates, rules, or source review
+records. A dated preparation guide can remain available while missing or
+expired detailed evidence is withheld. Do not make a release appear healthy by
+advancing snapshot timestamps or increasing the allowed evidence age.
+
 Edit only concise original summaries here; do not paste whole pages. Raw HTML,
 extracted text, version ledgers and dry-run plans live in ignored
 `ingestion\.generated`. No such cache belongs in a commit. The application reads
@@ -166,12 +172,20 @@ The measures cover deterministic clarification needs, consented context use,
 program artifacts, and preview availability; they do not score generated answer
 quality or claim production eligibility accuracy.
 
-Run the read-only local evaluator from the repository root:
+Run the read-only local evaluator from the repository root, using an explicit
+historical date for regression:
 
 ```powershell
-npm run evaluate:context
+npm run evaluate:context -- --snapshot-date 2026-11-06
 ```
 
 The evaluator reads repository fixtures and rules, creates only in-memory demo
 sessions, makes no network or remote-model calls, writes no files, and returns a
 JSON report with `remoteModelCalls: 0`.
+Both comparison paths use the same selected UTC instant. Without
+`--snapshot-date`, that is the current time and expired rule reviews fail with
+a structured, nonzero error. The report includes `evaluationMode`, `evaluatedAt`,
+the rules' reviewed date as `fixtureAsOf`, and
+`currentSourceReadinessVerified: false`. Neither mode queries deployed source
+readiness; a historical pass is not current-source evidence. Runtime source and
+rule checks continue to use the real clock.

@@ -1002,6 +1002,20 @@ ArtifactList = Annotated[
 ]
 
 
+class SourceHealth(WireModel):
+    status: Literal[
+        "unknown", "ready", "expiring", "expired", "empty", "unusable", "unavailable"
+    ] = "unknown"
+    checked_at: IsoDateTime | None = None
+    usable_documents: int = Field(default=0, ge=0)
+    expired_documents: int = Field(default=0, ge=0)
+    rejected_chunks: int = Field(default=0, ge=0)
+    next_expiry_at: IsoDateTime | None = None
+    covered_source_ids: list[Identifier] = Field(default_factory=list, max_length=100)
+    missing_source_ids: list[Identifier] = Field(default_factory=list, max_length=100)
+    error_code: Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]{0,63}$")] | None = None
+
+
 class Capabilities(WireModel):
     mode: Literal["guided", "foundry"]
     ai_configured: bool
@@ -1011,6 +1025,7 @@ class Capabilities(WireModel):
     journeys: dict[JourneyId, bool] = Field(default_factory=dict)
     general_chat_configured: bool = False
     retrieval_ready: bool = False
+    source_health: SourceHealth = Field(default_factory=SourceHealth)
     request_versions: list[Literal[1, 2, 3, 4, 5, 6]] = Field(
         default_factory=lambda: [1, 2, 3],
         min_length=1,

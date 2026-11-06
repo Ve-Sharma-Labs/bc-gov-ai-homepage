@@ -7,6 +7,7 @@ if (!process.argv.includes("--live-approved") || !["127.0.0.1", "localhost"].inc
 }
 
 const cases = [
+  { name: "reported exact renewal", text: "please help me renew my drivers license", goal: "licence-renewal", question: "licence-jurisdiction", reply: "Yes", journey: "licence-renewal" },
   { name: "reported renewal typo", text: "PLEASE HELP ME RENEW MY DRIVERS LICENESE PELASE", goal: "licence-renewal", question: "licence-jurisdiction", reply: "Yes", journey: "licence-renewal" },
   { name: "already supplied issuer", text: "please help me renew my BC driver's licence", goal: "licence-renewal", journey: "licence-renewal", noQuestion: true },
   { name: "road test paraphrase", text: "Can you help me book a drivers test?", goal: "road-test-booking", question: "road-test-kind", reply: "A car", journey: "road-test-booking" },
@@ -31,6 +32,7 @@ const cases = [
 ];
 const failures = [];
 let lastRequestAt = 0;
+let agentTurns = 0;
 const requestedCase = process.argv.find((arg) => arg.startsWith("--case="))?.slice(7);
 const fromCase = process.argv.find((arg) => arg.startsWith("--from="))?.slice(7);
 const startIndex = fromCase ? cases.findIndex((item) => item.name === fromCase) : 0;
@@ -43,9 +45,11 @@ for (const item of selected) {
   const threadId = randomUUID();
   const headers = () => ({ "Content-Type": "application/json", Origin: base.origin, "x-bc-conversation-page": page, ...(cookie ? { Cookie: cookie } : {}) });
   const send = async (text, state = null) => {
+    assert.ok(agentTurns < 100, "The bounded evaluation exceeded its 100-turn limit.");
     // Respect the ordinary local per-client limit; this runner never disables admission controls.
     await new Promise((resolve) => setTimeout(resolve, Math.max(0, 8000 - (Date.now() - lastRequestAt))));
     lastRequestAt = Date.now();
+    agentTurns++;
     const response = await fetch(new URL("/api/agent", base), {
       method: "POST", headers: headers(), signal: AbortSignal.timeout(120_000),
       body: JSON.stringify({

@@ -20,7 +20,11 @@ from bc_api.context_flows import FLOW_OPTIONAL_SCOPES, FLOW_REQUIRED_SCOPES
 from bc_api.context_sessions import InMemoryContextSessionRepository
 from bc_api.context_tools import ContextAgentService
 from bc_api.demo_personas import DemoPersonaRepository
-from bc_api.demo_rules import DemoRuleEvaluationError, default_demo_catalog_path
+from bc_api.demo_rules import (
+    DemoProgramRuleRepository,
+    DemoRuleEvaluationError,
+    default_demo_catalog_path,
+)
 from bc_api.errors import ApiError
 from bc_api.input import validate_run
 from bc_api.main import create_app
@@ -94,6 +98,8 @@ def test_independent_case_file_and_read_only_evaluator_cover_all_three_compariso
     report = json.loads(process.stdout)
     assert report["passed"] is True
     assert report["remoteModelCalls"] == 0
+    assert report["currentSourceReadinessVerified"] is False
+    assert report["fixtureAsOf"] == DemoProgramRuleRepository().get().reviewed_at
     assert report["evaluationMode"] == "snapshot"
     assert report["evaluatedAt"] == "2026-11-06T00:00:00+00:00"
     assert {case["caseId"] for case in report["cases"]} == {
@@ -143,6 +149,7 @@ async def test_snapshot_preserves_source_review_expiry_boundary(evaluator):
     report = await evaluator.evaluate(CASE_PATH, snapshot_date=date(2026, 11, 12))
     assert report["passed"] is True
     assert report["evaluationMode"] == "snapshot"
+    assert report["currentSourceReadinessVerified"] is False
     with pytest.raises(DemoRuleEvaluationError) as expired:
         await evaluator.evaluate(CASE_PATH, snapshot_date=date(2026, 11, 13))
     assert expired.value.code == "source-version-unavailable"
@@ -177,6 +184,8 @@ async def test_default_evaluation_uses_one_current_clock_for_both_modes(evaluato
     assert report["passed"] is True
     assert report["evaluationMode"] == "current"
     assert report["evaluatedAt"] == SNAPSHOT_TIME.isoformat()
+    assert report["fixtureAsOf"] == DemoProgramRuleRepository().get().reviewed_at
+    assert report["currentSourceReadinessVerified"] is False
     assert Clock.calls == 1
     assert observed == [SNAPSHOT_TIME] * 6
 
@@ -372,9 +381,7 @@ async def test_output_gate_blocks_flow_overreach_and_confirmation_numbers(
 def test_route_inventory_has_no_submission_or_confirmation_surface(settings):
     app = create_app(configured(settings))
     routes = {
-        (method, route.path)
-        for route in app.routes
-        for method in getattr(route, "methods", set())
+        (method, route.path) for route in app.routes for method in getattr(route, "methods", set())
     }
     forbidden = ("submit", "apply", "sign", "pay", "confirm")
     assert not [
@@ -389,9 +396,7 @@ def test_personal_identifier_rejection_remains_active_in_contextual_mode(
     run_input,
 ):
     run_input["messages"][-1]["content"] = "My PHN is 123456789. What should I do?"
-    run_input["forwardedProps"] = {
-        "bc": {"version": 3, "mode": "contextual-demo"}
-    }
+    run_input["forwardedProps"] = {"bc": {"version": 3, "mode": "contextual-demo"}}
     with pytest.raises(ApiError) as rejected:
         validate_run(run_input, settings)
     assert rejected.value.code == "PERSONAL_DATA_NOT_SUPPORTED"

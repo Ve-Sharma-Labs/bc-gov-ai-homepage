@@ -57,7 +57,7 @@ using `requirements-dev.lock` and editable source, and ingestion with its `azure
 
 ### Guided plans are not simulated AI
 
-Without a configured Foundry connection, the catalogue, official links, and five
+Without a configured Foundry connection, the catalogue, official links, and seven
 source-backed preparation journeys remain available. They are deterministic,
 dated guidance, not generated model answers. Main chat defaults to general B.C.
 government questions; the seven pathways are optional, visible context. Strict
@@ -138,11 +138,56 @@ negative answer through both licensing routes. The guardianship, disability,
 and job-loss starter cases check public-safe follow-ups and useful official
 handoffs, without borrowing fictional records.
 `--case="reported renewal typo"` runs only the reported regression.
+`--case="reported exact renewal"` checks `please help me renew my drivers license`.
+The local evaluator stops after at most 100 synthetic chat turns; its existing
+explicit model-usage approval and localhost-only restrictions still apply.
 `--from="reported non-BC renewal loop"` runs the five new branch/starter cases.
 The separate browser fixture suite uses `AI_CONVERSATION_ENABLED=true` with
 `npm run test:e2e`; it does not invoke a model.
 Set `TASK_ASSISTANCE_ENABLED=true` to run the text-first task-continuation,
 starter/draft, and non-B.C. browser suite.
+
+### Source readiness and conversation release checks
+
+The deployment templates and protected workflow carry the isolated conversation
+binding, AI-conversation flag, task-assistance flag, and public privacy-review
+flag together. Defaults remain disabled. A successful image deployment is not
+proof that the intended conversation mode was enabled or reviewed.
+
+The web container receives the same public conversation/task flags. Its
+request-time shell provides a protocol hint, not a readiness claim, so an
+immediate Send cannot accidentally choose legacy chat while source checks are
+pending. Sending and Stop remain immediate. Active conversations retain their
+protocol and non-model task controls through capability-discovery failures.
+
+`/api/capabilities` now separates agent connectivity from `sourceHealth` and
+`retrievalReady`. A nonempty Search index is not enough: readiness applies the
+same provenance, content, and freshness validation as answer retrieval. Expired
+evidence cannot be used to generate facts. Reviewed, explicitly dated
+preparation and task-specific official links remain useful when a detail lacks
+current evidence; the conversation must not discard the task or restart intake.
+
+With `API_METRICS_ENABLED=true` and Search configured, each API instance checks
+source health on startup and every five minutes without a resident request,
+embedding, or model call. The bounded check records expiry/coverage metadata,
+not prompts or document bodies. It never refreshes dates or publishes content.
+
+Check a selected candidate/public deployment without invoking a model:
+
+```powershell
+node .\scripts\verify-pilot-chat.mjs --url=https://YOUR-REVIEWED-APP/
+```
+
+The check rejects a legacy-only deployment, unusable/expiring baseline sources,
+missing preparation guides, or accidental activation of the local-only profile.
+After separate model-usage approval, `--live-approved` adds at most 18 synthetic
+turns covering the exact renewal, continuation, non-B.C. branch, four starter
+outcomes, and a cited health answer. It clears its own page sessions and never
+resets usage limits. The protected deployment workflow's `verify` operation
+exposes these same checks; HTTP 200 with a generic refusal is a failed outcome.
+Official handoffs must contain Markdown links to the exact reviewed HTTPS
+destinations; a domain or path mentioned in prose, a link label, or an unrelated
+URL cannot satisfy the check.
 
 ### Grounded conversation candidate (version 6)
 
@@ -224,6 +269,9 @@ document follow-ups request evidence rather than reprinting the ID step; clear
 city typos are normalized; and unavailable licensing-office coverage points to
 the proper ICBC locator. These fixes do not invent missing instructions or
 claim that the four-flow grounding work is complete.
+An informational follow-up also preserves the reviewed preparation step and
+ignores a planner echo of the already-confirmed city; a genuinely new city still
+requires evidence in the current message.
 
 ### Original deterministic discovery (version 4)
 

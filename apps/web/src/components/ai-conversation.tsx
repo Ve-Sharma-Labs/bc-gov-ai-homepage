@@ -14,7 +14,8 @@ export const AI_PROCESSING_NOTICE = "Your messages are processed by AI in Azure.
 
 export function ConversationNotice() {
   const assistant = useAssistant();
-  if (!assistant.capabilities.conversationAvailable || assistant.contextActive || assistant.selectedId) return null;
+  if ((!assistant.capabilities.conversationAvailable && !assistant.state.conversation)
+    || assistant.contextActive || assistant.selectedId) return null;
   return <div className="ai-conversation-notice" id="ai-processing-notice">
     <p>Sharing is optional and applies only to this conversation. Removing details stops future use; it cannot undo earlier AI processing.</p>
     <label>

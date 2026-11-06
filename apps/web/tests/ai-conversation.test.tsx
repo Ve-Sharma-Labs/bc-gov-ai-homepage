@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EventType } from "@ag-ui/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -77,6 +77,25 @@ beforeEach(() => {
 });
 
 describe("AI-led conversation", () => {
+  it("does not downgrade an active conversation when capability discovery becomes unavailable", async () => {
+    const { result } = renderHook(useAssistant, { wrapper: AssistantProvider });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => { await result.current.submit({ prompt: "Renew my licence" }); });
+    act(() => complete(runs[0]));
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      if (url === "/api/catalog") return Response.json(catalogFixture);
+      if (url === "/api/capabilities") throw new TypeError("Synthetic discovery outage");
+      if (init?.method === "DELETE") return new Response(null, { status: 204 });
+      throw new Error("Unexpected fixture request");
+    });
+    await act(async () => { await result.current.load(); });
+    await act(async () => { await result.current.submit({ prompt: "Yes" }); });
+    expect(runs).toHaveLength(2);
+    expect(runs[1].conversationVersion).toBe(5);
+    expect(runs[1].conversation).toMatchObject({ questionId: "issuer-question", revision: 1 });
+    expect(runs[1].messages).toHaveLength(1);
+  });
+
   it("pins the negotiated version until a new page-owned conversation starts", async () => {
     const user = userEvent.setup();
     render(<AssistantProvider><Harness /></AssistantProvider>);

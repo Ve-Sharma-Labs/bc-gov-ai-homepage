@@ -6,6 +6,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from ag_ui.core import BaseEvent, RunAgentInput, RunFinishedEvent, RunStartedEvent
@@ -23,7 +24,6 @@ from agent_framework import (
 from agent_framework_ag_ui import AgentFrameworkAgent
 from agent_framework_foundry import FoundryAgent
 from azure.ai.projects.aio import AIProjectClient
-from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import CredentialUnavailableError
 from azure.identity.aio import AzureCliCredential, ManagedIdentityCredential
 from azure.search.documents.aio import SearchClient
@@ -54,7 +54,7 @@ from bc_api.grounded_quotes import expand_source_quotes, quote_registry
 from bc_api.input import parse_options
 from bc_api.local_evidence import LOCAL_PROGRAMMES, LocalEvidenceProvider
 from bc_api.model_budget import ModelBudget
-from bc_api.models import JOURNEY_IDS, AgentBinding
+from bc_api.models import JOURNEY_IDS, AgentBinding, SourceHealth
 from bc_api.output import CRITICAL, OutputGate, normalize_quote
 from bc_api.protocol import progress_event
 from bc_api.retrieval import AzureRetriever, EvidenceLedger, choose_journey, model_evidence_json
@@ -250,6 +250,9 @@ class FoundryRuntime:
         self.ready_until = 0.0
         self.general_ready_until = 0.0
         self.sources_ready_until = 0.0
+        self.sources_checked_until = 0.0
+        self.source_health = SourceHealth()
+        self._source_error: ApiError | None = None
         self.contextual_ready_until = 0.0
         self.conversation_ready_until = 0.0
         self.grounded_ready_until = 0.0
@@ -356,7 +359,11 @@ class FoundryRuntime:
 
     @property
     def retrieval_available(self) -> bool:
-        return self.settings.search_configured and time.monotonic() < self.sources_ready_until
+        return (
+            self.settings.search_configured
+            and self.source_health.usable_documents > 0
+            and time.monotonic() < self.sources_ready_until
+        )
 
     @property
     def contextual_available(self) -> bool:
@@ -538,35 +545,67 @@ class FoundryRuntime:
 
     async def ensure_sources_ready(self) -> None:
         if not self.settings.search_configured:
+            self.source_health = SourceHealth(
+                status="unavailable",
+                checked_at=datetime.now(UTC).isoformat(),
+                error_code="SOURCES_UNAVAILABLE",
+            )
             raise ApiError(
                 503, "SOURCES_UNAVAILABLE", "Approved source retrieval is not configured."
             )
         async with self._sources_lock:
-            if self.retrieval_available:
+            if time.monotonic() < self.sources_checked_until:
+                if self._source_error is not None:
+                    error = self._source_error
+                    raise ApiError(error.status, error.code, error.message)
                 return
             self._initialize()
             assert self.search is not None
+            self.sources_ready_until = 0.0
+            self._source_error = None
             try:
-                async with asyncio.timeout(self.settings.api_upstream_timeout_seconds):
-                    count = await self.search.get_document_count(logging_enable=False)
-                if count < 1:
-                    raise ApiError(
-                        503, "SOURCES_UNAVAILABLE", "The approved source index is empty."
-                    )
-            except ResourceNotFoundError:
-                raise ApiError(
-                    503, "SOURCES_UNAVAILABLE", "The approved source index has not been published."
-                ) from None
-            except ApiError:
-                raise
-            except Exception as exc:
-                mapped = local_credential_timeout_error(self.settings, exc)
-                if mapped is not None:
-                    raise mapped from None
-                raise ApiError(
-                    503, "SEARCH_UNAVAILABLE", "Official-source retrieval could not be verified."
-                ) from None
-            self.sources_ready_until = time.monotonic() + 60
+                self.source_health = await AzureRetriever(
+                    self.settings, self.catalog, self.search
+                ).inspect_sources()
+            except ApiError as exc:
+                self.source_health = SourceHealth(
+                    status="unavailable",
+                    checked_at=datetime.now(UTC).isoformat(),
+                    error_code=exc.code,
+                )
+                self.sources_checked_until = time.monotonic() + 60
+                error = local_credential_timeout_error(self.settings, exc) or exc
+                self._source_error = ApiError(error.status, error.code, error.message)
+                raise error from None
+            ttl = 60.0
+            if self.source_health.next_expiry_at is not None:
+                ttl = min(
+                    ttl,
+                    max(
+                        0.0,
+                        (
+                            datetime.fromisoformat(self.source_health.next_expiry_at)
+                            - datetime.now(UTC)
+                        ).total_seconds(),
+                    ),
+                )
+            self.sources_checked_until = time.monotonic() + ttl
+            if ttl <= 0:
+                self.source_health = SourceHealth(
+                    status="unavailable",
+                    checked_at=datetime.now(UTC).isoformat(),
+                    error_code="SOURCES_UNAVAILABLE",
+                )
+            if not self.source_health.usable_documents:
+                self._source_error = ApiError(
+                    503,
+                    "SOURCES_UNAVAILABLE",
+                    "No current, approved evidence is usable. Reviewed preparation remains "
+                    "available; factual details need a source review.",
+                )
+                error = self._source_error
+                raise ApiError(error.status, error.code, error.message)
+            self.sources_ready_until = self.sources_checked_until
 
     async def warm(self) -> None:
         checks = [self.ensure_sources_ready()]
@@ -601,6 +640,7 @@ class FoundryRuntime:
             raise ApiError(
                 503, "EMBEDDING_NOT_CONFIGURED", "Hybrid retrieval is not fully configured."
             )
+        await self.ensure_sources_ready()
         async with self._lock:
             bindings = bindings_for(self.settings)
             if time.monotonic() >= self.ready_until:
@@ -608,19 +648,6 @@ class FoundryRuntime:
                 assert self.project is not None and self.search is not None
                 try:
                     async with asyncio.timeout(self.settings.api_upstream_timeout_seconds):
-                        try:
-                            count = await self.search.get_document_count(logging_enable=False)
-                        except ResourceNotFoundError:
-                            raise ApiError(
-                                503,
-                                "SOURCES_UNAVAILABLE",
-                                "The approved source index has not been published.",
-                            ) from None
-                        if count < 1:
-                            raise ApiError(
-                                503, "SOURCES_UNAVAILABLE", "The approved source index is empty."
-                            )
-                        self.sources_ready_until = time.monotonic() + 60
                         versions = await asyncio.gather(
                             *[
                                 self.project.agents.get_version(binding.name, binding.version)
@@ -722,7 +749,6 @@ class FoundryRuntime:
             ),
         )
         context.mark_phase("retrieval_completed")
-        self.sources_ready_until = time.monotonic() + 60
         context.ledger.add(bundle)
         context.search_results[
             (" ".join(search_query.split()).casefold(), plan.authorization.flow_id)
@@ -1094,8 +1120,6 @@ class FoundryRuntime:
             yield RunFinishedEvent(run_id=request.run_id, thread_id=request.thread_id)
             return
         context.mark_phase("retrieval_completed")
-        if local_sources is None:
-            self.sources_ready_until = time.monotonic() + 60
         context.ledger.add(bundle)
         context.search_results[(" ".join(search_query.split()).casefold(), journey_id)] = bundle
         if local_sources is not None:

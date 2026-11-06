@@ -1,10 +1,20 @@
 # BC service assistant architecture
 
-**Status:** Synthetic citizen-context ADM demo deployed and publicly verified October 29, 2026. Anonymous chat remains the default. Private full-corpus acquisition is incomplete and publication remains disabled. Platform inventory checked October 29.
+**Status:** Version-5 conversation repair deployed and publicly verified November 6, 2026. Anonymous access remains the default. The synthetic citizen-context ADM demo remains available. Broader private full-corpus publication remains disabled.
 **Resource group:** `rg-bcassist-xufhsendpx`
 **Subscription:** `ME-MngEnvMCAP744360-sharmave-1`
 **Primary resource region:** Canada Central; Front Door, WAF and private DNS are global resources.
 **Public site:** https://bcassist-xufhsendpx-ddabgxfdera9azbp.b01.azurefd.net/
+
+**Incident observation (November 5, 2026):** The public app advertised request
+versions 1--3. Its 12 Search chunks came from four October 25 checks outside
+the seven-day evidence window. The exact
+renewal request and a previously covered Health Connect Registry question both
+returned application-authored source-gap handoffs. The authorized November 6
+restoration deployed the version-5/task configuration and refreshed the same
+four reviewed documents. Source readiness now validates usable evidence rather
+than merely counting indexed documents. Deployment and acceptance records below
+distinguish the current release from earlier public checks.
 
 This document describes the deployed application and the current repository,
 not the larger target architecture in the [original specification](pilot-specification.md).
@@ -55,7 +65,7 @@ There are two complementary experiences:
 | Chat client | `@ag-ui/client` `HttpAgent` | Same-origin HTTP POST/SSE; the application reducer owns presentation |
 | Web backend-for-frontend | Next.js route proxy and `@azure/identity` | Allowlisted API forwarding, trusted edge context and managed-identity authentication |
 | Application API | FastAPI, Python 3.14, Microsoft Agent Framework | Routing, native agent/tool execution, evidence validation and run lifecycle |
-| AI service | Foundry Agent Service; one general and five pathway prompt agents | Stored instructions, declared tools and a pinned model binding |
+| AI service | Foundry Agent Service; isolated conversation, general and seven pathway prompt agents | Stored instructions, declared tools and pinned model bindings |
 | Model | `bc-fast`: `gpt-5.4-mini`, `2026-03-17`, `GlobalStandard` | Azure-hosted inference; model auto-upgrade is disabled |
 | Grounding | Azure AI Search Basic, `bc-pilot-public` | Approved document chunks; lexical/configured semantic retrieval, not live web search |
 | Shared controls | Azure Managed Redis `Balanced_B0` | Session ownership, atomic limits, leases, cancellation and estimated-cost accounting |
@@ -64,8 +74,10 @@ There are two complementary experiences:
 
 There is no dependency on Vercel hosting, Vercel AI Gateway, CopilotKit Cloud
 or a third-party model gateway. Foundry agents are managed **prompt agents**,
-not additional application containers. A request uses one selected agent,
-not a fan-out to every agent or an extra supervisor.
+not additional application containers. A version-5 turn can use the isolated
+planner for structured routing, then a selected factual agent if reviewed
+evidence is needed. Deterministic answers and task controls need no model.
+Requests do not fan out to every agent.
 
 ## 2. Deployment and trust boundaries
 
@@ -160,6 +172,55 @@ subscription and inherited diagnostics must not be omitted or portrayed as
 application-created workflows. This documentation does not change those settings.
 
 ## 3. Chat, grounding and cancellation
+
+### Source health and release restoration
+
+The version-5 planner/task flags and its distinct pinned binding are now carried
+through the deployment templates and protected workflow, with disabled defaults
+and an actual public privacy-review prerequisite. Intended conversation releases
+must verify live capability negotiation rather than accepting a healthy legacy
+deployment as equivalent.
+
+The web shell reads its two public feature flags at request time, rather than
+baking them into the container build. This lets a cold-page Send select the
+intended version-5 contract immediately while readiness is still being checked.
+The hint does not claim that a model or evidence source is ready; the API still
+enforces activation, privacy, admission, and binding checks. Protocol/task
+selection stays pinned for the page conversation, including after a capability
+request fails, and sharing controls remain non-model operations.
+
+Source readiness uses the same row validator as factual retrieval, including
+publisher/URL provenance, metadata eligibility, content validation, and source
+age. A bounded non-model scan reports usable/expired documents, rejected chunks,
+source coverage, and the next expiry through `sourceHealth`. It scans no more
+than 1,000 active allowed-source chunks; an incomplete or failed scan reports an
+explicit error, not success based on a partial sample. The cache cannot outlive
+the next evidence expiry. Neither a successful query nor pathway readiness can
+overwrite this health assessment with a document-count shortcut.
+
+When metrics and Search are configured, an owned lifespan task checks source
+health on startup and every five minutes, even with no user traffic. It records
+`bc.sources.checked` operational events and `bc.sources.checks`,
+`bc.sources.usable_documents`, and `bc.sources.hours_to_expiry` metrics. Operators
+should investigate zero usable documents, failed checks, or an expiring status;
+missing telemetry is not a healthy check. This task performs no model/embedding
+calls, acquisition, publication, or automatic date updates.
+
+Detailed factual generation still requires current evidence. Version-5
+preparation remains available through the existing catalogue/task coordinator
+when Search lacks the relevant detail. Its handoff preserves task progress and
+names the specific source gap. Legacy driver/drivers/driver's wording also keeps
+the appropriate ICBC renewal links instead of falling back to the government
+homepage.
+Additional-requirements questions preserve reviewed task progress. A planner
+echo of an already-confirmed municipality is a no-op, while a genuinely new
+municipality still needs support in the current message.
+
+`scripts\verify-pilot-chat.mjs` and the protected workflow's `verify` operation
+check this release contract. Explicitly approved live verification additionally
+tests the reported renewal continuation, the non-B.C. route, starter navigation,
+and a genuinely cited health response. A 200 response with a generic refusal is
+a failed outcome.
 
 ### Local grounded conversation (version 6)
 
@@ -299,6 +360,8 @@ Later requests include completed user turns and exact model clarification dialog
 not prior factual model prose. The API derives bounded follow-up retrieval from
 the user turns and retrieves evidence again. This keeps citations/display in
 tab memory while reducing request size, model-token use and WAF exposure.
+These history rules describe legacy versions 1--3; version 5 sends one current
+answer with its server-owned question and revision instead of replaying chat.
 
 ```mermaid
 sequenceDiagram
@@ -360,28 +423,26 @@ sequenceDiagram
     end
 ```
 
-### Current six agents, one controlled execution layer
+### Current agent bindings, one controlled execution layer
 
-The general binding uses version `3`; the five pathway bindings remain on
-version `1`. All use model deployment `bc-fast`.
+The deployed configuration pins the bindings below. All use model deployment
+`bc-fast`; request protocol versions and stored agent versions are distinct.
 
-| Mode / pathway | Foundry agent | Scope |
-|---|---|---|
-| General conversation | `bc-service-general` | Any covered B.C. source area, with query-specific evidence and honest gaps |
-| `licence-renewal` | `bc-service-licence-renewal` | Licence/BCID preparation and official handoffs |
-| `rental-assistance` | `bc-service-rental-assistance` | Reviewed programme guidance and preparation |
-| `health-coverage` | `bc-service-health-coverage` | Distinguish MSP from Fair PharmaCare |
-| `primary-care` | `bc-service-primary-care` | Health Connect Registry navigation |
-| `service-bc` | `bc-service-service-bc` | Curated office capabilities and service navigation |
+| Mode / pathway | Foundry agent | Version | Scope |
+|---|---|---|---|
+| Version-5 planner | `bc-local-2017434d-conversation` | `4` | Isolated structured conversation proposals; not the local version-6 profile |
+| General factual answer | `bc-service-general` | `5` | Covered B.C. source areas, query-specific evidence and honest gaps |
+| `licence-renewal` | `bc-service-licence-renewal` | `3` | Licence/BCID preparation and official handoffs |
+| `rental-assistance` | `bc-service-rental-assistance` | `3` | Reviewed programme guidance and preparation |
+| `health-coverage` | `bc-service-health-coverage` | `2` | MSP preparation |
+| `pharmacare-registration` | `bc-service-pharmacare-registration` | `1` | Fair PharmaCare preparation |
+| `primary-care` | `bc-service-primary-care` | `2` | Health Connect Registry navigation |
+| `road-test-booking` | `bc-service-road-test-booking` | `1` | Road-test preparation and official booking handoff |
+| `service-bc` | `bc-service-service-bc` | `3` | Curated office capabilities and service navigation |
 
-The next grounding release adds `road-test-booking` and
-`pharmacare-registration` pathway bindings and refocuses `health-coverage` on
-MSP preparation. Those bindings are not part of the currently deployed
-six-agent set until their stored definitions and application revision are
-published and verified together. Immutable candidate definitions are prepared:
-general `bc-service-general` version `5`; health coverage version `2`; licence,
-rental-assistance and Service BC version `3`; primary-care version `2`; and the
-new PharmaCare and road-test bindings version `1`.
+The separately scoped synthetic-context demo retains
+`bc-service-contextual-demo:1`. Version 6 and local evidence evaluation remain
+disabled in this public release.
 
 Version-2 requests explicitly select `general` or `pathway`; general chat cannot
 retain a hidden journey. A pathway remains scoped until changed or cleared.
@@ -492,14 +553,23 @@ Discovery does not imply permission to acquire or publish. Human approval
 cannot override a failed source-quality gate, silently approve changed hashes,
 or promote model/Web IQ output into the corpus.
 
-The initial publication contains **12 chunks across four approved snapshots**:
+The initial publication contained 12 chunks. The authorized November 6 refresh
+has **20 active chunks across the same four reviewed documents**:
 
-| Snapshot | Source ID | Current use |
-|---|---|---|
-| Service BC | `service-bc` | Service navigation and official source links |
-| Health Connect Registry | `healthlink-bc` | Primary-care navigation |
-| Medical Services Plan | `health` | MSP administrative guidance |
-| Fair PharmaCare | `health` | Drug-coverage administrative guidance |
+| Snapshot | Source ID | Active chunks | Current use |
+|---|---|---|---|
+| Service BC | `service-bc` | 11 | Service navigation and official source links |
+| Health Connect Registry | `healthlink-bc` | 2 | Primary-care navigation |
+| Medical Services Plan | `health` | 2 | MSP administrative guidance |
+| Fair PharmaCare | `health` | 5 | Drug-coverage administrative guidance |
+
+The exact 12 previous keys are `superseded`, not deleted. The 29-field schema
+expansion preserved existing definitions and semantic/vector configuration.
+Acquisition timestamps remain November 5; the first expiry is
+`2026-11-12T19:48:35Z` under the unchanged seven-day policy. Runtime inspection
+reported four usable documents, zero expired documents and zero rejected active
+chunks. Readiness is a current observation, not permanent freshness or approval
+for an automatic future refresh.
 
 Eleven acquired documents remained withheld in that publication, including
 incomplete ICBC extraction and BC Housing freshness holds. This is not the
@@ -664,7 +734,7 @@ resource identifiers; secret values and connection strings are deliberately abse
 | Child resource or attachment | Role |
 |---|---|
 | Model deployment `bc-fast` | Pinned `gpt-5.4-mini` Global Standard model, capacity 50, `NoAutoUpgrade` |
-| Six pinned prompt-agent bindings | General version 3 and five pathway version-1 definitions; not separate Container Apps |
+| Pinned prompt-agent bindings | Isolated version-5 planner, general factual agent, seven pathways and the separately scoped synthetic demo; not separate Container Apps |
 | Search index `bc-pilot-public` | Twelve indexed chunks from the initial four approved documents |
 | Blob containers `bc-ingestion-candidates`, `bc-ingestion-rights` | Non-public source control state and separately scoped rights evidence |
 | Blob service/container `default/reviewed-content` | Non-public container for optional reviewed JSON staging |
@@ -702,20 +772,50 @@ cancellation, source abstention and control-state finalization. Keep the
 verified image digests, agent registry and corpus record for rollback. Recheck
 live policy-managed settings rather than repeatedly reprovisioning a healthy
 stack to resolve an access or propagation issue.
+Front Door configuration changes propagate asynchronously. `Enabled/Succeeded`
+does not prove immediate public availability; a successful request can still
+precede a delayed `404 CONFIG_NOCACHE` during a close/reopen cycle. Observe the
+closed gate and subsequent public recovery, then run outcome checks. Do not
+repeatedly toggle the endpoint or weaken WAF to accelerate propagation.
 
-The application follow-up is deployed as API revision
-`ca-bcassist-xufhsendpx-api--0000008` and web revision
-`ca-bcassist-xufhsendpx-web--0000006`. Both are ready at 100% traffic, with
-their existing identities and 1--2 replica limits. The API image and its
-general version-5/seven-pathway bindings were updated atomically; the
-four-document corpus was not changed.
+The November 6 repair is deployed as API revision
+`ca-bcassist-xufhsendpx-api--renewal-f7ef408` and web revision
+`ca-bcassist-xufhsendpx-web--renewal-2616376`. Both revisions are ready, with
+their existing user-assigned identities and 1--2 replica limits. The API-only
+follow-up changes only the image and revision suffix; structural comparison
+confirms configuration, identity, tags, environment, resource allocations and
+scale are retained. The four-document source refresh is described above.
 Their immutable image digests are
-`sha256:82b316a6ea26d6c6eb058e22600c53f6d1c2291d38c6c0c8dc6a7d8f66ccceec`
+`sha256:16c9d7b74770c6a3d7ab7a7268101863af389159fa83a1e61e85c4317013f960`
 and
-`sha256:0b87d58a5795ff6e74a12b0f775d290d7ef5b386d34a6109de970cd5bb3c5ac6`.
+`sha256:a0c29628b5756939c1a57eda7424538aa3721d43aad589f5fb8daf6f48a86319`.
 Their remote Linux amd64 layers, runtime configuration and non-root users match
 the tested local images. The API remains on `bc-pilot-public` with metadata
 mode disabled; incomplete v2 candidates remain private.
+
+Private acceptance passed the six-turn renewal continuation, all three other
+starter outcomes, the non-B.C. issuer route and a cited Health Connect Registry
+answer. The job-loss check accepts either its navigation question or the existing
+specific WorkBC handoff, but still requires the typed follow-up to work. It does
+not accept a generic refusal as success. Synthetic sessions were cleared and
+the private execution transport's cooldown was respected. The endpoint was
+reopened at `2026-11-06T06:31:04Z`. Public routing recovered at 06:42 UTC without
+further configuration changes. Two strict nonbillable readiness checks preceded
+the complete 16-turn public run, which passed at `2026-11-06T06:45:40Z`.
+It covered renewal continuation, guardianship, disability, job loss, non-B.C.
+routing and the cited health answer; all six synthetic sessions were cleared.
+
+A separate real-browser replay then confirmed the exact reported request,
+issuer confirmation, ID preparation, Vancouver office guidance and the
+additional-requirements follow-up. Details retained Vancouver and the reviewed
+ID step, with optional personal sharing off. Start over cleared that synthetic
+conversation and returned to the homepage. Final public capabilities advertise
+versions `[1, 2, 3, 5]`, ready conversation/task assistance, four usable reviewed
+documents, zero expired documents and zero rejected active chunks. Missing
+ICBC detail remains an explicit, specific official handoff, not invented facts
+or a return to the government-homepage dead end.
+
+### Earlier public verification
 
 The final public release check passed from `2026-10-28T18:11:39Z` to
 `18:12:00Z`. The first grounded MSP/Fair PharmaCare answer returned HTTP 200,

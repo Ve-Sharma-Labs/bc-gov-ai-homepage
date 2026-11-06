@@ -30,9 +30,9 @@ from bc_api.context_sessions import InMemoryContextSessionRepository
 from bc_api.context_tools import ContextAgentService
 from bc_api.demo_personas import DemoPersonaRepository
 from bc_api.demo_rules import (
-    DemoRuleEvaluationError,
     DemoProgramRuleEngine,
     DemoProgramRuleRepository,
+    DemoRuleEvaluationError,
     RuleEvaluationEvidence,
     default_demo_catalog_path,
     reviewed_source_versions,
@@ -327,6 +327,8 @@ async def evaluate(path: Path, *, snapshot_date: date | None = None) -> dict[str
         "passed": not failures,
         "syntheticOnly": True,
         "remoteModelCalls": 0,
+        "fixtureAsOf": DemoProgramRuleRepository().get().reviewed_at,
+        "currentSourceReadinessVerified": False,
         "evaluationMode": "snapshot" if snapshot_date is not None else "current",
         "evaluatedAt": evaluated_at.isoformat(),
         "measurementBoundary": suite["measurementBoundary"],

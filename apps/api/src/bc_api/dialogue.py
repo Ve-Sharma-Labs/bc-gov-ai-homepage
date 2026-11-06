@@ -24,6 +24,7 @@ MODEL_CLARIFICATIONS = (
     "What would you like to know about that service?",
     "Are you looking for general information, application guidance, or an official contact?",
 )
+DRIVER_LICENCE = r"\bdriver(?:['\u2019]?s)?\s+licen[cs](?:e|ing)\b"
 SOURCE_TOPICS = (
     (
         "bc-content",
@@ -33,7 +34,7 @@ SOURCE_TOPICS = (
     ("service-bc", r"\bservice ?bc\b|\bgovernment office\b"),
     (
         "icbc",
-        r"\bicbc\b|\bdriver(?:'s)?\s+licen[cs](?:e|ing)\b|\bbcid\b|\bvehicle\b|\bcar insurance\b",
+        rf"\bicbc\b|{DRIVER_LICENCE}|\bbcid\b|\bvehicle\b|\bcar insurance\b",
     ),
     ("bc-housing", r"\bbc housing\b|\brental assistance\b|\bsafer\b|\brent subsidy\b"),
     ("housing-tenancy", r"\btenan(?:t|cy)\b|\blandlord\b|\brent(?:al)?\b|\bhousing\b"),
@@ -72,9 +73,7 @@ def dialogue_reply(text: str) -> ApplicationReply | None:
             "Hi! What would you like help figuring out about B.C. government services?"
         )
     if THANKS_ONLY.fullmatch(normalized):
-        return ApplicationReply(
-            "You're welcome. We can take the next step whenever you're ready."
-        )
+        return ApplicationReply("You're welcome. We can take the next step whenever you're ready.")
     if HELP_ONLY.fullmatch(normalized):
         return ApplicationReply(MODEL_CLARIFICATIONS[0])
     return None
@@ -111,6 +110,23 @@ def search_query_for(
 
 
 def source_handoff(query: str, catalog: CatalogRepository) -> ApplicationReply:
+    if re.search(r"\brenew(?:al|ing)?\b", query, re.I) and re.search(
+        rf"{DRIVER_LICENCE}|\bbcid\b", query, re.I
+    ):
+        journey = catalog.journey("licence-renewal")
+        links = [
+            f"[{re.sub(r'[][()<>`!*_\\\\]', '', link.label)}]({link.url})"
+            for link in journey.handoffs[:2]
+        ]
+        return ApplicationReply(
+            "I can help you prepare for renewal. If this is a B.C.-issued licence or BCID, "
+            "start with ICBC's official renewal and identification guidance:\n\n"
+            + "\n\n".join(links)
+            + "\n\nThe pilot's preparation guide is a dated snapshot. I don't have current "
+            "verified evidence for additional requirements, so confirm those with ICBC. "
+            "I cannot renew a licence, book a visit, or take payment here.",
+            "handoff",
+        )
     sources = {source.id: source for source in catalog.get().sources}
     selected = [sources[key] for key in source_topics(query) if key in sources][:2]
     if not selected and "bc-content" in sources:

@@ -1,16 +1,19 @@
 import json
+import re
 import time
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from ag_ui.core import RunFinishedEvent, RunStartedEvent
 from fastapi.testclient import TestClient
 from test_ai_conversation import HEADERS, FixtureRuntime, body, fact, proposal, snapshot, sse
 from test_ai_conversation import ai_settings as ai_settings
 
 from bc_api.catalog import CatalogRepository
 from bc_api.config import default_catalog_path
+from bc_api.dialogue import ApplicationReply
 from bc_api.errors import ApiError
 from bc_api.foundry import FoundryRuntime
 from bc_api.main import create_app
@@ -56,6 +59,72 @@ def control(client, summary, task=None, action="sharing", **fields):
     response = client.post("/api/conversation/control", json=request)
     assert response.status_code == 200, response.text
     return response.json(), request
+
+
+async def unavailable_detail(request, context):
+    yield RunStartedEvent(run_id=request.run_id, thread_id=request.thread_id)
+    yield ApplicationReply("Unavailable source detail.", "handoff")
+    yield RunFinishedEvent(run_id=request.run_id, thread_id=request.thread_id)
+
+
+@pytest.mark.parametrize("repeated_city", ["Vancouver", "Victoria"])
+def test_additional_requirements_preserve_progress_and_ignore_only_an_unchanged_city(
+    task_settings, repeated_city
+):
+    client, runtime = make_client(
+        task_settings,
+        [
+            proposal(),
+            proposal(municipality="Vancouver"),
+            proposal(
+                intent="information",
+                action="answer",
+                focus="documents",
+                taskAction="explain",
+                stepId="prepare-identification",
+                municipality=repeated_city,
+            ),
+        ],
+    )
+
+    runtime.events = unavailable_detail
+    with client:
+        summary, _, _ = turn(client, "please help me renew my drivers license")
+        summary, task, _ = turn(client, "Yes", summary)
+        result, _ = control(client, summary, task, "review", reviewed=True)
+        summary, task, _ = turn(client, "Vancouver", result["summary"])
+        events = sse(client.post("/api/agent", json=body("What else should I bring?", summary)))
+        if repeated_city != "Vancouver":
+            assert events[-1]["code"] == "CONVERSATION_DECISION_INVALID"
+            return
+        final = snapshot(events)
+        updated = next(event["value"] for event in events if event.get("name") == "bc.task")
+        assert final["limitation"] == "source-coverage"
+        assert updated["task"]["activeStepId"] == task["task"]["activeStepId"]
+        assert updated["task"]["municipality"] == "Vancouver"
+        assert updated["task"]["reviewedStepIds"] == ["prepare-identification"]
+        assert "missing requirements" in "".join(event.get("delta", "") for event in events)
+
+
+def test_informational_job_loss_starter_can_give_a_direct_workbc_handoff(task_settings):
+    client, runtime = make_client(
+        task_settings,
+        [
+            proposal("job-loss", intent="information", action="answer", focus="overview"),
+            proposal("job-loss", updates=[fact("priority", "work", "Finding work")]),
+        ],
+    )
+    runtime.events = unavailable_detail
+    with client:
+        summary, _, text = turn(client, "I just lost my job, what do I do?")
+        assert summary["question"] is None
+        assert summary["limitation"] == "source-coverage"
+        assert not any(item["key"] == "priority" for item in summary["facts"])
+        assert re.findall(r"\[WorkBC\]\(([^()\s]+)\)", text) == ["https://www.workbc.ca/"]
+        assert "If paying rent is more urgent" in text
+        summary, _, text = turn(client, "Finding work", summary)
+        assert summary["question"] is None
+        assert re.findall(r"\[WorkBC\]\(([^()\s]+)\)", text) == ["https://www.workbc.ca/"]
 
 
 def test_reported_exchange_progresses_to_an_official_handoff(task_settings):

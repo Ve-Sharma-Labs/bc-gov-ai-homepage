@@ -60,6 +60,16 @@ from bc_api.task_assistance import ConversationControl
 from bc_api.telemetry import Telemetry
 
 
+async def monitor_sources(runtime: FoundryRuntime, telemetry: Telemetry) -> None:
+    while True:
+        try:
+            await runtime.ensure_sources_ready()
+        except ApiError as exc:
+            logging.getLogger("bc_api.operations").warning("Source check failed: %s", exc.code)
+        telemetry.sources(runtime.source_health)
+        await asyncio.sleep(300)
+
+
 def create_app(
     settings: Settings | None = None,
     *,
@@ -140,12 +150,18 @@ def create_app(
             or settings.conversation_agent_configured
             else None
         )
+        source_monitor = (
+            asyncio.create_task(monitor_sources(runtime, telemetry))
+            if settings.api_metrics_enabled and settings.search_configured
+            else None
+        )
         try:
             yield
         finally:
-            if warmup is not None:
-                warmup.cancel()
-                await asyncio.gather(warmup, return_exceptions=True)
+            maintenance = [task for task in (warmup, source_monitor) if task is not None]
+            for task in maintenance:
+                task.cancel()
+            await asyncio.gather(*maintenance, return_exceptions=True)
             for run in runs.runs.values():
                 run.cancellation.set()
             await runtime.close()
@@ -266,7 +282,8 @@ def create_app(
             labels.append("grounded")
             checks.append(runtime.ensure_grounded_ready())
         if (
-            settings.general_agent_configured
+            settings.search_configured
+            or settings.general_agent_configured
             or settings.contextual_agent_configured
             or (grounded_client and settings.grounded_agents_configured)
         ):
@@ -285,15 +302,7 @@ def create_app(
         general_ready = settings.general_agent_configured and not isinstance(
             outcomes.get("general"), ApiError
         )
-        sources_ready = (pathways_ready and not grounded_client) or (
-            (
-                settings.general_agent_configured
-                or settings.contextual_agent_configured
-                or grounded_client
-                and settings.grounded_agents_configured
-            )
-            and not isinstance(outcomes.get("sources"), ApiError)
-        )
+        sources_ready = "sources" in outcomes and not isinstance(outcomes["sources"], ApiError)
         contextual_ready = (
             settings.contextual_agent_configured
             and not isinstance(outcomes.get("contextual"), ApiError)
@@ -315,6 +324,7 @@ def create_app(
             ai_configured=connected,
             general_chat_configured=conversation_ready if grounded_client else general_ready,
             retrieval_ready=sources_ready,
+            source_health=runtime.source_health,
             message=(
                 "Local non-commercial evaluation. Named licensed sources and dated snapshots "
                 "support the starter flows; runtime checks are not human publication approval. "
@@ -324,6 +334,10 @@ def create_app(
                 "Answers require available reviewed evidence. "
                 "Guided pathways and synthetic context remain separately scoped; "
                 "live web research and transactions are disabled."
+                if connected and sources_ready
+                else "AI assistance is connected. Detailed source answers are currently limited; "
+                "reviewed preparation and official next steps remain available. "
+                "Live web research and transactions are disabled."
                 if connected
                 else "Curated guided plans are available. AI answers are not connected. "
                 "Live web research and transactions are disabled."

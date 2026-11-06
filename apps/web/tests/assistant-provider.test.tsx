@@ -301,6 +301,39 @@ describe("assistant tab memory", () => {
     expect(startAgentRunMock).toHaveBeenCalledOnce();
   });
 
+  it.each(["pending", "failed"])("uses the configured conversation when capability discovery is %s", async (discovery) => {
+    const connection = deferred<Response>();
+    vi.stubGlobal("fetch", mockApi().mockResolvedValueOnce(Response.json(catalogFixture)).mockReturnValueOnce(connection.promise));
+    const { result } = renderHook(useAssistant, {
+      wrapper: ({ children }) => <AssistantProvider conversationBootstrap={{ version: 5, taskAssistance: true }}>
+        {children}
+      </AssistantProvider>,
+    });
+    await waitFor(() => expect(result.current.catalog).toEqual(catalogFixture));
+    if (discovery === "failed") {
+      await act(async () => connection.reject(new TypeError("Synthetic discovery outage")));
+    }
+    expect(result.current.loading).toBe(discovery === "pending");
+    expect(result.current.capabilities.conversationAgentReady).not.toBe(true);
+    await act(async () => {
+      result.current.setDraft("please help me renew my drivers license");
+      await result.current.submit();
+    });
+    expect(runs[0].options).toMatchObject({
+      conversationVersion: 5,
+      conversation: { revision: 0, noticeVersion: "ai-conversation-v1", shareContext: false },
+    });
+    expect(result.current.state.expectsTask).toBe(true);
+    act(() => result.current.stop());
+    await act(async () => connection.resolve(Response.json({
+      ...guidedCapabilities, conversationAvailable: true, conversationAgentReady: true,
+      taskAssistanceAvailable: true, requestVersions: [1, 2, 3, 5], retrievalReady: false,
+    })));
+    expect(result.current.state.status).toBe("stopped");
+    expect(result.current.draft).toBe("please help me renew my drivers license");
+    expect(startAgentRunMock).toHaveBeenCalledOnce();
+  });
+
   it("keeps drafts, the selected journey and checks when route children unmount and return", async () => {
     const storage = vi.spyOn(Storage.prototype, "setItem");
     const pushState = vi.spyOn(history, "pushState");

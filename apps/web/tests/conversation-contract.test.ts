@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capabilitiesSchema, responseContextSchema, runOptionsSchema } from "@/lib/contract";
+import { capabilitiesSchema, responseContextSchema, runOptionsSchema, sourceHealthSchema } from "@/lib/contract";
 
 describe("versioned conversation contract", () => {
   it.each([
@@ -42,5 +42,28 @@ describe("versioned conversation contract", () => {
     });
     expect(result.generalChatConfigured).toBeUndefined();
     expect(result.retrievalReady).toBeUndefined();
+    expect(result.sourceHealth).toBeUndefined();
+  });
+
+  it("reports expired evidence separately from agent connectivity", () => {
+    const sourceHealth = {
+      status: "expired", checkedAt: "2026-11-05T00:00:00Z",
+      usableDocuments: 0, expiredDocuments: 4, rejectedChunks: 0, nextExpiryAt: null,
+      coveredSourceIds: [], missingSourceIds: ["health"], errorCode: null,
+    };
+    const result = capabilitiesSchema.parse({
+      mode: "foundry", aiConfigured: true, generalChatConfigured: true,
+      webIqEnabled: false, transactionsEnabled: false, retrievalReady: false,
+      sourceHealth, message: "Reviewed preparation remains available.",
+    });
+    expect(result.aiConfigured).toBe(true);
+    expect(result.retrievalReady).toBe(false);
+    expect(result.sourceHealth).toEqual(sourceHealth);
+    for (const change of [
+      { status: "assumed-current" }, { usableDocuments: -1 }, { expiredDocuments: 1.5 },
+      { nextExpiryAt: "yesterday" }, { errorCode: "Upstream secret payload" },
+    ]) {
+      expect(sourceHealthSchema.safeParse({ ...sourceHealth, ...change }).success).toBe(false);
+    }
   });
 });

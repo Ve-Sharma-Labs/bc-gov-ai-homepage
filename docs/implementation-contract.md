@@ -414,6 +414,22 @@ requires `AI_CONVERSATION_PRIVACY_REVIEWED` before enabling this mode.
 Existing request versions and their disclosure/data-use boundaries remain
 unchanged.
 
+`retrievalReady` is independently determined by currently usable Search
+evidence, not by an index document count or the presence of a pathway agent.
+The optional, backward-compatible `sourceHealth` object reports `status`
+(`unknown`, `ready`, `expiring`, `expired`, `empty`, `unusable`, `unavailable`),
+`checkedAt`, `usableDocuments`, `expiredDocuments`, `rejectedChunks`,
+`nextExpiryAt`, `coveredSourceIds`, `missingSourceIds`, and a nullable bounded
+`errorCode`. Document counts deduplicate chunks by source, document, and version.
+An expiry within one day is `expiring`; the seven-day default eligibility window
+itself is unchanged. Coverage is not a promise that every question can be answered.
+
+Source degradation must not disable the version-5 planner or catalogue
+preparation. It also must not permit stale factual answers. An already-selected
+task retains its progress when a detail requires an official handoff.
+`TASK_ASSISTANCE_ENABLED` requires `AI_CONVERSATION_ENABLED`; production still
+requires the separate actual privacy review and verified isolated binding.
+
 The browser sends exactly one current user message and:
 
 ```json

@@ -83,7 +83,12 @@ class MemoryAzureTransport(AsyncHttpTransport):
         if request.method == "POST":
             body = json.loads(request.body)
             assert "status eq 'active'" in body["filter"]
-            assert body["top"] == 10
+            if body["search"] == "*":
+                assert "top" not in body
+                assert "semanticConfiguration" not in body
+                assert "vectorQueries" not in body
+            else:
+                assert body["top"] == 10
             return MemoryResponse(request, {"value": [self.harness.row]})
         raise AssertionError(f"Unexpected offline Azure route: {request.method}")
 
@@ -486,14 +491,14 @@ async def test_only_proven_pre_model_failures_release_the_processing_reservation
     configured, repository, evidence, run_input, monkeypatch, mode, expected_status, expected_usage
 ):
     harness = NativeHarness(configured, repository, evidence, monkeypatch, mode=mode)
-    if mode != "error":
-        harness.row["status"] = "withdrawn"
     if mode == "embedding-possible":
         harness.runtime.embeddings = SimpleNamespace(close=AsyncMock())
     run = Run(run_input["runId"], run_input["threadId"], "test-owner")
     run.finish = AsyncMock(return_value="failed")
     try:
         await harness.runtime.ensure_ready()
+        if mode != "error":
+            harness.row["status"] = "withdrawn"
         frames = [
             frame
             async for frame in stream_run(

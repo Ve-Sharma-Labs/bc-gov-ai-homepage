@@ -118,6 +118,7 @@ export type AssistantContextValue = AssistantState & AssistantActions;
 
 export interface AssistantProviderProps {
   children: ReactNode;
+  conversationBootstrap?: { version: 5; taskAssistance: boolean };
 }
 
 interface ActiveRun {
@@ -145,9 +146,15 @@ function activeConsent(receipt: ConsentReceipt | null): receipt is ConsentReceip
     && Date.parse(receipt.expiresAt) > Date.now();
 }
 
-export function AssistantProvider({ children }: AssistantProviderProps) {
+export function AssistantProvider({ children, conversationBootstrap }: AssistantProviderProps) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [capabilities, setCapabilities] = useState<Capabilities>(unavailableCapabilities);
+  const [capabilities, setCapabilities] = useState<Capabilities>(() => conversationBootstrap ? {
+    ...unavailableCapabilities,
+    requestVersions: [1, 2, 3, 5],
+    conversationAvailable: true,
+    conversationAgentReady: false,
+    taskAssistanceAvailable: conversationBootstrap.taskAssistance,
+  } : unavailableCapabilities);
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
   const [draft, updateDraft] = useState("");
@@ -175,6 +182,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
   const stateRef = useRef(state);
   const selectedIdRef = useRef<JourneyId | null>(null);
   const capabilitiesRef = useRef(capabilities);
+  const bootstrapCapabilities = useRef(capabilities);
   const personasRef = useRef<DemoPersonaSummary[]>([]);
   const activePersonaRef = useRef<DemoPersonaSummary | null>(null);
   const consentRef = useRef<ConsentReceipt | null>(null);
@@ -187,6 +195,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
   const discoveryStarted = useRef(false);
   const conversationStarted = useRef(false);
   const conversationVersion = useRef<5 | 6 | null>(null);
+  const conversationTaskAssistance = useRef(false);
   const lastConversationAttempt = useRef<{ prompt: string; command: ConversationCommand } | null>(null);
   const lastSubmission = useRef<Parameters<AssistantActions["submit"]>[0]>(undefined);
   const lastDiscoveryAttempt = useRef<{ prompt: string; command: DiscoveryCommand } | null>(null);
@@ -253,6 +262,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     lastDiscoveryAttempt.current = null;
     lastConversationAttempt.current = null;
     conversationVersion.current = null;
+    conversationTaskAssistance.current = false;
     conversationSharingRef.current = false;
     updateConversationSharing(false);
     if (conversationStarted.current) {
@@ -344,7 +354,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     } else {
       setCatalogError("The guided-plan catalogue is temporarily unavailable. Official service links below still work.");
     }
-    const nextCapabilities = connection.status === "fulfilled" ? connection.value : unavailableCapabilities;
+    const nextCapabilities = connection.status === "fulfilled" ? connection.value : bootstrapCapabilities.current;
     capabilitiesRef.current = nextCapabilities;
     setCapabilities(nextCapabilities);
     if (nextCapabilities.aiConfigured) setNotice("");
@@ -622,8 +632,8 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     }
     const journeyId = selectedIdRef.current;
     const mode = contextual ? "contextual-demo" as const : journeyId ? "pathway" as const : "general" as const;
-    const useConversation = mode === "general" && capabilitiesRef.current.conversationAvailable
-      && capabilitiesRef.current.requestVersions?.includes(5);
+    const useConversation = mode === "general" && (conversationVersion.current !== null
+      || (capabilitiesRef.current.conversationAvailable && capabilitiesRef.current.requestVersions?.includes(5)));
     const useDiscovery = !useConversation && mode === "general"
       && capabilitiesRef.current.discoveryAvailable
       && capabilitiesRef.current.requestVersions?.includes(4);
@@ -666,6 +676,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     const history = discovery || conversation ? [] : historyForAgent(stateRef.current.messages, mode);
     if (conversation && conversationVersion.current === null) {
       conversationVersion.current = capabilitiesRef.current.requestVersions?.includes(6) ? 6 : 5;
+      conversationTaskAssistance.current = !!capabilitiesRef.current.taskAssistanceAvailable;
     }
     const scope = mode === "contextual-demo"
       ? { mode }
@@ -686,7 +697,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
       mode,
       ...(discovery ? { discovery: { revision: discovery.revision, threadId: currentThreadId } } : {}),
       ...(conversation ? { conversation: { revision: conversation.revision, threadId: currentThreadId } } : {}),
-      taskAssistance: !!conversation && !!capabilitiesRef.current.taskAssistanceAvailable,
+      taskAssistance: !!conversation && conversationTaskAssistance.current,
       ...(previous.error && previous.prompt === prompt ? { replaceRunId: previous.runId ?? undefined } : {}),
     });
     setNotice("");
@@ -793,7 +804,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
   const setConversationSharing = useCallback(async (value: boolean) => {
     if (isStreaming(stateRef.current) || controlController.current) return;
     const summary = stateRef.current.conversation;
-    if (summary && capabilitiesRef.current.taskAssistanceAvailable) {
+    if (summary && conversationTaskAssistance.current) {
       if (!value) {
         conversationSharingRef.current = false;
         updateConversationSharing(false);
@@ -806,7 +817,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
       conversationSharingRef.current = value;
       updateConversationSharing(value);
     }
-    if (summary && !capabilitiesRef.current.taskAssistanceAvailable) {
+    if (summary && !conversationTaskAssistance.current) {
       await submit({
         prompt: value ? "Use the optional details I choose to share." : "Stop using my personal context.",
         conversationAction: "sharing", shareContext: value,
@@ -818,7 +829,7 @@ export function AssistantProvider({ children }: AssistantProviderProps) {
     if (isStreaming(stateRef.current)) return false;
     const expectedThread = threadId.current;
     try {
-      const withTask = !!capabilitiesRef.current.taskAssistanceAvailable;
+      const withTask = conversationTaskAssistance.current;
       const controlSnapshot = withTask ? await getConversationTask() : undefined;
       const summary = withTask ? controlSnapshot?.summary ?? null : await getConversationSummary();
       if (!mounted.current || threadId.current !== expectedThread) return false;

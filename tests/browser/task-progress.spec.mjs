@@ -1,6 +1,43 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
+test("the configured conversation handles an immediate Send before capabilities arrive", async ({ page }) => {
+  const requests = [];
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  await page.route("**/api/capabilities", async (route) => {
+    await pending;
+    await route.fulfill({ json: {
+      mode: "foundry", aiConfigured: true, generalChatConfigured: true, retrievalReady: false,
+      conversationAvailable: true, conversationAgentReady: true, taskAssistanceAvailable: true,
+      requestVersions: [1, 2, 3, 5], webIqEnabled: false, transactionsEnabled: false,
+      syntheticContextAvailable: false, message: "Delayed capability fixture; no model is called.",
+    } });
+  });
+  await page.route("**/api/agent", (route) => {
+    requests.push(route.request().postDataJSON());
+    return route.fulfill({ status: 503, json: {
+      error: { code: "CONVERSATION_AGENT_NOT_CONFIGURED", message: "Synthetic transport fixture." },
+    } });
+  });
+  try {
+    await page.goto("/chat");
+    const composer = page.getByRole("textbox", { name: "What would you like help with?" });
+    await composer.fill("please help me renew my drivers license");
+    await page.getByRole("button", { name: "Send question", exact: true }).click();
+    await expect.poll(() => requests.length).toBe(1);
+    expect(requests[0].forwardedProps.bc.version).toBe(5);
+    expect(requests[0].forwardedProps.bc.conversation).toMatchObject({
+      revision: 0, noticeVersion: "ai-conversation-v1", shareContext: false,
+    });
+    await expect(composer).toHaveValue("please help me renew my drivers license");
+  } finally {
+    release();
+  }
+  await expect(page.getByRole("button", { name: "Stop answer" })).toHaveCount(0);
+  expect(requests).toHaveLength(1);
+});
+
 test("processing and evaluation notices stay in optional Details", async ({ page }, testInfo) => {
   const processing = "Your messages are processed by AI in Azure. No ID numbers, credentials, documents, or medical histories.";
   await page.route("**/api/capabilities", (route) => route.fulfill({ json: {
@@ -208,7 +245,8 @@ test("version-six negotiation and official EI link rendering are explicit fixtur
     await expect(page.getByRole("region", { name: "Conversation details" })).toHaveCount(0);
   });
 
-test("renewal advances without guide loops or fabricated preference messages", async ({ page }, testInfo) => {
+for (const retrievalReady of [true, false]) {
+test(`renewal advances without guide loops (${retrievalReady ? "current" : "expired"} sources)`, async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const catalog = await (await page.request.get("/api/catalog")).json();
   const journey = catalog.journeys.find((item) => item.id === "licence-renewal");
@@ -225,7 +263,7 @@ test("renewal advances without guide loops or fabricated preference messages", a
       : "Check one primary and one secondary piece of accepted ID using ICBC's official list.",
   });
   await page.route("**/api/capabilities", (route) => route.fulfill({ json: {
-    mode: "foundry", aiConfigured: true, generalChatConfigured: true, retrievalReady: true,
+    mode: "foundry", aiConfigured: true, generalChatConfigured: true, retrievalReady,
     conversationAvailable: true, conversationAgentReady: true, taskAssistanceAvailable: true,
     requestVersions: [1, 2, 3, 5], webIqEnabled: false, transactionsEnabled: false,
     syntheticContextAvailable: false, message: "Explicit UI fixture; no model is called.",
@@ -298,7 +336,8 @@ test("renewal advances without guide loops or fabricated preference messages", a
   await page.goto("/chat");
   await expect(page.getByRole("button", { name: "Details", exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /Use personal details/ })).toHaveCount(0);
-  await send("please help me renew my drivers license please");
+  await send("please help me renew my drivers license");
+  expect(requests[0].forwardedProps.bc.version).toBe(5);
   await expect(page.getByRole("button", { name: "Yes, issued in B.C." })).toHaveCount(0);
   await send("Yes, issued in B.C.");
   await expect(page.locator(".message-assistant").last()).toContainText("primary and one secondary");
@@ -336,3 +375,4 @@ test("renewal advances without guide loops or fabricated preference messages", a
     await page.screenshot({ path: testInfo.outputPath(`task-progress-${theme}.png`), fullPage: true });
   }
 });
+}

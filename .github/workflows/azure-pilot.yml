@@ -5,9 +5,16 @@ on:
     inputs:
       operation:
         type: choice
-        options: [provision, deploy]
+        options: [provision, deploy, verify]
         required: true
         description: Reviewed operation; public exposure is separately gated
+      public_url:
+        type: string
+        description: Exact reviewed app origin for verification
+      live_checks:
+        type: boolean
+        default: false
+        description: Run up to 18 synthetic chat turns with existing model limits
 
 permissions:
   contents: read
@@ -19,6 +26,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: inputs.operation != 'verify'
     runs-on: ubuntu-latest
     environment: pilot
     env:
@@ -33,6 +41,10 @@ jobs:
       FOUNDRY_AGENTS: ${{ vars.FOUNDRY_AGENTS }}
       FOUNDRY_GENERAL_AGENT: ${{ vars.FOUNDRY_GENERAL_AGENT }}
       FOUNDRY_CONTEXTUAL_AGENT: ${{ vars.FOUNDRY_CONTEXTUAL_AGENT }}
+      FOUNDRY_CONVERSATION_AGENT: ${{ vars.FOUNDRY_CONVERSATION_AGENT }}
+      AI_CONVERSATION_ENABLED: ${{ vars.AI_CONVERSATION_ENABLED }}
+      TASK_ASSISTANCE_ENABLED: ${{ vars.TASK_ASSISTANCE_ENABLED }}
+      AI_CONVERSATION_PRIVACY_REVIEWED: ${{ vars.AI_CONVERSATION_PRIVACY_REVIEWED }}
       SYNTHETIC_CONTEXT_ENABLED: ${{ vars.SYNTHETIC_CONTEXT_ENABLED }}
       AZURE_SYNTHETIC_CONTEXT_APPROVED: ${{ vars.AZURE_SYNTHETIC_CONTEXT_APPROVED }}
       AZURE_SEARCH_SKU: ${{ vars.AZURE_SEARCH_SKU }}
@@ -74,7 +86,7 @@ jobs:
       - name: Load the reviewed environment
         run: |
           azd env new "$AZURE_ENV_NAME" --no-prompt
-          for key in AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_MODEL_DEPLOYMENTS FOUNDRY_AGENTS FOUNDRY_GENERAL_AGENT FOUNDRY_CONTEXTUAL_AGENT SYNTHETIC_CONTEXT_ENABLED AZURE_SEARCH_INDEX AZURE_SEARCH_METADATA_ENABLED AZURE_SEARCH_METADATA_REVIEWED AZURE_SEARCH_SKU AZURE_REDIS_SKU AZURE_API_APPLICATION_CLIENT_ID AZURE_API_IMAGE_NAME AZURE_WEB_IMAGE_NAME AZURE_PILOT_CONTROLS AZURE_NETWORK_PREFIX AZURE_APPS_SUBNET_PREFIX AZURE_PRIVATE_SUBNET_PREFIX AZURE_DEPLOYMENT_STAGE AZURE_VALIDATION_CIDRS AZURE_OPENAI_EMBEDDING_DEPLOYMENT AZURE_OPENAI_EMBEDDING_DIMENSIONS; do
+          for key in AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_MODEL_DEPLOYMENTS FOUNDRY_AGENTS FOUNDRY_GENERAL_AGENT FOUNDRY_CONTEXTUAL_AGENT FOUNDRY_CONVERSATION_AGENT AI_CONVERSATION_ENABLED TASK_ASSISTANCE_ENABLED AI_CONVERSATION_PRIVACY_REVIEWED SYNTHETIC_CONTEXT_ENABLED AZURE_SEARCH_INDEX AZURE_SEARCH_METADATA_ENABLED AZURE_SEARCH_METADATA_REVIEWED AZURE_SEARCH_SKU AZURE_REDIS_SKU AZURE_API_APPLICATION_CLIENT_ID AZURE_API_IMAGE_NAME AZURE_WEB_IMAGE_NAME AZURE_PILOT_CONTROLS AZURE_NETWORK_PREFIX AZURE_APPS_SUBNET_PREFIX AZURE_PRIVATE_SUBNET_PREFIX AZURE_DEPLOYMENT_STAGE AZURE_VALIDATION_CIDRS AZURE_OPENAI_EMBEDDING_DEPLOYMENT AZURE_OPENAI_EMBEDDING_DIMENSIONS; do
             if [ -n "${!key}" ]; then azd env set "$key" "${!key}"; fi
           done
       - name: Provision the reviewed candidate
@@ -119,3 +131,29 @@ jobs:
           path: deployment-marker.json
           if-no-files-found: error
           retention-days: 7
+  verify:
+    if: inputs.operation == 'verify'
+    runs-on: ubuntu-latest
+    environment: pilot
+    permissions:
+      contents: read
+    env:
+      PILOT_BASE_URL: ${{ inputs.public_url }}
+      LIVE_CHECKS: ${{ inputs.live_checks }}
+      AZURE_LIVE_EVALUATION_APPROVED: ${{ vars.AZURE_LIVE_EVALUATION_APPROVED }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verify the deployed conversation rather than HTTP success alone
+        run: |
+          args=("--url=$PILOT_BASE_URL")
+          if [ "$LIVE_CHECKS" = "true" ]; then
+            if [ "$AZURE_LIVE_EVALUATION_APPROVED" != "1" ]; then
+              echo "Explicit live-evaluation approval is required; no model calls were made."
+              exit 1
+            fi
+            args+=("--live-approved")
+          fi
+          node scripts/verify-pilot-chat.mjs "${args[@]}"

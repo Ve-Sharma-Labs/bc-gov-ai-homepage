@@ -148,7 +148,7 @@ async def test_general_readiness_is_separate_from_source_readiness(configured, r
         ),
     )
     project = SimpleNamespace(agents=SimpleNamespace(get_version=AsyncMock(return_value=version)))
-    search = SimpleNamespace(get_document_count=AsyncMock(side_effect=ResourceNotFoundError()))
+    search = SimpleNamespace(search=AsyncMock(side_effect=ResourceNotFoundError()))
     runtime = FoundryRuntime(settings, repository, project=project, search=search)
     await runtime.ensure_general_ready()
     await runtime.ensure_general_ready()

@@ -5,7 +5,9 @@ from unittest.mock import AsyncMock
 import pytest
 from ag_ui.core import RunAgentInput
 
-from bc_api.dialogue import search_query_for, source_topics
+from bc_api.catalog import CatalogRepository
+from bc_api.config import default_catalog_path
+from bc_api.dialogue import search_query_for, source_handoff, source_topics
 from bc_api.errors import ApiError
 from bc_api.retrieval import AzureRetriever
 
@@ -55,6 +57,31 @@ def test_generic_licences_and_actions_are_not_forced_into_driver_or_legal_topics
     assert "icbc" not in source_topics("Where can I get a fishing licence?")
     assert "bc-laws" not in source_topics("Can an agent act for me?")
     assert {"icbc", "service-bc"} <= set(source_topics("Where is an ICBC licensing office?"))
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "please help me renew my drivers license",
+        "Help me renew my driver's licence",
+        "Renew my driver\u2019s license",
+        "I need to renew my driver licence",
+    ],
+)
+def test_reported_renewal_wording_keeps_the_specific_official_next_step(query):
+    assert "icbc" in source_topics(query)
+    reply = source_handoff(query, CatalogRepository(default_catalog_path()))
+    assert "Renew-your-licence-or-ID" in reply.text
+    assert "gov/content/home" not in reply.text
+    assert "cannot renew" in reply.text.lower()
+
+
+@pytest.mark.parametrize(
+    "query", ["Renew my business licence", "Renew my fishing licence", "Help with BCeID"]
+)
+def test_unrelated_licences_never_get_an_icbc_renewal_handoff(query):
+    reply = source_handoff(query, CatalogRepository(default_catalog_path()))
+    assert "Renew-your-licence-or-ID" not in reply.text
 
 
 def test_a_new_unclassified_topic_does_not_inherit_prior_context(repository, run_input):

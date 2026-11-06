@@ -87,6 +87,35 @@ export function deploymentBlockers(env) {
   }
   const stage = env.AZURE_DEPLOYMENT_STAGE || "closed";
   if (!["closed", "validation", "public"].includes(stage)) blockers.push("Choose closed, validation or public deployment stage.");
+  for (const key of ["AI_CONVERSATION_ENABLED", "TASK_ASSISTANCE_ENABLED", "AI_CONVERSATION_PRIVACY_REVIEWED"]) {
+    if (!["", "true", "false"].includes(env[key] || "")) {
+      blockers.push(`${key} must be explicitly true or false.`);
+    }
+  }
+  if (env.TASK_ASSISTANCE_ENABLED === "true" && env.AI_CONVERSATION_ENABLED !== "true") {
+    blockers.push("TASK_ASSISTANCE_ENABLED requires AI_CONVERSATION_ENABLED=true in the same API revision.");
+  }
+  if (env.AI_CONVERSATION_ENABLED === "true") {
+    if (env.AI_CONVERSATION_PRIVACY_REVIEWED !== "true") {
+      blockers.push("Public AI conversation requires an actual privacy review and AI_CONVERSATION_PRIVACY_REVIEWED=true.");
+    }
+    const conversation = jsonValue(env, "FOUNDRY_CONVERSATION_AGENT", blockers);
+    const agents = env.FOUNDRY_AGENTS ? jsonValue(env, "FOUNDRY_AGENTS", blockers) : [];
+    const reservedNames = new Set([
+      ...(Array.isArray(agents) ? agents.map((agent) => agent?.name) : []),
+      ...["FOUNDRY_GENERAL_AGENT", "FOUNDRY_CONTEXTUAL_AGENT"].map(
+        (key) => env[key] ? jsonValue(env, key, blockers)?.name : null,
+      ),
+    ].filter(Boolean));
+    if (!conversation || typeof conversation !== "object" || Array.isArray(conversation) ||
+        Object.keys(conversation).some((key) => !["name", "version", "modelDeployment", "journeyId"].includes(key)) ||
+        ["name", "version", "modelDeployment"].some((key) => typeof conversation[key] !== "string" || !conversation[key].trim()) ||
+        conversation.journeyId != null || !/^[1-9]\d*$/.test(conversation.version) ||
+        !Array.isArray(models) || !models.some((model) => model?.deploymentName === conversation.modelDeployment) ||
+        reservedNames.has(conversation.name)) {
+      blockers.push("AI conversation requires a distinct published FOUNDRY_CONVERSATION_AGENT with a pinned version, reviewed model and no journey scope.");
+    }
+  }
   const syntheticContextEnabled = env.SYNTHETIC_CONTEXT_ENABLED || "false";
   if (!["false", "true"].includes(syntheticContextEnabled)) {
     blockers.push("SYNTHETIC_CONTEXT_ENABLED must be explicitly true or false.");

@@ -22,6 +22,11 @@ export function AssistantApp() {
     ? capabilities.journeys?.[selectedId] ?? capabilities.aiConfigured
     : capabilities.conversationAvailable ? capabilities.conversationAgentReady
       : capabilities.generalChatConfigured ?? capabilities.aiConfigured;
+  const connectionStatus = !aiConfigured
+    ? "Guided plans available · AI answers not connected"
+    : capabilities.retrievalReady === false
+      ? "Reviewed preparation available · Detailed source answers limited"
+      : "AI answers configured";
   useEffect(() => {
     if (workspace) headingRef.current?.focus({ preventScroll: true });
   }, [workspace, selectedId]);
@@ -37,7 +42,7 @@ export function AssistantApp() {
   return <>
     {!workspace ? <>
       <HeroExperience />
-      <p className="connection-status">{loading ? "Checking available services..." : aiConfigured ? "AI answers configured" : "Guided plans available · AI answers not connected"}<Link href="/about#how-it-works">About this pilot</Link></p>
+      <p className="connection-status">{loading ? "Checking available services..." : connectionStatus}<Link href="/about#how-it-works">About this pilot</Link></p>
       {!!state.messages.length && <p className="connection-status"><Link href="/chat">Return to your conversation <ArrowRight size={16} aria-hidden="true" /></Link></p>}
       <HowItWorksInvitation />
       {journeys}
@@ -52,7 +57,7 @@ export function AssistantApp() {
         {selected && <TaskPanel journey={selected} sources={selectedSources} checked={checked} onCheck={(key, value) => setChecked((previous) => { const next = new Set(previous); if (value) next.add(key); else next.delete(key); return next; })} />}
         <div className="workspace-followup">
           {selected?.id === "service-bc" && catalog && <LocationFinder catalog={catalog} />}
-          <div className="workspace-composer"><div className="composer-anchor" data-composer-anchor /><p className="connection-status">{aiConfigured ? "AI answers configured" : "Guided plans available · AI answers not connected"}</p></div>
+          <div className="workspace-composer"><div className="composer-anchor" data-composer-anchor /><p className="connection-status">{connectionStatus}</p></div>
         </div>
         {selected && <section className="evidence-section" aria-labelledby="evidence-heading"><h2 id="evidence-heading">The information behind your plan.</h2><p>Open the sources. Check the details. Know your next step.</p><p className="snapshot-note">Curated snapshot · {formatDate(catalog!.asOf)}</p><div className="source-list">{selectedSources.map((source, index) => <SourceCard key={source.id} source={source} prefix="guide-source-" index={index} />)}</div></section>}
       </div>

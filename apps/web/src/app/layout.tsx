@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import localFont from "next/font/local";
 import { Footer, Header } from "@/components/chrome";
-import { AssistantProvider } from "@/components/assistant-provider";
+import { AssistantProvider, type AssistantProviderProps } from "@/components/assistant-provider";
 import { ComposerDock } from "@/components/composer-dock";
 import { MotionProvider } from "@/components/motion-provider";
 import { themeBootstrap } from "@/lib/theme";
@@ -30,13 +31,20 @@ const displaySerif = localFont({
 
 export const metadata: Metadata = siteMetadata;
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  await connection();
+  const conversationBootstrap: AssistantProviderProps["conversationBootstrap"] =
+    process.env.AI_CONVERSATION_ENABLED === "true"
+      && process.env.GROUNDED_CONVERSATION_ENABLED !== "true"
+      && process.env.LOCAL_EVIDENCE_EVALUATION_ENABLED !== "true"
+      ? { version: 5, taskAssistance: process.env.TASK_ASSISTANCE_ENABLED === "true" }
+      : undefined;
   return (
     <html lang="en-CA" className={`${bcSans.variable} ${displaySerif.variable}`} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: themeBootstrap }} /></head>
       <body>
         <a className="skip-link" href="#main-content">Skip to main content</a>
-        <MotionProvider><AssistantProvider>
+        <MotionProvider><AssistantProvider conversationBootstrap={conversationBootstrap}>
           <Header />
           <main id="main-content">{children}</main>
           <Footer />
