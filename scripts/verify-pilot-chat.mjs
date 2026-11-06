@@ -41,7 +41,10 @@ export function decodeReleaseTurn(raw, threadId, previousRevision) {
   const events = raw.split(/\r?\n/).filter((line) => line.startsWith("data: "))
     .map((line) => JSON.parse(line.slice(6)));
   assert.equal(events[0]?.type, "RUN_STARTED", "The response did not start an agent run.");
-  assert.ok(!events.some((event) => event.type === "RUN_ERROR"), "The conversation returned a run error.");
+  const failure = events.find((event) => event.type === "RUN_ERROR");
+  const code = typeof failure?.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(failure.code)
+    ? failure.code : "UNKNOWN";
+  assert.ok(!failure, `The conversation returned a run error (${code}).`);
   assert.equal(events.at(-1)?.type, "RUN_FINISHED", "The run did not finish normally.");
   const text = events.filter((event) => event.type === "TEXT_MESSAGE_CONTENT")
     .map((event) => event.delta).join("");
@@ -129,6 +132,12 @@ export async function verifyPilotChat({
     try {
       await check(send);
       report.cases.push({ name, passed: true, turns: report.turns - before });
+    } catch (error) {
+      if (error instanceof Error) {
+        error.releaseCase = name;
+        error.releaseTurn = report.turns - before;
+      }
+      throw error;
     } finally {
       if (cookie) {
         const response = await fetchImpl(new URL("/api/conversation", base), {
@@ -210,6 +219,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   } catch (error) {
     console.error(JSON.stringify({
       passed: false,
+      case: error instanceof Error ? error.releaseCase : undefined,
+      turn: error instanceof Error ? error.releaseTurn : undefined,
       error: error instanceof assert.AssertionError
         ? error.message.split("\n")[0]
         : "Release verification failed; inspect the selected target, transport, and response contract.",

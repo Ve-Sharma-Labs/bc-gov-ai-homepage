@@ -264,6 +264,9 @@ document follow-ups request evidence rather than reprinting the ID step; clear
 city typos are normalized; and unavailable licensing-office coverage points to
 the proper ICBC locator. These fixes do not invent missing instructions or
 claim that the four-flow grounding work is complete.
+An informational follow-up also preserves the reviewed preparation step and
+ignores a planner echo of the already-confirmed city; a genuinely new city still
+requires evidence in the current message.
 
 ### Original deterministic discovery (version 4)
 

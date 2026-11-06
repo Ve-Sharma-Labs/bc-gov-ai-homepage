@@ -63,7 +63,50 @@ test("HTTP success and RUN_FINISHED cannot disguise a supported-task refusal", (
   assert.throws(() => decodeReleaseTurn(frame(validTurn), "thread", 1), /revision/);
   assert.throws(() => decodeReleaseTurn(frame(validTurn.slice(0, -1)), "thread", 0), /finish/);
   const error = [...validTurn.slice(0, -1), { type: "RUN_ERROR", code: "SOURCES_UNAVAILABLE" }, validTurn.at(-1)];
-  assert.throws(() => decodeReleaseTurn(frame(error), "thread", 0), /run error/);
+  assert.throws(() => decodeReleaseTurn(frame(error), "thread", 0), /run error \(SOURCES_UNAVAILABLE\)/);
+});
+
+test("run diagnostics exclude untrusted error messages and malformed codes", () => {
+  for (const code of [null, 42, "unsafe private value", "A".repeat(65)]) {
+    const error = [...validTurn.slice(0, -1), {
+      type: "RUN_ERROR", code, message: "PRIVATE-FIXTURE",
+    }];
+    assert.throws(() => decodeReleaseTurn(frame(error), "thread", 0), (failure) => {
+      assert.match(failure.message, /run error \(UNKNOWN\)/);
+      assert.ok(!failure.message.includes("PRIVATE-FIXTURE"));
+      assert.ok(!failure.message.includes("unsafe private value"));
+      return true;
+    });
+  }
+});
+
+test("failed live checks identify the static case and attempted turn and still clean up", async () => {
+  let cleaned = 0;
+  await assert.rejects(verifyPilotChat({
+    baseUrl: "https://pilot.example/", liveApproved: true, pause: async () => {},
+    fetchImpl: async (url, options) => {
+      if (url.pathname === "/api/capabilities") return Response.json(capabilities);
+      if (url.pathname === "/api/catalog") return Response.json({
+        journeys: Object.keys(capabilities.journeys).map((id) => ({ id, steps: [{}], handoffs: [{}] })),
+      });
+      if (options.method === "DELETE") {
+        assert.equal(options.headers.Cookie, "bc_pilot_session=fixture-owner");
+        cleaned++;
+        return new Response(null, { status: 204 });
+      }
+      return new Response(frame([
+        { type: "RUN_STARTED" },
+        { type: "RUN_ERROR", code: "CONVERSATION_DECISION_INVALID", message: "PRIVATE-FIXTURE" },
+      ]), { headers: { "Set-Cookie": "bc_pilot_session=fixture-owner; HttpOnly" } });
+    },
+  }), (failure) => {
+    assert.equal(failure.releaseCase, "reported renewal and continuation");
+    assert.equal(failure.releaseTurn, 1);
+    assert.match(failure.message, /CONVERSATION_DECISION_INVALID/);
+    assert.ok(!failure.message.includes("PRIVATE-FIXTURE"));
+    return true;
+  });
+  assert.equal(cleaned, 1);
 });
 
 test("read-only verification makes no chat, cleanup, or model requests", async () => {

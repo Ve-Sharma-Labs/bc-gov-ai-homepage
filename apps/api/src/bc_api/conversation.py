@@ -1412,6 +1412,12 @@ class ConversationService:
     def _continue_task(self, plan: ConversationRun, proposal: ConversationProposal) -> None:
         task = plan.task
         assert task is not None
+        if (
+            proposal.municipality is not None
+            and task.municipality is not None
+            and proposal.municipality.strip().casefold() == task.municipality.casefold()
+        ):
+            proposal = proposal.model_copy(update={"municipality": None})
         additional_items = bool(
             re.search(
                 r"\b(?:what else|anything else|what other|other things)\b", normalize(plan.text)
@@ -1449,13 +1455,13 @@ class ConversationService:
             target = None
         elif action == "reviewed":
             target = None
-        if plan.grounded and additional_items:
+        if additional_items:
             target = None
         if (
             target is None
             and proposal.intent == "information"
             and action != "reviewed"
-            and not (plan.grounded and additional_items)
+            and not additional_items
         ):
             target = FOCUS_STEPS.get(task.journey_id, {}).get(
                 "locations" if wants_locations else proposal.focus
