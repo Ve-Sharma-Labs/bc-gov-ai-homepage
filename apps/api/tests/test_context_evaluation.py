@@ -1,7 +1,10 @@
+import argparse
+import importlib.util
 import json
 import subprocess
 import sys
 from dataclasses import replace
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -17,7 +20,7 @@ from bc_api.context_flows import FLOW_OPTIONAL_SCOPES, FLOW_REQUIRED_SCOPES
 from bc_api.context_sessions import InMemoryContextSessionRepository
 from bc_api.context_tools import ContextAgentService
 from bc_api.demo_personas import DemoPersonaRepository
-from bc_api.demo_rules import default_demo_catalog_path
+from bc_api.demo_rules import DemoRuleEvaluationError, default_demo_catalog_path
 from bc_api.errors import ApiError
 from bc_api.input import validate_run
 from bc_api.main import create_app
@@ -28,6 +31,7 @@ from bc_api.synthetic_context import ConsentChangeRequest, SyntheticContextServi
 ROOT = Path(__file__).resolve().parents[3]
 CASE_PATH = ROOT / "data" / "citizen-context-evaluation-cases.json"
 PAGE_TOKEN = "context-evaluation-test-page-0001"
+SNAPSHOT_TIME = datetime(2026, 11, 6, 5, 0, tzinfo=UTC)
 
 
 def configured(settings):
@@ -46,6 +50,7 @@ async def plan_for(settings, persona_id, scopes, *, run_id="evaluation-run"):
         settings,
         DemoPersonaRepository(),
         InMemoryContextSessionRepository(settings.api_max_sessions),
+        clock=lambda: SNAPSHOT_TIME,
     )
     _, token = await service.create_session(
         "evaluation-owner",
@@ -76,6 +81,8 @@ def test_independent_case_file_and_read_only_evaluator_cover_all_three_compariso
             str(ROOT / "scripts" / "evaluate-context-demo.py"),
             "--cases",
             str(CASE_PATH),
+            "--snapshot-date",
+            SNAPSHOT_TIME.date().isoformat(),
         ],
         cwd=ROOT,
         check=False,
@@ -87,6 +94,8 @@ def test_independent_case_file_and_read_only_evaluator_cover_all_three_compariso
     report = json.loads(process.stdout)
     assert report["passed"] is True
     assert report["remoteModelCalls"] == 0
+    assert report["evaluationMode"] == "snapshot"
+    assert report["evaluatedAt"] == "2026-11-06T00:00:00+00:00"
     assert {case["caseId"] for case in report["cases"]} == {
         "maya-guardianship",
         "alex-disability-support",
@@ -112,6 +121,81 @@ def test_independent_case_file_and_read_only_evaluator_cover_all_three_compariso
             case["contextual"]["ruleClarifyingQuestions"]
             < case["anonymous"]["deterministicMissingFactQuestions"]
         )
+
+
+@pytest.fixture(scope="module")
+def evaluator():
+    spec = importlib.util.spec_from_file_location(
+        "context_evaluator", ROOT / "scripts" / "evaluate-context-demo.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("value", ["20261029", "2026-02-30", "today", "2026-10-29T00:00:00Z"])
+def test_snapshot_date_requires_an_explicit_valid_iso_date(evaluator, value):
+    with pytest.raises(argparse.ArgumentTypeError):
+        evaluator.snapshot_date_argument(value)
+
+
+async def test_snapshot_preserves_source_review_expiry_boundary(evaluator):
+    report = await evaluator.evaluate(CASE_PATH, snapshot_date=date(2026, 11, 12))
+    assert report["passed"] is True
+    assert report["evaluationMode"] == "snapshot"
+    with pytest.raises(DemoRuleEvaluationError) as expired:
+        await evaluator.evaluate(CASE_PATH, snapshot_date=date(2026, 11, 13))
+    assert expired.value.code == "source-version-unavailable"
+
+
+async def test_default_evaluation_uses_one_current_clock_for_both_modes(evaluator, monkeypatch):
+    class Clock(datetime):
+        calls = 0
+
+        @classmethod
+        def now(cls, tz=None):
+            cls.calls += 1
+            assert tz is UTC
+            return SNAPSHOT_TIME
+
+    observed = []
+    anonymous = evaluator._anonymous_missing
+    contextual = evaluator._contextual_metrics
+
+    def observe_anonymous(flow, when):
+        observed.append(when)
+        return anonymous(flow, when)
+
+    async def observe_contextual(case, when):
+        observed.append(when)
+        return await contextual(case, when)
+
+    monkeypatch.setattr(evaluator, "datetime", Clock)
+    monkeypatch.setattr(evaluator, "_anonymous_missing", observe_anonymous)
+    monkeypatch.setattr(evaluator, "_contextual_metrics", observe_contextual)
+    report = await evaluator.evaluate(CASE_PATH)
+    assert report["passed"] is True
+    assert report["evaluationMode"] == "current"
+    assert report["evaluatedAt"] == SNAPSHOT_TIME.isoformat()
+    assert Clock.calls == 1
+    assert observed == [SNAPSHOT_TIME] * 6
+
+
+def test_current_readiness_failure_is_structured_and_nonzero(evaluator, monkeypatch, capsys):
+    class ExpiredClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 13, tzinfo=UTC)
+
+    monkeypatch.setattr(evaluator, "datetime", ExpiredClock)
+    monkeypatch.setattr(sys, "argv", ["evaluate-context-demo.py"])
+    assert evaluator.main() == 1
+    captured = capsys.readouterr()
+    assert not captured.out
+    result = json.loads(captured.err)
+    assert result["passed"] is False
+    assert result["evaluationMode"] == "current"
+    assert result["error"]["code"] == "SOURCE_VERSION_UNAVAILABLE"
 
 
 @pytest.mark.parametrize(

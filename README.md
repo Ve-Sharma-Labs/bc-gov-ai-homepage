@@ -6,6 +6,8 @@ backend. This is not a live government transaction service.
 
 See the [as-built architecture](docs/architecture.md) for the Azure topology,
 chat/cancellation flow, reviewed-content lifecycle and current release boundaries.
+The [agentic workflows guide](docs/agentic-workflows.md) covers the official-source
+freshness watchdog and automatic bug-report regression tests and draft fixes.
 
 The reference-led interface includes locally hosted Unsplash BC photography,
 editorial serif/BC Sans typography, a compact adaptive composer, a persistent
@@ -365,6 +367,25 @@ triage, and maintainer-gated draft fixes are documented in
 [GitHub Agentic Workflows](docs/agentic-workflows.md). These agents remain
 advisory around the repository's deterministic tests and reviewed deployment
 controls.
+
+Pilot checks runs on both pushes and pull requests, so a branch update can show
+two runs of the same suite. Browser functional tests share a loopback client and
+use a bounded 1,000-request/minute HTTP budget only on their own offline preview.
+The application's default remains 180; dedicated API tests verify rejection,
+client isolation and recovery at that limit. External previews and live grounded
+evaluation do not receive this test override. Browser retries remain disabled.
+Inspect the retained trace's API responses when a missing card or banner is
+reported; a transport error can be the cause rather than a rendering defect.
+
+Context regression tests use an explicit historical clock. To reproduce their
+offline comparison, run `npm run evaluate:context -- --snapshot-date 2026-11-06`.
+The report labels this as `evaluationMode: "snapshot"` and records `evaluatedAt`;
+it is not evidence that sources are current. Without `--snapshot-date`, the
+evaluator uses one current UTC instant for both sides of the comparison and
+returns a nonzero, structured error for expired reviews. Do not extend
+`reviewDue` dates just to make checks pass: current readiness requires genuine
+source re-review. The source watchdog's catalogue-age checks do not yet monitor
+the separate demo-rule review deadlines.
 
 ## Containers and Azure deployment
 

@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import sys
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,12 +30,14 @@ from bc_api.context_sessions import InMemoryContextSessionRepository
 from bc_api.context_tools import ContextAgentService
 from bc_api.demo_personas import DemoPersonaRepository
 from bc_api.demo_rules import (
+    DemoRuleEvaluationError,
     DemoProgramRuleEngine,
     DemoProgramRuleRepository,
     RuleEvaluationEvidence,
     default_demo_catalog_path,
     reviewed_source_versions,
 )
+from bc_api.errors import ApiError
 from bc_api.synthetic_context import ConsentChangeRequest, SyntheticContextService
 
 EXPECTED_ARTIFACT_ORDER = [
@@ -135,16 +137,16 @@ def _entry_questions(flow_id: str, question: str, persona_id: str) -> tuple[int,
     return 0, 0
 
 
-def _anonymous_missing(flow_id: str) -> tuple[int, list[str]]:
+def _anonymous_missing(flow_id: str, evaluated_at: datetime) -> tuple[int, list[str]]:
     repository = DemoProgramRuleRepository()
     rule_set = repository.get()
-    evaluation_date = date.fromisoformat(rule_set.reviewed_at)
+    evaluation_date = evaluated_at.date()
     matches = DemoProgramRuleEngine(repository).evaluate(
         flow_id=flow_id,
         context_facts=[],
         evidence=RuleEvaluationEvidence(
             rule_set_version=rule_set.rule_set_version,
-            policy_effective_date=date.fromisoformat(rule_set.effective_from),
+            policy_effective_date=evaluation_date,
             evaluated_at=evaluation_date,
             source_versions=reviewed_source_versions(rule_set),
         ),
@@ -153,7 +155,9 @@ def _anonymous_missing(flow_id: str) -> tuple[int, list[str]]:
     return len(keys), keys
 
 
-async def _contextual_metrics(case: dict[str, Any]) -> dict[str, Any]:
+async def _contextual_metrics(
+    case: dict[str, Any], evaluated_at: datetime
+) -> dict[str, Any]:
     settings = Settings(
         app_env="development",
         content_catalog_path=default_demo_catalog_path(),
@@ -170,6 +174,7 @@ async def _contextual_metrics(case: dict[str, Any]) -> dict[str, Any]:
         settings,
         DemoPersonaRepository(),
         InMemoryContextSessionRepository(settings.api_max_sessions),
+        clock=lambda: evaluated_at,
         audit=ContextAuditTrail(
             InMemoryContextAuditRepository(
                 settings.synthetic_context_audit_max_events,
@@ -225,7 +230,12 @@ async def _contextual_metrics(case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def evaluate(path: Path) -> dict[str, Any]:
+async def evaluate(path: Path, *, snapshot_date: date | None = None) -> dict[str, Any]:
+    evaluated_at = (
+        datetime.combine(snapshot_date, datetime.min.time(), tzinfo=UTC)
+        if snapshot_date is not None
+        else datetime.now(UTC)
+    )
     suite = _read_cases(path)
     results: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
@@ -245,13 +255,13 @@ async def evaluate(path: Path) -> dict[str, Any]:
                     },
                 }
             )
-        anonymous_count, anonymous_keys = _anonymous_missing(flow_id)
+        anonymous_count, anonymous_keys = _anonymous_missing(flow_id, evaluated_at)
         anonymous_entry, _ = _entry_questions(
             flow_id,
             case["sampleQuestion"],
             case["personaId"],
         )
-        contextual = await _contextual_metrics(case)
+        contextual = await _contextual_metrics(case, evaluated_at)
         actual = {
             "anonymousEntryClarifyingQuestions": anonymous_entry,
             "anonymousRuleClarifyingQuestions": anonymous_count,
@@ -317,10 +327,22 @@ async def evaluate(path: Path) -> dict[str, Any]:
         "passed": not failures,
         "syntheticOnly": True,
         "remoteModelCalls": 0,
+        "evaluationMode": "snapshot" if snapshot_date is not None else "current",
+        "evaluatedAt": evaluated_at.isoformat(),
         "measurementBoundary": suite["measurementBoundary"],
         "cases": results,
         "failures": failures,
     }
+
+
+def snapshot_date_argument(value: str) -> date:
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Use a valid YYYY-MM-DD snapshot date.") from exc
+    if parsed.isoformat() != value:
+        raise argparse.ArgumentTypeError("Use a valid YYYY-MM-DD snapshot date.")
+    return parsed
 
 
 def main() -> int:
@@ -331,9 +353,27 @@ def main() -> int:
         default=ROOT / "data" / "citizen-context-evaluation-cases.json",
     )
     parser.add_argument("--pretty", action="store_true")
+    parser.add_argument(
+        "--snapshot-date",
+        type=snapshot_date_argument,
+        help="Evaluate a historical YYYY-MM-DD snapshot, not current readiness.",
+    )
     args = parser.parse_args()
     try:
-        result = asyncio.run(evaluate(args.cases.resolve()))
+        result = asyncio.run(
+            evaluate(args.cases.resolve(), snapshot_date=args.snapshot_date)
+        )
+    except (ApiError, DemoRuleEvaluationError) as exc:
+        message = exc.message if isinstance(exc, ApiError) else exc.safe_message
+        print(
+            json.dumps({
+                "passed": False,
+                "evaluationMode": "snapshot" if args.snapshot_date is not None else "current",
+                "error": {"code": exc.code.upper().replace("-", "_"), "message": message},
+            }),
+            file=sys.stderr,
+        )
+        return 1
     except (AssertionError, KeyError, TypeError, ValueError) as exc:
         print(json.dumps({"passed": False, "error": str(exc)}), file=sys.stderr)
         return 1
