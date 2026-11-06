@@ -31,7 +31,7 @@ from bc_api.synthetic_context import ConsentChangeRequest, SyntheticContextServi
 ROOT = Path(__file__).resolve().parents[3]
 CASE_PATH = ROOT / "data" / "citizen-context-evaluation-cases.json"
 PAGE_TOKEN = "context-evaluation-test-page-0001"
-SNAPSHOT_TIME = datetime(2026, 10, 29, 5, 0, tzinfo=UTC)
+SNAPSHOT_TIME = datetime(2026, 11, 6, 5, 0, tzinfo=UTC)
 
 
 def configured(settings):
@@ -95,7 +95,7 @@ def test_independent_case_file_and_read_only_evaluator_cover_all_three_compariso
     assert report["passed"] is True
     assert report["remoteModelCalls"] == 0
     assert report["evaluationMode"] == "snapshot"
-    assert report["evaluatedAt"] == "2026-10-29T00:00:00+00:00"
+    assert report["evaluatedAt"] == "2026-11-06T00:00:00+00:00"
     assert {case["caseId"] for case in report["cases"]} == {
         "maya-guardianship",
         "alex-disability-support",
@@ -140,11 +140,11 @@ def test_snapshot_date_requires_an_explicit_valid_iso_date(evaluator, value):
 
 
 async def test_snapshot_preserves_source_review_expiry_boundary(evaluator):
-    report = await evaluator.evaluate(CASE_PATH, snapshot_date=date(2026, 11, 4))
+    report = await evaluator.evaluate(CASE_PATH, snapshot_date=date(2026, 11, 12))
     assert report["passed"] is True
     assert report["evaluationMode"] == "snapshot"
     with pytest.raises(DemoRuleEvaluationError) as expired:
-        await evaluator.evaluate(CASE_PATH, snapshot_date=date(2026, 11, 5))
+        await evaluator.evaluate(CASE_PATH, snapshot_date=date(2026, 11, 13))
     assert expired.value.code == "source-version-unavailable"
 
 
@@ -185,7 +185,7 @@ def test_current_readiness_failure_is_structured_and_nonzero(evaluator, monkeypa
     class ExpiredClock(datetime):
         @classmethod
         def now(cls, tz=None):
-            return datetime(2026, 11, 5, tzinfo=UTC)
+            return datetime(2026, 11, 13, tzinfo=UTC)
 
     monkeypatch.setattr(evaluator, "datetime", ExpiredClock)
     monkeypatch.setattr(sys, "argv", ["evaluate-context-demo.py"])

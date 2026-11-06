@@ -1,49 +1,49 @@
 {
   "schemaVersion": 1,
   "ruleSetId": "citizen-context-demo-program-screening",
-  "ruleSetVersion": "2026-10-28.1",
+  "ruleSetVersion": "2026-11-05.1",
   "owner": "BC Government citizen-context demo product owner",
-  "catalogAsOf": "2026-10-28T04:33:08Z",
+  "catalogAsOf": "2026-11-06T02:23:18Z",
   "effectiveFrom": "2026-10-28",
   "effectiveTo": null,
-  "reviewedAt": "2026-10-28",
+  "reviewedAt": "2026-11-05",
   "reviewDue": "2026-12-31",
   "screeningNotice": "This is a screening indicator, not an eligibility decision.",
   "sourceReviews": [
     {
       "sourceId": "employment-business",
       "catalogStatus": "limited",
-      "catalogCheckedAt": "2026-10-25T00:21:21Z",
+      "catalogCheckedAt": "2026-11-06T02:23:18Z",
       "coverage": "reviewed-navigation-only",
-      "reviewedAt": "2026-10-28",
-      "reviewDue": "2026-11-04",
+      "reviewedAt": "2026-11-05",
+      "reviewDue": "2026-11-12",
       "missingCoverageReason": null
     },
     {
       "sourceId": "family-social-supports",
       "catalogStatus": "limited",
-      "catalogCheckedAt": "2026-10-25T00:21:20Z",
+      "catalogCheckedAt": "2026-11-06T02:23:18Z",
       "coverage": "reviewed-navigation-only",
-      "reviewedAt": "2026-10-28",
-      "reviewDue": "2026-11-04",
+      "reviewedAt": "2026-11-05",
+      "reviewDue": "2026-11-12",
       "missingCoverageReason": null
     },
     {
       "sourceId": "housing-tenancy",
       "catalogStatus": "available",
-      "catalogCheckedAt": "2026-10-25T00:21:18Z",
+      "catalogCheckedAt": "2026-11-06T02:23:18Z",
       "coverage": "reviewed-navigation-only",
-      "reviewedAt": "2026-10-28",
-      "reviewDue": "2026-11-04",
+      "reviewedAt": "2026-11-05",
+      "reviewDue": "2026-11-12",
       "missingCoverageReason": null
     },
     {
       "sourceId": "service-bc",
       "catalogStatus": "available",
-      "catalogCheckedAt": "2026-10-25T00:21:15Z",
+      "catalogCheckedAt": "2026-11-06T02:23:18Z",
       "coverage": "reviewed-navigation-only",
-      "reviewedAt": "2026-10-28",
-      "reviewDue": "2026-11-04",
+      "reviewedAt": "2026-11-05",
+      "reviewDue": "2026-11-12",
       "missingCoverageReason": null
     }
   ],
@@ -56,7 +56,7 @@
       "flowId": "guardianship-intake",
       "discoveryRole": "primary-navigation",
       "owner": "BC Government citizen-context demo product owner",
-      "version": "2026-10-28.1",
+      "version": "2026-11-05.1",
       "effectiveFrom": "2026-10-28",
       "effectiveTo": null,
       "reviewedAt": "2026-10-28",
@@ -128,7 +128,7 @@
       "missingFactBehavior": "needs-information-unless-not-indicated",
       "navigationRationale": "Potential navigation only: explore reviewed family and social-support information for a caregiving situation; this is not a formal eligibility assessment.",
       "screeningNotice": "This is a screening indicator, not an eligibility decision.",
-      "ruleHash": "8ea87678b7a26918d5a2c41ddc54b79dce86eac4014c72a33362500282aa1ce0"
+      "ruleHash": "b615dbc2e46a0611f9411f1fb5412addc46d9b5a9bfd52ea530b5276b708112d"
     },
     {
       "order": 2,
@@ -138,7 +138,7 @@
       "flowId": "guardianship-intake",
       "discoveryRole": "related-navigation",
       "owner": "BC Government citizen-context demo product owner",
-      "version": "2026-10-28.1",
+      "version": "2026-11-05.1",
       "effectiveFrom": "2026-10-28",
       "effectiveTo": null,
       "reviewedAt": "2026-10-28",
@@ -179,7 +179,7 @@
       "missingFactBehavior": "needs-information-unless-not-indicated",
       "navigationRationale": "Potential related navigation only: explore reviewed Service BC human-service channels; this is not a formal eligibility assessment.",
       "screeningNotice": "This is a screening indicator, not an eligibility decision.",
-      "ruleHash": "67ab1927db1409d1d5ee079164e59fa8ccd8d5d0c8ff7f4b92ea6491386fd08c"
+      "ruleHash": "76f877364a663a4c205887e55dede797df7328fa267d842434dab03a3b4dc021"
     },
     {
       "order": 3,
@@ -189,7 +189,7 @@
       "flowId": "disability-support",
       "discoveryRole": "primary-navigation",
       "owner": "BC Government citizen-context demo product owner",
-      "version": "2026-10-28.1",
+      "version": "2026-11-05.1",
       "effectiveFrom": "2026-10-28",
       "effectiveTo": null,
       "reviewedAt": "2026-10-28",
@@ -294,7 +294,7 @@
       "missingFactBehavior": "needs-information-unless-not-indicated",
       "navigationRationale": "Potential navigation only: explore reviewed provincial disability-support information; this is not a formal eligibility assessment.",
       "screeningNotice": "This is a screening indicator, not an eligibility decision.",
-      "ruleHash": "fb0ef3b737a1fe6875065e0b9caa81e55826fbb6d1730fd6c0c4bed612da18e9"
+      "ruleHash": "67371e1928d1a6f4f5518665368d3eeeddc801b79a09bb92edec09a8e2edddf7"
     },
     {
       "order": 4,
@@ -304,7 +304,7 @@
       "flowId": "disability-support",
       "discoveryRole": "related-navigation",
       "owner": "BC Government citizen-context demo product owner",
-      "version": "2026-10-28.1",
+      "version": "2026-11-05.1",
       "effectiveFrom": "2026-10-28",
       "effectiveTo": null,
       "reviewedAt": "2026-10-28",
@@ -338,7 +338,7 @@
       "missingFactBehavior": "needs-information-unless-not-indicated",
       "navigationRationale": "Potential related navigation only: explore reviewed Service BC assisted-service channels; this is not a formal eligibility assessment.",
       "screeningNotice": "This is a screening indicator, not an eligibility decision.",
-      "ruleHash": "9091719df7979dbfa988fceaf918d58e465bceb8dbd76ca929bad15141533848"
+      "ruleHash": "1293033f16a5fef01c8c780d4aa5c1dddc7ee95a30545c1c24dfca810354c905"
     },
     {
       "order": 5,
@@ -348,7 +348,7 @@
       "flowId": "job-loss",
       "discoveryRole": "primary-navigation",
       "owner": "BC Government citizen-context demo product owner",
-      "version": "2026-10-28.1",
+      "version": "2026-11-05.1",
       "effectiveFrom": "2026-10-28",
       "effectiveTo": null,
       "reviewedAt": "2026-10-28",
@@ -432,7 +432,7 @@
       "missingFactBehavior": "needs-information-unless-not-indicated",
       "navigationRationale": "Potential navigation only: explore reviewed provincial employment information after a job loss; this is not a formal eligibility assessment.",
       "screeningNotice": "This is a screening indicator, not an eligibility decision.",
-      "ruleHash": "bf88deddd41a533d735bf70b68a02b033276e7788816af5b2548a1a8efe0f7ad"
+      "ruleHash": "cc459a61d7fc9f732eb4ebc3ed6ee3beef0fa8136371dcdce3d725b9939b0c5e"
     },
     {
       "order": 6,
@@ -442,7 +442,7 @@
       "flowId": "job-loss",
       "discoveryRole": "related-navigation",
       "owner": "BC Government citizen-context demo product owner",
-      "version": "2026-10-28.1",
+      "version": "2026-11-05.1",
       "effectiveFrom": "2026-10-28",
       "effectiveTo": null,
       "reviewedAt": "2026-10-28",
@@ -512,7 +512,7 @@
       "missingFactBehavior": "needs-information-unless-not-indicated",
       "navigationRationale": "Potential related navigation only: explore reviewed provincial income-assistance information after an income change; this is not a formal eligibility assessment.",
       "screeningNotice": "This is a screening indicator, not an eligibility decision.",
-      "ruleHash": "f4cb44930847b6f3c9c692c349e05b08f4abeb3876abbcdb286052ef26271a2e"
+      "ruleHash": "ffda7dc3f46c768e925698891e96db473571aee5957cffe2872c10e7ef0b910f"
     },
     {
       "order": 7,
@@ -522,7 +522,7 @@
       "flowId": "job-loss",
       "discoveryRole": "related-navigation",
       "owner": "BC Government citizen-context demo product owner",
-      "version": "2026-10-28.1",
+      "version": "2026-11-05.1",
       "effectiveFrom": "2026-10-28",
       "effectiveTo": null,
       "reviewedAt": "2026-10-28",
@@ -571,8 +571,8 @@
       "missingFactBehavior": "needs-information-unless-not-indicated",
       "navigationRationale": "Potential related navigation only: explore reviewed housing and tenancy information after an income change; this is not a formal eligibility assessment.",
       "screeningNotice": "This is a screening indicator, not an eligibility decision.",
-      "ruleHash": "35f039d6004f874368ec20fdcaaf12272abc74ade94f28837d900ab429c7f9a6"
+      "ruleHash": "4a1b627a477705cf48d8921242afca2a32ed11d10cc328c5ace888cb862ed394"
     }
   ],
-  "ruleSetHash": "13c2dace9e80cbe883ae82aee43d9a8b48b699a920657fe7d84769bc8e53d05e"
+  "ruleSetHash": "a22e558b4127eb93c82a90dbf96232ae49807ec716d0c494cf94b68b07d616f4"
 }

@@ -29,7 +29,7 @@ class FreshnessTests(unittest.TestCase):
             "sourceId": "health", "url": URL, "checkedAt": "2026-09-01T00:00:00Z",
             "responseSha256": hashlib.sha256(b"approved snapshot").hexdigest(),
         }]}
-        self.now = datetime(2026, 11, 5, tzinfo=timezone.utc)
+        self.now = datetime(2026, 11, 6, 3, 0, tzinfo=timezone.utc)
 
     def collect(self, *, rights=True, refresh=True, initialize=True, network=None):
         network = network or Network(self.clock, pages={URL: response(URL, b"approved snapshot")})

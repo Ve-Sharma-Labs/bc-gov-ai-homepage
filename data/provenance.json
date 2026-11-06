@@ -1,10 +1,12 @@
 {
   "kind": "curated-public-guidance-snapshot",
-  "asOf": "2026-10-28T04:33:08Z",
-  "localReviewDate": "2026-10-27",
+  "asOf": "2026-11-06T02:23:18Z",
+  "localReviewDate": "2026-11-05",
   "localTimeZone": "America/Vancouver",
   "scope": "Seventeen selected public HTML documents, not a complete crawl, live service, AI response, eligibility decision or transaction.",
   "acquisition": {
+    "asOf": "2026-10-28T04:33:08Z",
+    "localReviewDate": "2026-10-27",
     "origin": "direct-publisher",
     "userAgent": "BCPilotIngest/0.1 (reviewed-public-source-pilot; no transactions)",
     "documentRequests": 17,
@@ -21,6 +23,14 @@
     "handoffVerification": "Every shipped journey handoff URL was directly requested and returned HTTP 200. Dynamic completeness is separately limited for ICBC. No forms, registration portals, bookings, payments or submissions were invoked.",
     "robotsParserNote": "The government policy's wildcard-leading SWF exclusion initially failed the conservative parser. Standards-compatible wildcard support was added and regression tested before government content was requested."
   },
+  "catalogueReviews": [
+    {
+      "checkedAt": "2026-11-06T02:23:18Z",
+      "sourceIds": ["service-bc", "housing-tenancy", "family-social-supports", "employment-business"],
+      "recordedInCommit": "cebcb08b49249342587701b8d98fcbd86f4d82e2",
+      "scope": "Navigation-only source review renewal recorded by the catalogue update; not a new acquisition of the seventeen documents. Historical document response hashes, robots checks, handoff verification and office-row evidence retain their original dates. No broader content review or full-text publication approval is asserted."
+    }
+  ],
   "robots": [
     {
       "url": "https://www2.gov.bc.ca/robots.txt",

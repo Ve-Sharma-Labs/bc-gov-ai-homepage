@@ -23,9 +23,9 @@ from bc_api.demo_rules import (
 )
 from bc_api.models import Artifact, ContextFact, ProgramMatch, ProgramSourceVersion
 
-NOW = "2026-10-28T20:00:00Z"
-LATER = "2026-10-28T20:30:00Z"
-POLICY_DATE = date(2026, 10, 28)
+NOW = "2026-11-05T20:00:00Z"
+LATER = "2026-11-05T20:30:00Z"
+POLICY_DATE = date(2026, 11, 5)
 
 
 def _sam_facts() -> list[ContextFact]:
