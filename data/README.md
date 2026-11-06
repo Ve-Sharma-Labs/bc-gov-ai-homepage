@@ -1,23 +1,31 @@
 # Curated pilot catalogue
 
 `pilot-catalog.json` is the shared **camelCase schemaVersion 1** contract. It
-contains twelve source registrations, five read-only preparation journeys and
+contains twelve source registrations, seven read-only preparation journeys and
 seven Service BC offices. It is a manually curated dated snapshot, **not a live
 index, complete service directory, generated AI answer or eligibility decision**.
-The UTC `asOf` is October 25, 2026; the checks occurred on October 24 in B.C.
+The UTC catalogue `asOf` is November 6, 2026 (November 5 in B.C.). This reflects
+a navigation-only review renewal of Service BC, housing/tenancy,
+family/social supports and employment/business, not a new acquisition of all
+documents or a recheck of office rows.
 
-`provenance.json` records the fifteen direct-publisher HTML responses, their
+`provenance.json` records the seventeen direct-publisher HTML responses, their
 SHA-256 hashes and check dates, six robots-policy endpoints, handoff verification,
 and the source-to-journey evidence mapping. Dates not explicitly present in
 publisher metadata are null. A stated content-currency date is **not** a
 publisher-modified date or legal effective date.
+Its `catalogueReviews` records the limited renewal and the commit that made it.
+The top-level dates describe the catalogue snapshot; `acquisition.asOf` and
+`acquisition.localReviewDate` retain the historical acquisition snapshot dates.
+Document hashes and check dates, robots evidence, and location coverage remain
+unchanged and must not be interpreted as newly acquired or reviewed content.
 
 ## What was actually checked
 
-- Fifteen public documents returned HTTP 200. Ten robots requests were made
+- Seventeen public documents returned HTTP 200. Ten robots requests were made
   across six hosts, including conservative parser diagnosis/rechecks. No full
   sitemap crawl, PDFs, accounts, forms, registration portals or user uploads were
-  collected. All journey handoff URLs are among those fifteen checked pages.
+  collected. All journey handoff URLs are among those seventeen checked pages.
 - The outdated Service BC seed remains documented in the source inventory. The
   catalogue and parser use the verified replacement URL, not the 404 seed.
 - ICBC delivered useful visible text alongside unresolved dynamic components.
@@ -31,7 +39,7 @@ publisher-modified date or legal effective date.
   was fetched**, and CiviX access/licensing is still pending.
 - Raw extraction quality is intentionally stricter than a reviewed short
   navigation description. Eleven raw pages are quarantined (navigation-region,
-  freshness or dynamic limitations); four are review-required. None is approved
+  freshness or dynamic limitations); six are review-required. None is approved
   for full-text publication. A source marked `available` means the described
   curated guidance is available, not that its entire website has passed ingestion.
 
