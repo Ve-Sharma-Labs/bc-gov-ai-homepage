@@ -14,6 +14,15 @@ automatic crawl or blanket approval of the source inventory. See the
 [content-lifecycle diagram](../docs/architecture.md#4-reviewed-content-lifecycle)
 and [current architecture](../docs/architecture.md).
 
+The November 6, 2026 refresh replaced those same four documents with **20 active
+reviewed chunks**: Service BC 11, Health Connect Registry 2, MSP 2, and Fair
+PharmaCare 5. The exact 12 prior keys were marked `superseded`, not deleted.
+The additive 29-field schema update preserved existing field definitions and
+semantic/vector settings. Actual November 5 acquisition timestamps were retained;
+the first next-expiry boundary is November 12 at 19:48:35 UTC under the unchanged
+seven-day policy. This approval does not extend to ICBC full text, held documents,
+or the private full-corpus candidates.
+
 The API rejects evidence outside its configured freshness window even if the
 index contains active chunks. Its read-only `sourceHealth` check and operational
 metrics now expose that state; they do not authorize a refresh or publication.

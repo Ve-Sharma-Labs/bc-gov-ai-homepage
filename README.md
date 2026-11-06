@@ -55,7 +55,7 @@ using `requirements-dev.lock` and editable source, and ingestion with its `azure
 
 ### Guided plans are not simulated AI
 
-Without a configured Foundry connection, the catalogue, official links, and five
+Without a configured Foundry connection, the catalogue, official links, and seven
 source-backed preparation journeys remain available. They are deterministic,
 dated guidance, not generated model answers. Main chat defaults to general B.C.
 government questions; the seven pathways are optional, visible context. Strict
