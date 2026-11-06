@@ -66,6 +66,7 @@ export async function verifyPilotChat({
   const get = async (path) => {
     const response = await fetchImpl(new URL(path, base), {
       redirect: "error", signal: AbortSignal.timeout(30_000),
+      ...(path === "/api/capabilities" ? { headers: { "X-BC-Client-Version": "6" } } : {}),
     });
     assert.equal(response.status, 200, `The ${path} release check failed.`);
     return response.json();

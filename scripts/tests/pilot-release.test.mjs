@@ -71,6 +71,9 @@ test("read-only verification makes no chat, cleanup, or model requests", async (
   const fetchImpl = async (url, options) => {
     calls.push({ path: url.pathname, method: options.method ?? "GET" });
     assert.equal(options.redirect, "error");
+    if (url.pathname === "/api/capabilities") {
+      assert.equal(options.headers?.["X-BC-Client-Version"], "6");
+    }
     return Response.json(url.pathname === "/api/capabilities" ? {
       ...capabilities, sourceHealth: { ...capabilities.sourceHealth, untrustedExtra: "PRIVATE-FIXTURE" },
     } : {
@@ -87,6 +90,23 @@ test("read-only verification makes no chat, cleanup, or model requests", async (
   assert.deepEqual(calls, [
     { path: "/api/capabilities", method: "GET" }, { path: "/api/catalog", method: "GET" },
   ]);
+});
+
+test("verification discovers experimental capabilities using the browser's protocol header", async () => {
+  let calls = 0;
+  await assert.rejects(verifyPilotChat({
+    baseUrl: "https://pilot.example/", liveApproved: true,
+    fetchImpl: async (url, options) => {
+      calls++;
+      assert.equal(url.pathname, "/api/capabilities");
+      return Response.json({
+        ...capabilities,
+        requestVersions: options.headers?.["X-BC-Client-Version"] === "6"
+          ? [1, 2, 3, 5, 6] : [1, 2, 3, 5],
+      });
+    },
+  }), /experimental\/local-only/);
+  assert.equal(calls, 1);
 });
 
 test("the approved probe is bounded, follows pending questions, and clears only its own sessions", async () => {
