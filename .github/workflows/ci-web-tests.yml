@@ -1,0 +1,27 @@
+name: BC Gov Web - Unit & Component Tests
+run-name: >-
+  BC Gov Web - Unit & Component Tests | ${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: BC Gov Web - Unit & Component Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked web dependencies
+        run: npm --prefix apps/web ci
+      - name: Run web unit and component tests
+        run: npm --prefix apps/web test

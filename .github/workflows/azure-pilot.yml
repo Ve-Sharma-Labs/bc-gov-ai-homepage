@@ -1,4 +1,6 @@
-name: Reviewed Azure pilot deployment
+name: BC Gov App - Azure Deployment
+run-name: >-
+  BC Gov App - Azure Deployment | ${{ inputs.operation }} | ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
@@ -26,6 +28,7 @@ concurrency:
 
 jobs:
   deploy:
+    name: BC Gov App - ${{ inputs.operation == 'provision' && 'Provision Azure Infrastructure' || 'Deploy Azure Containers' }}
     if: inputs.operation != 'verify'
     runs-on: ubuntu-latest
     environment: pilot
@@ -132,6 +135,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
   verify:
+    name: BC Gov App - Verify Azure Deployment
     if: inputs.operation == 'verify'
     runs-on: ubuntu-latest
     environment: pilot

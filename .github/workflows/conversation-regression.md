@@ -1,4 +1,7 @@
 ---
+name: BC Gov Agents - PR Conversation QA
+run-name: >-
+  BC Gov Agents - PR Conversation QA | ${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || format('{0} | {1}', github.event_name, github.ref_name) }}
 description: |
   Runs bounded, advisory Playwright exploration against a trusted pull request build.
   It combines deterministic browser fixtures with agent-led usability checks and reports
@@ -94,7 +97,7 @@ safe-outputs:
 timeout-minutes: 30
 ---
 
-# Conversation regression discovery: pull request profile
+# BC Gov Agents - PR Conversation QA
 
 Act as an advisory QA engineer for the exact checked-out candidate revision. Do not edit files.
 

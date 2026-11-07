@@ -165,7 +165,9 @@ publication record for rollback. Close the edge first if the candidate cannot
 be trusted, restore the reviewed bindings/images, and reverify before reopening.
 Do not delete source or shared-control resources as an automatic rollback.
 
-`.github/workflows/azure-pilot.yml` is **manual only**. It needs an explicitly
+**BC Gov App - Azure Deployment** (`.github/workflows/azure-pilot.yml`) is
+**manual only**. Its run title and check name identify the selected provision,
+deploy, or verify operation. It needs an explicitly
 configured/protected `pilot` GitHub environment, OIDC deployment identity and
 the reviewed variables above. Provision and image deployment are separate
 operations. The separate `verify` operation requires an exact `public_url`;
@@ -177,6 +179,13 @@ content/agents, or enable Web IQ. Before image replacement it checks the actual
 Front Door endpoint is disabled, rather than trusting a stage variable. New
 images must pass validation before their immutable digests are promoted and
 traffic reopened. No workflow has been run.
+
+**BC Gov App - Container Build & Smoke Tests** is separate CI: it builds and
+checks API, web, and ingestion images without publishing or deploying them.
+Renaming the release workflow does not rename the `pilot` environment,
+`azure-pilot` concurrency group, deployment marker, or cloud resources. The
+downstream **BC Gov Agents - Live Conversation QA** requires a valid `deploy`
+marker; provision-only and verification-only runs cannot authorize live QA.
 
 For edge diagnosis, use the pilot profile's resource-context access logs and
 the request's `X-Azure-Ref` tracking reference. A validation allowlist uses

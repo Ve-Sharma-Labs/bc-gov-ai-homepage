@@ -1,4 +1,7 @@
 ---
+name: BC Gov Agents - Live Conversation QA
+run-name: >-
+  BC Gov Agents - Live Conversation QA | ${{ github.event_name }} | ${{ github.event.workflow_run.head_branch || github.ref_name }}
 description: |
   Performs bounded browser QA against the approved deployed pilot after successful
   deployments, daily, or manually. It evaluates real synthetic conversations and
@@ -6,7 +9,7 @@ description: |
 
 on:
   workflow_run:
-    workflows: ["Reviewed Azure pilot deployment"]
+    workflows: ["BC Gov App - Azure Deployment"]
     types: [completed]
     branches: [main]
   schedule: daily
@@ -97,7 +100,7 @@ concurrency:
 timeout-minutes: 25
 ---
 
-# Conversation regression discovery: deployed-live profile
+# BC Gov Agents - Live Conversation QA
 
 Test only `https://bcassist-xufhsendpx-ddabgxfdera9azbp.b01.azurefd.net`. Reject
 redirects or navigation to any other application origin. Official source links may be

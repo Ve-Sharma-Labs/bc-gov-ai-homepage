@@ -88,6 +88,52 @@ test("only exact default-branch collector runs can restore state", () => {
   assert.equal(previousCollection([{ ...run, id: 2 }, run], 3, "owner/repo", "main").id, 2);
 });
 
+test("collector rename preserves historical charged state without accepting old current events", () => {
+  const legacy = { id: 1, name: "Official source collection", path: collectorPath,
+    event: "schedule", head_branch: "main", head_repository: { full_name: "owner/repo" },
+    status: "completed", conclusion: "failure" };
+  const current = { ...legacy, id: 2, name: collectorName };
+  assert.equal(trustedCollection(legacy, "owner/repo", "main"), false);
+  assert.equal(trustedCollection(current, "owner/repo", "main"), true);
+  assert.equal(previousCollection([legacy, current], 2, "owner/repo", "main"), legacy);
+  assert.equal(previousCollection([legacy, current], 3, "owner/repo", "main"), current);
+});
+
+test("historical collector aliases retain exact path, repository, branch and event checks", () => {
+  for (const name of [collectorName, "Official source collection"]) {
+    const run = { id: 1, name, path: collectorPath, event: "workflow_dispatch",
+      head_branch: "main", head_repository: { full_name: "owner/repo" }, status: "completed" };
+    assert.equal(previousCollection([run], 2, "owner/repo", "main"), run);
+    for (const change of [
+      { name: "Untrusted collection" },
+      { path: ".github/workflows/untrusted.yml" },
+      { head_repository: { full_name: "attacker/repo" } },
+      { head_branch: "feature" },
+      { event: "pull_request" },
+      { event: "push" },
+    ]) {
+      assert.equal(previousCollection([{ ...run, ...change }], 2, "owner/repo", "main"), undefined);
+      assert.equal(trustedCollection({ ...run, ...change }, "owner/repo", "main"), false);
+    }
+  }
+});
+
+test("collector history never substitutes an older success for the latest charged attempt", () => {
+  const successful = { id: 1, name: "Official source collection", path: collectorPath,
+    event: "schedule", head_branch: "main", head_repository: { full_name: "owner/repo" },
+    status: "completed", conclusion: "success" };
+  for (const name of [collectorName, successful.name]) {
+    for (const attempt of [
+      { status: "completed", conclusion: "failure" },
+      { status: "completed", conclusion: "cancelled" },
+      { status: "in_progress", conclusion: null },
+    ]) {
+      const latest = { ...successful, ...attempt, id: 2, name };
+      assert.equal(previousCollection([latest, successful], 3, "owner/repo", "main"), latest);
+    }
+  }
+});
+
 test("repair PR requires matching failing-before and passing-after evidence and a changed regression", () => {
   const context = { number: 7, baseSha: "a".repeat(40) };
   const evidence = {
