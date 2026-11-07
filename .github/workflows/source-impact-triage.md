@@ -1,4 +1,7 @@
 ---
+name: BC Gov Agents - Source Impact Review
+run-name: >-
+  BC Gov Agents - Source Impact Review | ${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || format('{0} | {1}', github.event_name, github.ref_name) }}
 description: |
   Reviews changes to approved source metadata and maps them to affected journeys,
   evaluations, and claims without granting acquisition or publication rights.
@@ -68,7 +71,7 @@ safe-outputs:
 timeout-minutes: 15
 ---
 
-# Source-change impact triage
+# BC Gov Agents - Source Impact Review
 
 Read `.github/aw/instructions.md`, `ingestion/README.md`, `data/provenance.json`,
 `data/source-programme.json`, `data/conversation-grounding-packs.json`,

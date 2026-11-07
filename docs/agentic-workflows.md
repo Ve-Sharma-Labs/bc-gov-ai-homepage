@@ -14,12 +14,25 @@ workflows. Their triggers and authentication differ: the QA workflows use
 
 | Workflow | Activation | Write surface |
 |---|---|---|
-| Conversation regression: PR | Trusted same-repository pull requests and manual runs | One advisory PR comment and sanitized artifacts |
-| Conversation regression: live | Approved successful deployment, daily, or manual | Up to three deduplicated issues/comments and sanitized artifacts |
-| Source impact triage | Source-related pull requests, weekly, or manual | One PR comment or up to three deduplicated issues |
-| Bug to regression fix | Maintainer applies `agentic-fix` to an issue | One draft PR or one issue comment |
-| Official source watchdog | Successful default-branch source collection | Up to twelve source issues created or updated |
-| Automatic bug regression fix | New bug report, `bug` label, or manual dispatch | One draft PR and one issue comment |
+| BC Gov Agents - PR Conversation QA | Trusted same-repository pull requests and manual runs | One advisory PR comment and sanitized artifacts; fixture-only, no live model |
+| BC Gov Agents - Live Conversation QA | Approved successful deployment, daily, or manual | Up to three deduplicated issues/comments and sanitized artifacts from bounded live synthetic QA |
+| BC Gov Agents - Source Impact Review | Source-related pull requests, weekly, or manual | One PR comment or up to three deduplicated issues mapping source changes to user-facing claims |
+| BC Gov Agents - Conversation Bug Fix (Opt-in) | Maintainer applies `agentic-fix` to an issue | One draft conversation/browser fix PR or one issue comment |
+| BC Gov Agents - Source Freshness Triage | Successful default-branch source collection | Up to twelve source issues created or updated from the trusted report; no publisher fetches |
+| BC Gov Agents - Bug Fix (Automatic) | New bug report, `bug` label, or manual dispatch | One draft regression/fix PR and one issue comment |
+
+These are workflow display names, not new workflow IDs. Existing Markdown
+filenames and CLI entry points remain stable. Explicit `run-name` metadata
+identifies the relevant event, PR, issue, ref, or collection run. Compiler-owned
+jobs retain their standard stages: activation checks eligibility, agent performs
+the bounded work, detection checks the output, safe outputs applies permitted
+writes, and conclusion reports the result. Those stages are not app test suites.
+
+The separate **BC Gov Automation - Tooling & Workflow Validation** workflow runs
+repository tooling tests and validates definitions in independent jobs; it does
+not execute the agents. **BC Gov Sources - Collection** is the deterministic
+collector, not an agent. The complete component CI and operations map is in
+[the README](../README.md#checks).
 
 `bug-to-regression-fix.md` is the opt-in conversation repair workflow.
 `bug-regression-fix.md` is the separate automatic bug-report workflow documented
@@ -128,7 +141,7 @@ intentionally unsupported.
 Install and authenticate the `gh aw` CLI, then compile and validate:
 
 ```powershell
-gh aw compile --strict --validate --actionlint --shellcheck
+gh aw compile --strict --validate --no-check-update --actionlint --shellcheck
 gh aw list
 ```
 
@@ -182,7 +195,7 @@ Standard Actions performs deterministic collection; GH-AW agents interpret
 findings or propose fixes. Only separate safe-output jobs can write issues or
 draft PRs, and only after the agent job succeeds.
 
-### Official-source freshness watchdog
+### Source collection and freshness triage
 
 ```mermaid
 flowchart TD
@@ -252,7 +265,7 @@ PR CI.
    to the SHA-256 of that exact UTF-8 string, including any trailing newline.
    The workflow does not provide or manufacture an approval. A public URL,
    robots allowance, or historical snapshot does not constitute permission.
-5. Dispatch **Official source collection** with `initialize: true` once actual
+5. Dispatch **BC Gov Sources - Collection** with `initialize: true` once actual
    rights are configured, or run it without initialization for metadata checks.
    Initialization is accepted only when trusted state explicitly establishes
    that no checkpoint has ever been initialized. It cannot reset existing quotas.
@@ -265,8 +278,9 @@ result. Renewing a valid review preserves existing cumulative budgets.
 ## Source freshness flow
 
 `official-source-collection.yml` runs daily at 13:23 UTC and on manual dispatch,
-only on the default branch. The downstream
-`official-source-watchdog.md` GH-AW assesses its successful, trusted report.
+only on the default branch, displayed as **BC Gov Sources - Collection**.
+The downstream `official-source-watchdog.md`, displayed as **BC Gov Agents -
+Source Freshness Triage**, assesses its successful, trusted report.
 The downstream trigger is restricted to `main`, the current default branch;
 update that filter and recompile if the repository's default branch changes.
 
@@ -299,6 +313,14 @@ exact most recent eligible default-branch collection attempt, never an older
 successful fallback. Runs are serialized. Failed collection still uploads
 charged state when restoration succeeded. Re-running an existing run attempt
 is refused; use a new dispatch instead.
+
+The display-name migration preserves historical checkpoint continuity:
+`previousCollection` recognizes both the new collector name and the exact former
+`Official source collection` name, with the same path/repository/branch/event
+checks. Only historical lookup accepts the old name; current collector runs and
+new watchdog events require the canonical name. Keep the workflow filename,
+serialization group, and state/report artifact names unchanged. A rename is
+never permission to reinitialize or discard charged state.
 
 If state is missing, expired, malformed, or upload continuity fails, subsequent
 network refreshes stop. Do not delete the checkpoint, use an older artifact, or
@@ -373,11 +395,11 @@ framework budgets; these limits are not an application Foundry or Azure invoice
 cap. Configure organization/repository billing protections separately.
 
 The pinned compiler version is **v0.89.21**. Edit Markdown, then regenerate
-both committed lock files; never hand-edit generated YAML:
+all six committed lock files; never hand-edit generated YAML:
 
 ```powershell
 gh extension install github/gh-aw --pin v0.89.21
-gh aw compile official-source-watchdog bug-regression-fix --no-check-update --validate
+gh aw compile --strict --validate --no-check-update
 node --test scripts\tests\*.test.mjs
 $env:PYTHONPATH = (Join-Path $PWD 'ingestion')
 .\ingestion\.venv\Scripts\python.exe -m unittest discover -s ingestion\tests -q
@@ -385,10 +407,21 @@ $env:PYTHONPATH = (Join-Path $PWD 'ingestion')
 ```
 
 The last command is offline. Use the ingestion environment's locked dependencies
-from `ingestion\requirements.lock`, not an unrelated global Azure SDK. Existing
-CI checks compilation drift and runs the new helper/ingestion tests alongside
-the original application checks. No live publisher or billable agent run is
-required to validate authoring.
+from `ingestion\requirements.lock`, not an unrelated global Azure SDK.
+**BC Gov Automation - Tooling & Workflow Validation** runs helper and
+workflow-contract tests and checks compilation drift across all six lock files
+and the action lock. Separate **BC Gov Web**, **BC Gov API**, and **BC Gov
+Ingestion** test workflows run their component suites. No live publisher or
+billable agent run is required to validate authoring.
+
+When renaming a workflow, change its `workflow_run.workflows` consumers in the
+same change and regenerate their locks. **BC Gov Agents - Live Conversation QA**
+listens to **BC Gov App - Azure Deployment**, but still requires a successful
+`deploy` marker matching the repository, run, SHA, and environment; successful
+`provision` and `verify` operations are not deployments. Keep environment,
+tracker, concurrency, issue-marker, and artifact identities stable. Avoid
+overlapping old/new executions during cutover, and review required-check
+references before rollout; do not delete old run history.
 
 References: [safe outputs](https://github.github.com/gh-aw/reference/safe-outputs/),
 [file and draft policies](https://github.github.com/gh-aw/reference/safe-outputs-pull-requests/),

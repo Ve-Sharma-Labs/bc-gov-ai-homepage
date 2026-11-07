@@ -933,7 +933,7 @@ mode and reviewed-schema flag must enter one new API revision together.
 | Reviewed publication | [Ingestion guide](../ingestion/README.md), [pipeline](../ingestion/bc_ingestion/pipeline.py), [Azure publisher](../ingestion/bc_ingestion/azure_publish.py) |
 | Infrastructure and rollout | [Infrastructure guide](../infra/README.md), [orchestration](../infra/modules/pilot.bicep), [hosting](../infra/modules/hosting.bicep), [AI/data](../infra/modules/ai-services.bicep) |
 | Private networking and edge | [Network](../infra/modules/network.bicep), [Redis](../infra/modules/shared-controls.bicep), [WAF/profile](../infra/modules/edge-profile.bicep), [routes](../infra/modules/edge-routes.bicep), [access logging](../infra/modules/edge-logging.bicep) |
-| Workflow definitions | [CI](../.github/workflows/ci.yml), [manual Azure deployment](../.github/workflows/azure-pilot.yml) |
+| Workflow definitions | [Actions name/purpose map](../README.md#checks), [web tests](../.github/workflows/ci-web-tests.yml), [API tests](../.github/workflows/ci-api-tests.yml), [ingestion tests](../.github/workflows/ci-ingestion-tests.yml), [web build](../.github/workflows/ci-web-build.yml), [E2E tests](../.github/workflows/ci-e2e.yml), [container checks](../.github/workflows/ci-containers.yml), [tooling and workflow validation](../.github/workflows/automation-validation.yml), [manual Azure deployment](../.github/workflows/azure-pilot.yml) |
 
 Update this page when a deployed boundary, source-publication mode or material
 runtime relationship changes. Keep implementation contracts and operational

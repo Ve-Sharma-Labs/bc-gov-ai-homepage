@@ -392,6 +392,41 @@ real government records. See the
 
 ## Checks
 
+Repository-owned Actions use `BC Gov <Area> - <Purpose>`. Workflow names identify
+the suite, run titles identify the PR/ref or manual operation, and job names
+identify the failing component without exposing matrix commands or file paths.
+**Web**, **API**, and **Ingestion** identify component-specific validation;
+**App** identifies whole-product checks and coordinated deployment.
+
+| Actions workflow | Purpose | Runs on |
+|---|---|---|
+| [BC Gov Web - Unit & Component Tests](.github/workflows/ci-web-tests.yml) | Frontend logic, components, and UI state | PRs and pushes to `main` |
+| [BC Gov API - Unit & Integration Tests](.github/workflows/ci-api-tests.yml) | Backend behavior, contracts, and in-process endpoint/integration tests | PRs and pushes to `main` |
+| [BC Gov Ingestion - Tests](.github/workflows/ci-ingestion-tests.yml) | Source processing, extraction, rights, and checkpoint behavior | PRs and pushes to `main` |
+| [BC Gov Web - Build](.github/workflows/ci-web-build.yml) | TypeScript checking and the Next.js production build | PRs and pushes to `main` |
+| [BC Gov App - E2E Tests](.github/workflows/ci-e2e.yml) | Offline Playwright profiles: baseline, context discovery, AI conversation, and task assistance, on desktop/mobile | PRs and pushes to `main` |
+| [BC Gov App - Container Build & Smoke Tests](.github/workflows/ci-containers.yml) | API, web, and ingestion `linux/amd64` builds and disconnected runtime checks; no publication or deployment | PRs and pushes to `main` |
+| [BC Gov Automation - Tooling & Workflow Validation](.github/workflows/automation-validation.yml) | Tooling tests and pinned GH-AW compilation/drift checks for all six generated workflows, in independent jobs | PRs and pushes to `main` |
+| [BC Gov App - Azure Deployment](.github/workflows/azure-pilot.yml) | Reviewed `provision`, `deploy`, or `verify` operations; live verification requires separate approval | Manual only |
+| [BC Gov Sources - Collection](.github/workflows/official-source-collection.yml) | Source metadata, authorized bounded refreshes, and durable charged checkpoints | Daily or manual, default branch only |
+
+For example, API failures appear under **BC Gov API - Unit & Integration
+Tests**, not a generic `python` check. Container jobs identify **API Container**,
+**Web Container**, and **Ingestion Container**. Build and container checks do not
+deploy; the Azure workflow retains its manual approval and exposure controls.
+
+The six **BC Gov Agents** workflows are listed in the
+[agentic workflows guide](docs/agentic-workflows.md#workflows). They explore PRs,
+check the approved live app, assess sources, or propose draft bug fixes; they
+do not replace deterministic CI.
+
+GitHub-managed **CodeQL**, **CodeQL - Code Quality**, **Security Risk Assessment**,
+**GitHub Advanced Security**, **Dependabot Updates**, and **Dependency Graph**
+retain their platform names. These are configured by GitHub rather than
+repository-authored workflow YAML. Historical runs may retain earlier names.
+
+Local equivalents:
+
 ```powershell
 npm run check
 npm run build
@@ -408,7 +443,8 @@ set. On systems without Edge, install Playwright's Chromium browser and omit
 that setting. The suite starts its own local services on ports 3310 and 8310
 and must not share a real user conversation or Azure model session.
 The discovery flag selects the focused discovery browser suite; the default
-suite exercises the unchanged legacy modes. CI runs both configurations.
+suite exercises the unchanged legacy modes. CI also runs the AI-conversation
+and task-assistance profiles as separate named steps.
 
 Agentic browser regression discovery, deployed synthetic QA, source-impact
 triage, and maintainer-gated draft fixes are documented in
@@ -416,9 +452,13 @@ triage, and maintainer-gated draft fixes are documented in
 advisory around the repository's deterministic tests and reviewed deployment
 controls.
 
-Pilot checks runs on both pushes and pull requests, so a branch update can show
-two runs of the same suite. Browser functional tests share a loopback client and
-use a bounded 1,000-request/minute HTTP budget only on their own offline preview.
+The seven ordinary CI workflows run on PRs and pushes to `main`, not every
+feature-branch push. Open a PR to get branch CI; updating that PR does not
+launch a duplicate push run. Merging still runs CI against `main`. The component
+split retains the same ten logical CI checks; it makes suites easier to find
+and rerun without duplicating them or filtering out shared changes. Browser
+functional tests share a loopback client and use a bounded 1,000-request/minute
+HTTP budget only on their own offline preview.
 The application's default remains 180; dedicated API tests verify rejection,
 client isolation and recovery at that limit. External previews and live grounded
 evaluation do not receive this test override. Browser retries remain disabled.

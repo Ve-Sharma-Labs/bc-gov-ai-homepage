@@ -1,0 +1,35 @@
+name: BC Gov API - Unit & Integration Tests
+run-name: >-
+  BC Gov API - Unit & Integration Tests | ${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: BC Gov API - Unit & Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install locked Python dependencies
+        run: |
+          if [ -f requirements-dev.lock ]; then
+            python -m pip install -r requirements-dev.lock -e .
+          elif [ -f requirements.lock ]; then
+            python -m pip install -r requirements.lock
+            python -m pip install --no-build-isolation --no-deps -e .
+          else
+            python -m pip install -e ".[dev]"
+          fi
+        working-directory: apps/api
+      - name: Run the component test suite
+        run: python -m pytest -q
+        working-directory: apps/api

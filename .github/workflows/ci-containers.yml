@@ -1,0 +1,86 @@
+name: BC Gov App - Container Build & Smoke Tests
+run-name: >-
+  BC Gov App - Container Build & Smoke Tests | ${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  containers:
+    name: BC Gov App - ${{ matrix.label }} Container
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - component: api
+            label: API
+            dockerfile: apps/api/Dockerfile
+          - component: web
+            label: Web
+            dockerfile: apps/web/Dockerfile
+          - component: ingestion
+            label: Ingestion
+            dockerfile: ingestion/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the Azure target architecture
+        run: docker build --platform linux/amd64 --tag "bc-pilot-${{ matrix.component }}:check" --file "${{ matrix.dockerfile }}" .
+      - name: Check API package and disconnected safety
+        if: matrix.component == 'api'
+        run: |
+          docker run --rm --network none --entrypoint python -i bc-pilot-api:check - <<'PY'
+          import os
+          import platform
+          from fastapi.testclient import TestClient
+          from bc_api.config import Settings
+          from bc_api.main import create_app
+          assert os.getuid() == 10001
+          assert platform.machine() == "x86_64"
+          with TestClient(create_app(Settings(app_env="production")), base_url="http://localhost") as client:
+              assert client.get("/healthz").status_code == 200
+              assert client.get("/api/catalog").status_code == 503
+          with TestClient(create_app(Settings(app_env="development")), base_url="http://localhost") as client:
+              assert len(client.get("/api/catalog").json()["journeys"]) == 7
+              assert client.get("/api/capabilities").json()["aiConfigured"] is False
+          PY
+      - name: Check web runtime dependencies
+        if: matrix.component == 'web'
+        run: |
+          docker run --rm --network none --entrypoint node bc-pilot-web:check --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            import { ManagedIdentityCredential } from "@azure/identity";
+            import sharp from "sharp";
+            assert.equal(process.getuid(), 1001);
+            assert.equal(process.arch, "x64");
+            assert.equal(typeof ManagedIdentityCredential, "function");
+            for (const path of ["server.js", ".next/static", "public"]) assert.ok(fs.existsSync(path));
+            const image = await sharp({ create: { width: 1, height: 1, channels: 3, background: "#ffffff" } }).png().toBuffer();
+            assert.ok(image.length > 0);
+          '
+      - name: Check offline ingestion and identity-only storage support
+        if: matrix.component == 'ingestion'
+        run: |
+          docker run --rm --network none --entrypoint python -i bc-pilot-ingestion:check - <<'PY'
+          import contextlib
+          import io
+          import json
+          import os
+          import platform
+          from bc_ingestion.cli import main
+          from bc_ingestion.azure_blob import BlobManifestStore
+          assert os.getuid() == 10001
+          assert platform.machine() == "x86_64"
+          output = io.StringIO()
+          with contextlib.redirect_stdout(output):
+              assert main(["programme"]) == 0
+          report = json.loads(output.getvalue())
+          assert report["programmeStore"] == "local"
+          assert report["status"] == "review-only"
+          assert report["publishedDocuments"] == 0
+          PY

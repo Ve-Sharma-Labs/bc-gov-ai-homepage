@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const root = process.env.GITHUB_WORKSPACE
   ? resolve(process.env.GITHUB_WORKSPACE) : resolve(dirname(fileURLToPath(import.meta.url)), "..");
-export const collectorName = "Official source collection";
+export const collectorName = "BC Gov Sources - Collection";
+const legacyCollectorName = "Official source collection";
 export const collectorPath = ".github/workflows/official-source-collection.yml";
 const bot = (user) => user?.type === "Bot" || user?.login?.endsWith("[bot]");
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -73,14 +74,16 @@ export function sourceUpdates(groups, issues) {
   });
 }
 
-export function trustedCollection(run, repository, branch) {
-  return run?.name === collectorName && run.path === collectorPath
+export function trustedCollection(run, repository, branch, { allowLegacyName = false } = {}) {
+  return (run?.name === collectorName || (allowLegacyName && run?.name === legacyCollectorName))
+    && run.path === collectorPath
     && run.head_branch === branch && run.head_repository?.full_name === repository
     && ["schedule", "workflow_dispatch"].includes(run.event);
 }
 
 export function previousCollection(runs, currentId, repository, branch) {
-  const candidates = runs.filter((run) => run.id !== currentId && trustedCollection(run, repository, branch)
+  const candidates = runs.filter((run) => run.id !== currentId
+    && trustedCollection(run, repository, branch, { allowLegacyName: true })
     && !["queued", "waiting", "pending", "requested"].includes(run.status));
   return candidates.sort((a, b) => b.id - a.id)[0];
 }

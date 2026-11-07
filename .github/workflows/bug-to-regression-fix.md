@@ -1,4 +1,7 @@
 ---
+name: BC Gov Agents - Conversation Bug Fix (Opt-in)
+run-name: >-
+  BC Gov Agents - Conversation Bug Fix (Opt-in) | Issue #${{ github.event.issue.number }}
 description: |
   On explicit maintainer opt-in, reproduces one confirmed conversation bug and proposes
   a minimal regression test and fix as a draft pull request.
@@ -47,7 +50,7 @@ safe-outputs:
 timeout-minutes: 35
 ---
 
-# Opt-in bug to regression test and fix
+# BC Gov Agents - Conversation Bug Fix (Opt-in)
 
 Work only on issue #${{ github.event.issue.number }} after confirming that the
 `agentic-fix` label is present and the issue describes a conversation-state, routing,

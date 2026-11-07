@@ -1,0 +1,61 @@
+name: BC Gov App - E2E Tests
+run-name: >-
+  BC Gov App - E2E Tests | ${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: BC Gov App - Browser E2E (Desktop & Mobile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install locked app dependencies and Chromium
+        run: |
+          python -m venv apps/api/.venv
+          apps/api/.venv/bin/python -m pip install -r apps/api/requirements.lock -e apps/api
+          npm ci
+          npm --prefix apps/web ci
+          npx --no-install playwright install --with-deps chromium
+      - name: Baseline
+        run: npm run test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - name: Context Discovery
+        run: npm run test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          CONVERSATION_DISCOVERY_ENABLED: "true"
+      - name: AI Conversation
+        run: npm run test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          AI_CONVERSATION_ENABLED: "true"
+      - name: Task Assistance
+        run: npm run test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          TASK_ASSISTANCE_ENABLED: "true"
+      - name: Upload browser failure evidence
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-evidence
+          path: test-results
+          retention-days: 7

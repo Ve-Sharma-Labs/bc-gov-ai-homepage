@@ -1,5 +1,7 @@
 ---
-name: Bug report regression and fix
+name: BC Gov Agents - Bug Fix (Automatic)
+run-name: >-
+  BC Gov Agents - Bug Fix (Automatic) | Issue #${{ github.event.issue.number || inputs.issue_number }}
 description: Automatically reproduce new bug reports and propose narrowly scoped draft fixes.
 on:
   issues:
@@ -103,7 +105,7 @@ safe-outputs:
       - "docs/*.md"
 ---
 
-# Reproduce a bug, add a regression, propose a draft fix
+# BC Gov Agents - Bug Fix (Automatic)
 
 Read `test-results/bug-fix-context.json` for the one eligible report and exact
 base commit. The user authorized automatic attempts on new bug reports, not

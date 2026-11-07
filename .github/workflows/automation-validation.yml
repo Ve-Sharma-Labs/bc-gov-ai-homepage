@@ -1,0 +1,42 @@
+name: BC Gov Automation - Tooling & Workflow Validation
+run-name: >-
+  BC Gov Automation - Tooling & Workflow Validation | ${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tooling:
+    name: BC Gov Automation - Tooling Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Run tooling and workflow contract tests
+        run: npm run test:tooling
+  agentic-workflows:
+    name: BC Gov Automation - Compile & Validate Workflows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install the pinned workflow compiler
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-aw --pin v0.89.21
+      - name: Compile and validate all agentic workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh aw compile --strict --validate --no-check-update
+      - name: Check all generated workflows match their sources
+        run: git diff --exit-code -- '.github/workflows/*.lock.yml' .github/aw/actions-lock.json

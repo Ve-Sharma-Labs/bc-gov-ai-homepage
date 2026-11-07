@@ -1,9 +1,11 @@
 ---
-name: Official-source freshness watchdog
+name: BC Gov Agents - Source Freshness Triage
+run-name: >-
+  BC Gov Agents - Source Freshness Triage | Collection run ${{ github.event.workflow_run.id }}
 description: Assess sanitized source findings and maintain one issue per affected source.
 on:
   workflow_run:
-    workflows: ["Official source collection"]
+    workflows: ["BC Gov Sources - Collection"]
     types: [completed]
     branches: [main]
   roles: all
@@ -59,7 +61,7 @@ safe-outputs:
     max: 12
 ---
 
-# Official-source freshness watchdog
+# BC Gov Agents - Source Freshness Triage
 
 Read `test-results/source-watchdog-context.json`. The deterministic collector has
 already enforced publisher rights, robots, URL protections and durable budgets.
