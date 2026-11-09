@@ -360,6 +360,17 @@ access: service enablement and the paid-subscription requirement still apply.
 Connect the created resource in the Web IQ portal before binding the API identity.
 `statisticsEnabled=false` must not be interpreted as Zero Query Logging.
 
+`app-image-update.bicep` is a **validation-only** mirror of existing Container
+Apps, not a deployment template. Use its secure snapshot parameter for ARM
+validation and what-if; never deploy the complete mirror. The actual rollout
+must compare fresh template hashes and PATCH only `properties.template`,
+preserving identity, configuration, networking, scale and spending limits.
+Wait for the requested revision to become ready: an accepted asynchronous PATCH
+can initially return the old template. Keep the prior image digests for rollback
+and verify public-edge recovery after restoring Front Door's enabled state.
+Treat snapshot parameters as confidential and remove temporary secret values
+after validation.
+
 ## References
 
 - [AVM pattern catalogue](https://azure.github.io/Azure-Verified-Modules/indexes/bicep/bicep-pattern-modules/)
