@@ -21,6 +21,7 @@ from azure.search.documents.aio import SearchClient
 from starlette.requests import ClientDisconnect
 
 from bc_api.agent_policy import AGENT_INSTRUCTIONS, GENERAL_INSTRUCTIONS
+from bc_api.errors import ApiError
 from bc_api.foundry import FoundryRuntime
 from bc_api.main import create_app
 from bc_api.models import AgentBinding
@@ -111,6 +112,79 @@ def response(output=None, status="completed", response_id="resp-test"):
             "output_tokens_details": {"reasoning_tokens": 0},
         },
     }
+
+def decision_runtime(configured, repository, replies):
+    settings = configured.model_copy(update={
+        "foundry_conversation_agent": AgentBinding(
+            name="offline-planner", version="1", model_deployment="offline-test-model",
+        ),
+    })
+    runtime = FoundryRuntime(settings, repository)
+    create = AsyncMock(side_effect=replies)
+
+    @contextlib.asynccontextmanager
+    async def client():
+        yield SimpleNamespace(responses=SimpleNamespace(create=create))
+
+    runtime.project = SimpleNamespace(get_openai_client=lambda: SimpleNamespace(
+        with_options=lambda **kwargs: client(),
+    ))
+    runtime.ensure_conversation_ready = AsyncMock()
+    return runtime, ToolContext(repository, EvidenceLedger()), create
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("reason, expected", [
+    ("max_output_tokens", "max_output_tokens"),
+    ("content_filter", "content_filter"),
+    ("PRIVATE-FIXTURE", "unknown"),
+])
+async def test_planner_incomplete_diagnostics_never_log_response_content(
+    configured, repository, caplog, reason, expected,
+):
+    reply = SimpleNamespace(
+        status="incomplete", output=[], usage=None,
+        incomplete_details=SimpleNamespace(reason=reason),
+        output_text="PRIVATE-FIXTURE",
+    )
+    runtime, context, create = decision_runtime(configured, repository, [reply])
+    with pytest.raises(ApiError) as caught:
+        await runtime.decide_conversation('{"currentMessage":"PRIVATE-FIXTURE"}', context)
+    assert caught.value.code == "CONVERSATION_DECISION_INVALID"
+    assert create.await_count == 1
+    assert "status=incomplete calls=0" in caplog.text
+    assert f"incomplete={expected}" in caplog.text
+    assert "PRIVATE-FIXTURE" not in caplog.text
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("unknown_goal, rule", [
+    (False, "question-action"), (True, "unclassified"),
+])
+async def test_planner_schema_diagnostics_only_name_fixed_invariants(
+    configured, repository, caplog, unknown_goal, rule,
+):
+    arguments = {
+        "goal": "PRIVATE-FIXTURE" if unknown_goal else "job-loss",
+        "intent": "task", "subject": "you", "action": "guide",
+        "questionKey": "priority", "candidates": [], "updates": [],
+        "focus": "requirements", "tone": "supportive",
+    }
+    reply = SimpleNamespace(
+        status="completed", usage=SimpleNamespace(total_tokens=20),
+        output=[SimpleNamespace(
+            type="function_call", name="propose_conversation_turn",
+            arguments=json.dumps(arguments),
+        )],
+    )
+    runtime, context, create = decision_runtime(configured, repository, [reply, reply])
+    with pytest.raises(ApiError) as caught:
+        await runtime.decide_conversation('{"currentMessage":"PRIVATE-FIXTURE"}', context)
+    assert caught.value.code == "CONVERSATION_DECISION_INVALID"
+    assert create.await_count == 2
+    assert f"rules=['{rule}']" in caplog.text
+    assert "PRIVATE-FIXTURE" not in caplog.text
+    assert all(call.kwargs["store"] is False for call in create.await_args_list)
 
 
 def sse(events):

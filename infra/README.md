@@ -180,6 +180,22 @@ Front Door endpoint is disabled, rather than trusting a stage variable. New
 images must pass validation before their immutable digests are promoted and
 traffic reopened. No workflow has been run.
 
+For a focused diagnosis, run `scripts/verify-pilot-chat.mjs` with the exact
+`--url`, `--live-approved` and a supported `--case` such as `--case=job-loss`.
+Focused results explicitly report partial coverage and do not replace the full
+release check. Planner failures expose only fixed stage labels, not model text.
+
+After separate research approval and configuration, use
+`scripts/verify-optional-research.mjs --url=<reviewed-origin> --live-approved
+--research-approved` for the real per-answer flow. It performs at most seven
+submissions, plus two cancellation controls: two ordinary indexed answers, both
+provider supplements, one cancelled Web IQ run, and two rejected-scope checks.
+It verifies unchanged conversation state, separate provenance, next-Send
+isolation and page revocation, then clears its own synthetic state. Without live
+approval it reads capabilities only. The existing shared budget still applies;
+failed or cancelled work can retain its full reservation. Never reset counters
+or bypass admission to make a release check pass.
+
 **BC Gov App - Container Build & Smoke Tests** is separate CI: it builds and
 checks API, web, and ingestion images without publishing or deploying them.
 Renaming the release workflow does not rename the `pilot` environment,

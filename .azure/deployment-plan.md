@@ -47,6 +47,31 @@ post-activation matched latency set rather than duplicate paid benchmarks.
 Do not enable either research action until ordinary-chat checks and both actual
 supplement-generation flows pass within the existing USD 5/day limit.
 
+### Offline continuation while admission is blocked
+
+- The user directed continued autonomous work. No allowance, access role, model
+  capacity or public research flag has been changed.
+- Focused release cases now support `--case=job-loss`; the result explicitly
+  reports focused coverage and cannot replace the complete release gate.
+  Exact known error messages map to static failure-stage labels without echoing
+  provider text.
+- Planner failure diagnostics now log only allowlisted response status,
+  incomplete-reason labels, call counts and fixed cross-field validation-rule
+  labels. Unknown values stay unclassified. This improves the next reproduction;
+  it does not establish or claim to fix the original planner failure.
+- `scripts/verify-optional-research.mjs` now provides a bounded real endpoint
+  check for both supplements, rejected page binding, separate provenance,
+  immutable ordinary conversation state, cancellation, normal next Send and
+  page revocation. It clears only its own synthetic state and makes no live
+  calls without both explicit approval flags.
+- Offline results: 32 release-tool tests, 55 native/conversation tests and API
+  lint passed. The linked workspace's resource-specific console table had no
+  retained rows for the narrowly queried failed-case window; no raw model data
+  was queried or reconstructed.
+- The diagnostic API change requires a new immutable candidate image. The
+  existing web candidate is unchanged. Re-snapshot the current rollback
+  revisions and complete target-scope validation before replacing images.
+
 ## Stage C1 candidate and rollback
 
 - Candidate source: `90506663a7b56dad3162e7e2628a6c1db5d17a3a`.

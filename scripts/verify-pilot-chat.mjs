@@ -6,6 +6,20 @@ const journeyIds = [
   "licence-renewal", "road-test-booking", "rental-assistance", "health-coverage",
   "pharmacare-registration", "primary-care", "service-bc",
 ];
+const releaseCases = {
+  renewal: "reported renewal and continuation",
+  guardianship: "guardianship starter",
+  disability: "disability starter",
+  "job-loss": "job-loss starter",
+  "non-bc": "non-B.C. issuer",
+  health: "previously covered health answer",
+};
+const plannerFailureStages = new Map([
+  ["The assistant couldn't finish choosing the next step. Please retry.", "planner-response"],
+  ["Unapproved decision withheld.", "planner-call"],
+  ["The assistant's next step couldn't be verified. Please retry.", "planner-schema"],
+  ["The assistant's next step couldn't be verified. Please try again.", "conversation-policy"],
+]);
 const genericRefusal = /I don't have current, reviewed source information|gov\/content\/home/;
 const officialHandoffs = {
   acceptedId: "https://www.icbc.com/driver-licensing/visit-dl-office/Accepted-ID",
@@ -71,15 +85,31 @@ export function assertReleaseCapabilities(capabilities, { researchApproved = fal
   "The existing four-document factual baseline does not have current, verified source coverage.");
 }
 
-export function decodeReleaseTurn(raw, threadId, previousRevision) {
-  const events = raw.split(/\r?\n/).filter((line) => line.startsWith("data: "))
-    .map((line) => JSON.parse(line.slice(6)));
+export function assertSuccessfulRun(events) {
   assert.equal(events[0]?.type, "RUN_STARTED", "The response did not start an agent run.");
   const failure = events.find((event) => event.type === "RUN_ERROR");
   const code = typeof failure?.code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(failure.code)
     ? failure.code : "UNKNOWN";
-  assert.ok(!failure, `The conversation returned a run error (${code}).`);
+  if (failure) {
+    const error = new assert.AssertionError({
+      message: `The conversation returned a run error (${code}).`,
+    });
+    if (code === "CONVERSATION_DECISION_INVALID") {
+      error.releaseStage = plannerFailureStages.get(failure.message);
+    }
+    throw error;
+  }
   assert.equal(events.at(-1)?.type, "RUN_FINISHED", "The run did not finish normally.");
+}
+
+export function decodeReleaseTurn(raw, threadId, previousRevision) {
+  const events = raw.split(/\r?\n/).filter((line) => line.startsWith("data: "))
+    .map((line) => JSON.parse(line.slice(6)));
+  return decodeReleaseEvents(events, threadId, previousRevision);
+}
+
+export function decodeReleaseEvents(events, threadId, previousRevision) {
+  assertSuccessfulRun(events);
   const text = events.filter((event) => event.type === "TEXT_MESSAGE_CONTENT")
     .map((event) => event.delta).join("");
   assert.ok(text.trim() && !genericRefusal.test(text),
@@ -97,15 +127,20 @@ export function decodeReleaseTurn(raw, threadId, previousRevision) {
 
 export async function verifyPilotChat({
   baseUrl, liveApproved = false, researchApproved = false, fetchImpl = fetch,
+  caseIds = [],
   pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 }) {
+  assert.ok(Array.isArray(caseIds) && caseIds.every((id) => Object.hasOwn(releaseCases, id))
+    && new Set(caseIds).size === caseIds.length, "Select unique, supported release case IDs.");
+  assert.ok(!caseIds.length || liveApproved, "Focused cases require explicit live approval.");
+  const selected = new Set(caseIds.map((id) => releaseCases[id]));
   const base = releaseTarget(baseUrl);
   const get = async (path) => {
     const response = await fetchImpl(new URL(path, base), {
       redirect: "error", signal: AbortSignal.timeout(30_000),
       ...(path === "/api/capabilities" ? { headers: { "X-BC-Client-Version": "6" } } : {}),
     });
-    assert.equal(response.status, 200, `The ${path} release check failed.`);
+    assert.equal(response.status, 200, `The ${path} release check failed (HTTP ${response.status}).`);
     return response.json();
   };
   const capabilities = await get("/api/capabilities");
@@ -118,6 +153,7 @@ export async function verifyPilotChat({
   }
   const report = {
     target: base.origin, mode: liveApproved ? "live-synthetic" : "read-only",
+    coverage: liveApproved ? (selected.size ? "focused" : "full") : "read-only",
     sourceHealth: {
       status: capabilities.sourceHealth.status,
       usableDocuments: capabilities.sourceHealth.usableDocuments,
@@ -128,6 +164,7 @@ export async function verifyPilotChat({
   if (!liveApproved) return report;
   let lastSent = 0;
   const runCase = async (name, check) => {
+    if (selected.size && !selected.has(name)) return;
     const page = randomUUID();
     const threadId = randomUUID();
     let cookie = "";
@@ -256,6 +293,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const report = await verifyPilotChat({
       baseUrl: target, liveApproved: process.argv.includes("--live-approved"),
       researchApproved: process.argv.includes("--research-approved"),
+      caseIds: process.argv.filter((argument) => argument.startsWith("--case="))
+        .map((argument) => argument.slice(7)),
     });
     console.log(JSON.stringify({ passed: true, ...report }, null, 2));
   } catch (error) {
@@ -263,6 +302,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       passed: false,
       case: error instanceof Error ? error.releaseCase : undefined,
       turn: error instanceof Error ? error.releaseTurn : undefined,
+      stage: error instanceof Error ? error.releaseStage : undefined,
       error: error instanceof assert.AssertionError
         ? error.message.split("\n")[0]
         : "Release verification failed; inspect the selected target, transport, and response contract.",

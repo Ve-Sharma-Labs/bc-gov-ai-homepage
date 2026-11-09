@@ -572,6 +572,15 @@ class FoundryRuntime:
                 context.decision_usage_valid = False
             calls = [item for item in response.output if item.type == "function_call"]
             if response.status != "completed" or len(calls) != 1:
+                status = response.status if response.status in (
+                    "completed", "failed", "in_progress", "cancelled", "queued", "incomplete",
+                ) else "unknown"
+                reason = getattr(getattr(response, "incomplete_details", None), "reason", None)
+                reason = reason if reason in ("max_output_tokens", "content_filter") else "unknown"
+                logging.getLogger("bc_api.conversation").warning(
+                    "Planner response rejected (attempt %s): status=%s calls=%s incomplete=%s",
+                    attempt + 1, status, len(calls), reason,
+                )
                 raise ApiError(
                     502,
                     "CONVERSATION_DECISION_INVALID",
@@ -587,10 +596,25 @@ class FoundryRuntime:
                     return parse_grounded_proposal(call.arguments)
                 return ConversationProposal.model_validate_json(call.arguments)
             except (ValidationError, json.JSONDecodeError) as exc:
-                errors = exc.errors(include_input=False) if isinstance(exc, ValidationError) else []
+                errors = (
+                    exc.errors(include_input=False, include_context=False)
+                    if isinstance(exc, ValidationError) else []
+                )
                 codes = sorted({item["type"] for item in errors}) or ["json_invalid"]
+                known_rules = {
+                    "Value error, Only provided answers may have a value.": "answer-state",
+                    "Value error, Only ask can propose a question.": "question-action",
+                    "Value error, Candidates are only for an intent question.": "candidate-scope",
+                    "Value error, Answer topics require a current information request.": (
+                        "answer-topics"
+                    ),
+                }
+                rules = sorted({
+                    known_rules.get(item["msg"], "unclassified") for item in errors
+                }) or ["json-invalid"]
                 logging.getLogger("bc_api.conversation").warning(
-                    "Planner schema validation failed (attempt %s): %s", attempt + 1, codes
+                    "Planner schema validation failed (attempt %s): %s; rules=%s",
+                    attempt + 1, codes, rules,
                 )
                 if attempt:
                     raise ApiError(

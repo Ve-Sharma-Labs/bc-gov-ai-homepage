@@ -133,6 +133,77 @@ test("run diagnostics exclude untrusted error messages and malformed codes", () 
   }
 });
 
+test("planner diagnostics classify only exact known messages without echoing them", () => {
+  for (const [message, stage] of [
+    ["The assistant couldn't finish choosing the next step. Please retry.", "planner-response"],
+    ["Unapproved decision withheld.", "planner-call"],
+    ["The assistant's next step couldn't be verified. Please retry.", "planner-schema"],
+    ["The assistant's next step couldn't be verified. Please try again.", "conversation-policy"],
+    ["PRIVATE-FIXTURE", undefined],
+    [42, undefined],
+  ]) {
+    const events = [validTurn[0], {
+      type: "RUN_ERROR", code: "CONVERSATION_DECISION_INVALID", message,
+    }];
+    assert.throws(() => decodeReleaseTurn(frame(events), "thread", 0), (failure) => {
+      assert.equal(failure.releaseStage, stage);
+      assert.ok(!failure.message.includes("PRIVATE-FIXTURE"));
+      return true;
+    });
+  }
+});
+
+test("focused checks reject invalid selections before making any request", async () => {
+  for (const options of [
+    { caseIds: ["unknown"], liveApproved: true },
+    { caseIds: ["job-loss", "job-loss"], liveApproved: true },
+    { caseIds: ["job-loss"], liveApproved: false },
+    { caseIds: null, liveApproved: true },
+  ]) {
+    await assert.rejects(verifyPilotChat({
+      baseUrl: "https://pilot.example/", ...options,
+      fetchImpl: async () => assert.fail("Invalid selections must not reach the application."),
+    }));
+  }
+});
+
+test("a focused health check uses one turn and cannot report full release coverage", async () => {
+  let sent = 0, cleaned = 0;
+  const result = await verifyPilotChat({
+    baseUrl: "https://pilot.example/", liveApproved: true, caseIds: ["health"],
+    pause: async () => {},
+    fetchImpl: async (url, options) => {
+      if (url.pathname === "/api/capabilities") return Response.json(capabilities);
+      if (url.pathname === "/api/catalog") return Response.json({
+        journeys: Object.keys(capabilities.journeys).map((id) => ({ id, steps: [{}], handoffs: [{}] })),
+      });
+      if (options.method === "DELETE") {
+        cleaned++;
+        return new Response(null, { status: 204 });
+      }
+      const input = JSON.parse(options.body);
+      assert.equal(input.messages[0].content, "What is the Health Connect Registry?");
+      sent++;
+      return new Response(frame([
+        { type: "RUN_STARTED" },
+        { type: "TEXT_MESSAGE_CONTENT", delta: "Reviewed health fixture." },
+        { type: "CUSTOM", name: "bc.response", value: { kind: "grounded", origin: "model" } },
+        { type: "CUSTOM", name: "bc.conversation", value: {
+          threadId: input.threadId, revision: 1, shareContext: false, question: null,
+        } },
+        { type: "CUSTOM", name: "bc.task", value: { threadId: input.threadId, revision: 1, task: null } },
+        { type: "CUSTOM", name: "annotations", value: { annotations: [{}] } },
+        { type: "RUN_FINISHED" },
+      ]), { headers: { "Set-Cookie": "bc_pilot_session=fixture-owner; HttpOnly" } });
+    },
+  });
+  assert.equal(sent, 1);
+  assert.equal(cleaned, 1);
+  assert.equal(result.coverage, "focused");
+  assert.equal(result.turns, 1);
+  assert.deepEqual(result.cases, [{ name: "previously covered health answer", passed: true, turns: 1 }]);
+});
+
 test("failed live checks identify the static case and attempted turn and still clean up", async () => {
   let cleaned = 0;
   await assert.rejects(verifyPilotChat({

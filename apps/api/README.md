@@ -340,6 +340,10 @@ Metadata-only timing distinguishes admission, readiness/authentication, retrieva
 model invocation, first model text, first response and first validated factual
 content. A canned greeting or model clarification is never counted as faster
 grounded model output. Raw questions, histories and tool contents are not logged.
+Rejected planner responses log only allowlisted status/incomplete-reason labels,
+function-call counts and fixed validation-rule labels. Unknown provider values
+remain `unknown` or `unclassified`; proposals, arguments and input values are
+never diagnostic payloads.
 
 Unknown citations, unsafe links/HTML, unvalidated generated state, unsupported
 transaction claims, missing citations, and unverified critical fee/deadline/
