@@ -122,7 +122,7 @@ function fixture({ mutateResult = () => {}, completedBeforeCancel = false } = {}
         kind: "indexed", retrievedAt, reference: {
           sourceId: source.id, url: source.url, title: source.title, publisher: source.publisher,
           documentId: "fixture-document", documentVersion: "fixture-reviewed-version",
-          checkedAt: new Date().toISOString().slice(0, 10),
+          checkedAt: new Date().toISOString(),
         },
       }],
     };
@@ -171,6 +171,21 @@ test("bounded live checks isolate supplements, verify cancellation, and clear on
   assert.ok(!JSON.stringify(report).includes("PRIVATE-FIXTURE"));
   assert.deepEqual(mock.cleanups, ["/api/research", "/api/research", "/api/conversation"]);
 });
+
+for (const checkedAt of ["2026-11-09", "2026-11-09T12:48:35-07:00"]) {
+  test(`indexed review provenance preserves the API's supported format ${checkedAt}`, async () => {
+    const mock = fixture({
+      mutateResult: (value) => {
+        if (value.action === "corpus-explore") value.citations[0].reference.checkedAt = checkedAt;
+      },
+    });
+    const report = await verifyOptionalResearch({
+      baseUrl: "https://pilot.example/", liveApproved: true, researchApproved: true,
+      fetchImpl: mock.fetchImpl, pause: async () => {},
+    });
+    assert.equal(report.supplements[0].kind, "indexed");
+  });
+}
 
 for (const [name, mutate] of [
   ["wrong parent", (value) => { value.parentMessageId = "another-answer"; }],

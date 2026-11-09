@@ -2,12 +2,74 @@
 
 Status: Validated
 
-Current execution selection: validate the C1 diagnostic image-only retry, without
-executing paid checks before the normal budget reset. Both IQ flags remain
-disabled and the original API/web image digests are still serving. Public
-research activation remains blocked on the live release gates below.
+Current execution selection: Stage C2 configuration-only validation. The C1
+diagnostic API and web candidates are now deployed and ready, with both research
+options still disabled. Public readiness and the real managed-identity BFF's
+disabled/strict-schema/ownership checks passed without model calls.
+Configuration preparation and ARM validation do not authorize execution without
+a fresh full ordinary-chat pass; public activation also requires the actual
+private research flows to pass.
 
-## Current C1 diagnostic candidate
+## Current Stage C2 payload
+
+- One existing API resource only. Current API image `a46c1f7b...` and web image
+  `9ed9b2c4...` are preserved; the web template is not updated.
+- Payload and rollback: `.azure/iq-rollout/c2-585cf3b`.
+- Validation mirror: `infra/app-image-update.bicep` with
+  `.azure/iq-rollout/c2-585cf3b/activation.parameters.json`.
+- Actual writes PATCH only API `properties.template`; only reviewed optional
+  research environment settings and a new revision suffix change.
+- Global USD 5/day, existing token/run limits, identities, access, network, scale
+  and indexed source publication remain unchanged.
+- C2 payload SHA256: `2fda238a41894460d449baa21b2a6ee340c2ce966a79924e3b110460c5e2aad7`
+- Execution requires a successful full ordinary-chat report from the same API
+  image, revision and raw template within the previous 30 minutes. Focused
+  cases, read-only checks and missing evidence cannot satisfy that gate.
+- The activation operator closes public exposure, checks for concurrent edits,
+  applies the template, verifies the real research flows through the normal
+  web BFF, and rolls back the original disabled configuration on failure.
+
+### All validation checks pass (Stage C2)
+
+- [x] Core validation: CLI/auth, Bicep compile, target-scope validation and
+  structured what-if with exactly one existing API Modify.
+- [x] Docker build: no new image; both immutable images already passed their
+  target-platform checks and are running in the C1 revisions.
+- [x] Azure Policy validation through target-scope validation.
+- [x] Static role verification: no permission, identity or infrastructure change.
+- [x] Local application configuration gates pass for the prepared draft.
+- [x] Record current proof and resolve any validation errors.
+
+## 7. Current validation proof (Stage C2)
+
+Proof recorded at `2026-11-09T22:50:09.2456118Z`.
+
+- `validate-deployment.ps1 -Scope group -ResourceGroup rg-bcassist-xufhsendpx
+  -Template .\infra\app-image-update.bicep -Parameters
+  .\.azure\iq-rollout\c2-585cf3b\activation.parameters.json -Subscription
+  ad92e163-a85e-40cc-bb50-054b0b8197a8` returned `OVERALL: PASS`.
+- Structured what-if confirms exactly one Modify resource: the existing API.
+  There are zero creates/deletes, and the web resource is absent from the payload.
+- This is configuration only; the verified API/web image digests are retained.
+  Static review confirms no new identity, permission, endpoint exposure, hosting
+  scale, model deployment or global budget change.
+- Only the application template is patched. The validation mirror itself is
+  never deployed.
+- No research settings have been applied. Fresh full ordinary-chat proof is
+  still mandatory before execution; actual private research checks remain
+  mandatory before public activation.
+- The activation operator passed eight offline transaction tests covering
+  asynchronous readiness, successful closed-exposure verification, rollback,
+  concurrent-change rejection and rejection of focused/stale/mismatched proof.
+- The live checker was corrected to accept the API's actual ISO date-or-date-time
+  review field rather than incorrectly requiring a calendar date. All 34
+  release-tool checks passed. The corrected tools were staged in the owned web
+  container's `/tmp/iq-c6155a97-v2` directory with checksum
+  `1a19df520a451a869a6a4135ced5481d4a33044a5e1ebd2e1ef5346b7ba1c0a4`.
+- The deployed API identity re-read `bc-service-research:1` and passed the
+  application's exact policy/model/tool-free verification without model calls.
+
+## Completed C1 diagnostic candidate
 
 - API source `585cf3bba8b017a780daab219615e0e6c291f3e1`, immutable image
   `crbcassistxufhsendpx.azurecr.io/bc-government-assistant/api-bc-pilot@sha256:a46c1f7b5ee6fde089c1e19597e9fd0df870048baa5b35c58c479d9b5c1ab823`.
@@ -37,7 +99,7 @@ research activation remains blocked on the live release gates below.
 - Deployment remains conditional on fresh compare-before-write checks and the
   existing protected-exposure and rollback procedure.
 
-## 7. Current validation proof (C1 diagnostic retry)
+## C1 diagnostic validation proof
 
 Proof recorded at `2026-11-09T09:09:16.2575801Z`.
 
@@ -60,8 +122,9 @@ Proof recorded at `2026-11-09T09:09:16.2575801Z`.
   the existing temporary Microsoft mirror restored the pinned dependency
   without disabling certificate validation. The Windows credential-helper error
   was resolved with a private generated Docker auth file, removed after push.
-- This validates an image-only retry, not research activation. No new diagnostic
-  image has been deployed and paid validation still awaits ordinary admission.
+- This validated an image-only retry, not research activation. It was subsequently
+  deployed as API/web revisions ending `iq-585cf3b`; private health and public
+  read-only checks passed, and both IQ flags remain disabled.
 
 ## Current release blocker and safe state
 
@@ -159,8 +222,8 @@ configuration gates locally but has not been applied to any live app.
 3. Run only the focused job-loss case first. If it fails, use the fixed client
    stage and allowlisted server diagnostics to establish the cause before
    changing planner behavior or spending on a full-suite repetition.
-4. Require the complete ordinary-chat release suite before preparing and
-   validating a separate configuration-only payload from the current API.
+4. Require the complete ordinary-chat release suite before executing the
+   separately prepared and validated configuration-only payload.
 5. Hold public exposure closed while running the actual bounded research
    verifier through the owned web container's normal managed-identity BFF path.
    Never interpret provider connectivity alone as a successful supplement.

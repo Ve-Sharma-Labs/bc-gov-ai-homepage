@@ -7,6 +7,7 @@ import {
 } from "./verify-pilot-chat.mjs";
 
 const actions = ["corpus-explore", "web-check"];
+const reviewDatePattern = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 
 export async function readReleaseEvents(response, onEvent = async () => {}) {
   assert.equal(response.status, 200, `Streaming transport failed (HTTP ${response.status}).`);
@@ -98,7 +99,7 @@ function assertSupplement(events, request, sources) {
     } else {
       assert.ok(["documentId", "documentVersion", "title", "publisher"]
         .every((key) => typeof reference[key] === "string" && reference[key].trim())
-        && /^\d{4}-\d{2}-\d{2}$/.test(reference.checkedAt)
+        && reviewDatePattern.test(reference.checkedAt)
         && Number.isFinite(Date.parse(reference.checkedAt)),
       "Indexed research must retain its document and review provenance.");
     }
