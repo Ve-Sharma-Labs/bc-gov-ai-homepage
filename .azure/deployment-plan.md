@@ -1,11 +1,67 @@
 # Optional IQ rollout
 
-Status: Blocked
+Status: Validated
 
-Current execution selection: paused before public research activation. Both IQ
-flags remain disabled and the original API/web image digests have been restored.
-Provider connectivity passed, but ordinary-chat release verification failed and
-the unchanged daily processing allowance cannot admit another model run.
+Current execution selection: validate the C1 diagnostic image-only retry, without
+executing paid checks before the normal budget reset. Both IQ flags remain
+disabled and the original API/web image digests are still serving. Public
+research activation remains blocked on the live release gates below.
+
+## Current C1 diagnostic candidate
+
+- API source `585cf3bba8b017a780daab219615e0e6c291f3e1`, immutable image
+  `crbcassistxufhsendpx.azurecr.io/bc-government-assistant/api-bc-pilot@sha256:a46c1f7b5ee6fde089c1e19597e9fd0df870048baa5b35c58c479d9b5c1ab823`.
+- Web source `90506663a7b56dad3162e7e2628a6c1db5d17a3a`, unchanged candidate
+  `crbcassistxufhsendpx.azurecr.io/bc-government-assistant/web-bc-pilot@sha256:9ed9b2c4cacd4ba237da985ebc64cf9bfc6edc105cc29a435fddf48c4fddc6f5`.
+- The diagnostic API image was built for Linux amd64, verified as UID 10001,
+  smoke-tested with networking disabled, and pushed with the matching source
+  label. Production without configured controls still fails closed, all seven
+  development guides load, and the temporary mirror file is absent in the image.
+- New rollback snapshots, raw-template/configuration/identity hashes and exact
+  image-only patches are under `.azure/iq-rollout/c1-585cf3b`. The original
+  snapshots were not overwritten. Current rollback revisions end in
+  `iq-rollback-1794211435`.
+- Validation target: `infra/app-image-update.bicep` with
+  `.azure/iq-rollout/c1-585cf3b/image-update.parameters.json`. The mirror must
+  never be deployed; actual writes contain only `properties.template`.
+
+### All validation checks pass (current C1 retry)
+
+- [x] Core validation: CLI/auth, Bicep compilation, target-scope validation and
+  structured what-if, modifying only the two existing apps.
+- [x] Docker build and target-platform offline smoke; immutable pushed digest.
+- [x] Azure Policy validation through target-scope validation.
+- [x] Static role verification: no new grants; same app identities and AcrPull
+  relationships, with no identity/configuration/network/scale change.
+- [x] Record current proof and resolve any errors before marking Validated.
+- Deployment remains conditional on fresh compare-before-write checks and the
+  existing protected-exposure and rollback procedure.
+
+## 7. Current validation proof (C1 diagnostic retry)
+
+Proof recorded at `2026-11-09T09:09:16.2575801Z`.
+
+- `validate-deployment.ps1 -Scope group -ResourceGroup rg-bcassist-xufhsendpx
+  -Template .\infra\app-image-update.bicep -Parameters
+  .\.azure\iq-rollout\c1-585cf3b\image-update.parameters.json -Subscription
+  ad92e163-a85e-40cc-bb50-054b0b8197a8` returned `OVERALL: PASS`.
+- The structured what-if has exactly two Modify resources (the existing API
+  and web), zero Create and zero Delete resources. The actual patch remains
+  narrower than the mirror and excludes configuration and identity.
+- Existing secret values were read only for secure ARM validation and were
+  neither printed nor included in the actual patch. They must be removed from
+  the private parameter file after this validation stage.
+- The diagnostic API's registry digest, source label, architecture, non-root
+  identity, fail-closed production behavior and seven-guide offline smoke are
+  verified. The unchanged web candidate retains its previous verified build.
+- Static identity/role relationships are unchanged. No model deployment,
+  capacity, quota, network or cost-limit change is included.
+- The initial image build encountered the same upstream TLS handshake problem;
+  the existing temporary Microsoft mirror restored the pinned dependency
+  without disabling certificate validation. The Windows credential-helper error
+  was resolved with a private generated Docker auth file, removed after push.
+- This validates an image-only retry, not research activation. No new diagnostic
+  image has been deployed and paid validation still awaits ordinary admission.
 
 ## Current release blocker and safe state
 
@@ -69,8 +125,48 @@ supplement-generation flows pass within the existing USD 5/day limit.
   retained rows for the narrowly queried failed-case window; no raw model data
   was queried or reconstructed.
 - The diagnostic API change requires a new immutable candidate image. The
-  existing web candidate is unchanged. Re-snapshot the current rollback
-  revisions and complete target-scope validation before replacing images.
+  existing web candidate is unchanged. That new image and fresh target-scope
+  validation are now complete, as recorded in the current C1 section.
+
+### Prepared research configuration (not applied)
+
+`.azure/iq-rollout/research-environment-draft.json` passes the application's
+configuration gates locally but has not been applied to any live app.
+
+- Pinned answer agent `bc-service-research:1`, existing `bc-fast` model, and the
+  previously verified source/base bindings. No new model or index is proposed.
+- Retain the conservative USD 1 provider reservation used for IQ validation,
+  capped at USD 2/day for that provider. This is an application processing
+  allowance, not a quoted or guaranteed Azure invoice maximum.
+- Web IQ reserves USD 0.021/run (three USD 0.007 search-call equivalents), capped
+  at USD 0.105/day. The application allows at most five optional runs per
+  provider per day, with one optional run concurrently.
+- The existing global USD 5/day limit, model reservation, token/run limits,
+  normal-chat capacity and hosting scale are unchanged.
+- Only `service-bc`, `health`, and `healthlink-bc` use their existing registered
+  public source prefixes and 200-character display limits. Browse stays off.
+  Owner-approved public-topic logging is true; Zero Query Logging remains false.
+- Approval references point to this session's actual owner and technical
+  records, not invented Microsoft approvals. Public activation remains
+  conditional on the ordinary-chat and actual supplement checks passing.
+
+### Next admitted execution
+
+1. Re-read the shared ledger and current app templates. Do not clear counters,
+   refund uncertain work, raise limits, or overwrite a concurrent deployment.
+2. Deploy the validated diagnostic image-only payload using the fresh C1
+   snapshots and protected-exposure procedure. Wait for public-edge recovery.
+3. Run only the focused job-loss case first. If it fails, use the fixed client
+   stage and allowlisted server diagnostics to establish the cause before
+   changing planner behavior or spending on a full-suite repetition.
+4. Require the complete ordinary-chat release suite before preparing and
+   validating a separate configuration-only payload from the current API.
+5. Hold public exposure closed while running the actual bounded research
+   verifier through the owned web container's normal managed-identity BFF path.
+   Never interpret provider connectivity alone as a successful supplement.
+6. Only after all gates pass, restore public exposure, verify the live UI, run
+   one matched six-sample default-answer latency set and confirm corpus
+   immutability. Keep original images/configuration for guarded rollback.
 
 ## Stage C1 candidate and rollback
 
@@ -109,7 +205,7 @@ supplement-generation flows pass within the existing USD 5/day limit.
 - Research activation is a separate, later configuration step after this code-only
   rollout and positive end-to-end checks.
 
-## 7. Current validation proof (Stage C1)
+## Previous Stage C1 validation proof
 
 Target-scope proof captured at `2026-11-09T07:35:19.0270792Z`.
 
