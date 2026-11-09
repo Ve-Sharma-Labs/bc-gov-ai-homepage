@@ -33,6 +33,16 @@ export class ApiError extends Error {
 let contextPageToken: string | null = null;
 let discoveryPageToken: string | null = null;
 let conversationPageToken: string | null = null;
+let researchPageToken: string | null = null;
+
+export function getResearchPageToken(): string {
+  researchPageToken ??= crypto.randomUUID();
+  return researchPageToken;
+}
+
+export function resetResearchPageToken(): void {
+  researchPageToken = null;
+}
 
 export function getConversationPageToken(): string {
   conversationPageToken ??= crypto.randomUUID();

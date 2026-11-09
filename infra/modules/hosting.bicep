@@ -8,6 +8,7 @@ param foundryAgentsJson string
 param foundryGeneralAgentJson string
 param foundryContextualAgentJson string
 param foundryConversationAgentJson string
+param researchConfig object = {}
 param aiConversationEnabled string
 param taskAssistanceEnabled string
 param aiConversationPrivacyReviewed string
@@ -40,6 +41,35 @@ param clientHashKey string
 
 var apiName = 'ca-${name}-api'
 var webName = 'ca-${name}-web'
+var research = union({
+  foundryResearchAgent: ''
+  dailyRunLimit: 0
+  maxConcurrentRuns: 1
+  foundryIqEnabled: false
+  foundryIqKnowledgeBase: ''
+  foundryIqKnowledgeSource: ''
+  foundryIqModelDeployment: ''
+  foundryIqModelName: ''
+  foundryIqPreviewApprovalId: ''
+  foundryIqContractApprovalId: ''
+  foundryIqBudgetApprovalId: ''
+  foundryIqPerRunCostMicrousd: 0
+  foundryIqDailyCostLimitMicrousd: 0
+  webIqEnabled: false
+  webIqAppId: ''
+  webIqPrivacyApprovalId: ''
+  webIqTermsApprovalId: ''
+  webIqReleaseApprovalId: ''
+  webIqSourceApprovalId: ''
+  webIqSources: []
+  webIqEgressApproved: false
+  webIqZeroQueryLoggingApproved: false
+  webIqPublicQueryLoggingApproved: false
+  webIqTransientHandlingVerified: false
+  webIqBrowseSourceIdentityApproved: false
+  webIqPerRunCostMicrousd: 0
+  webIqDailyCostLimitMicrousd: 0
+}, researchConfig)
 
 module logs 'br/public:avm/res/operational-insights/workspace:0.16.1' = {
   name: 'logs'
@@ -148,7 +178,33 @@ module api 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
       { name: 'API_TOKEN_PRICE_MICROUSD', value: string(controls.tokenPriceMicrousd) }
       { name: 'API_METRICS_ENABLED', value: 'true' }
       { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: insights.outputs.connectionString }
-      { name: 'WEBIQ_ENABLED', value: 'false' }
+      { name: 'FOUNDRY_RESEARCH_AGENT', value: string(research.foundryResearchAgent) }
+      { name: 'RESEARCH_DAILY_RUN_LIMIT', value: string(research.dailyRunLimit) }
+      { name: 'RESEARCH_MAX_CONCURRENT_RUNS', value: string(research.maxConcurrentRuns) }
+      { name: 'FOUNDRY_IQ_ENABLED', value: string(research.foundryIqEnabled) }
+      { name: 'FOUNDRY_IQ_KNOWLEDGE_BASE', value: research.foundryIqKnowledgeBase }
+      { name: 'FOUNDRY_IQ_KNOWLEDGE_SOURCE', value: research.foundryIqKnowledgeSource }
+      { name: 'FOUNDRY_IQ_MODEL_DEPLOYMENT', value: research.foundryIqModelDeployment }
+      { name: 'FOUNDRY_IQ_MODEL_NAME', value: research.foundryIqModelName }
+      { name: 'FOUNDRY_IQ_PREVIEW_APPROVAL_ID', value: research.foundryIqPreviewApprovalId }
+      { name: 'FOUNDRY_IQ_CONTRACT_APPROVAL_ID', value: research.foundryIqContractApprovalId }
+      { name: 'FOUNDRY_IQ_BUDGET_APPROVAL_ID', value: research.foundryIqBudgetApprovalId }
+      { name: 'FOUNDRY_IQ_PER_RUN_COST_MICROUSD', value: string(research.foundryIqPerRunCostMicrousd) }
+      { name: 'FOUNDRY_IQ_DAILY_COST_LIMIT_MICROUSD', value: string(research.foundryIqDailyCostLimitMicrousd) }
+      { name: 'WEBIQ_ENABLED', value: string(research.webIqEnabled) }
+      { name: 'WEBIQ_APP_ID', value: research.webIqAppId }
+      { name: 'WEBIQ_PRIVACY_APPROVAL_ID', value: research.webIqPrivacyApprovalId }
+      { name: 'WEBIQ_TERMS_APPROVAL_ID', value: research.webIqTermsApprovalId }
+      { name: 'WEBIQ_RELEASE_APPROVAL_ID', value: research.webIqReleaseApprovalId }
+      { name: 'WEBIQ_SOURCE_APPROVAL_ID', value: research.webIqSourceApprovalId }
+      { name: 'WEBIQ_SOURCES', value: string(research.webIqSources) }
+      { name: 'WEBIQ_EGRESS_APPROVED', value: string(research.webIqEgressApproved) }
+      { name: 'WEBIQ_ZERO_QUERY_LOGGING_APPROVED', value: string(research.webIqZeroQueryLoggingApproved) }
+      { name: 'WEBIQ_PUBLIC_QUERY_LOGGING_APPROVED', value: string(research.webIqPublicQueryLoggingApproved) }
+      { name: 'WEBIQ_TRANSIENT_HANDLING_VERIFIED', value: string(research.webIqTransientHandlingVerified) }
+      { name: 'WEBIQ_BROWSE_SOURCE_IDENTITY_APPROVED', value: string(research.webIqBrowseSourceIdentityApproved) }
+      { name: 'WEBIQ_PER_RUN_COST_MICROUSD', value: string(research.webIqPerRunCostMicrousd) }
+      { name: 'WEBIQ_DAILY_COST_LIMIT_MICROUSD', value: string(research.webIqDailyCostLimitMicrousd) }
     ]
   }
 }

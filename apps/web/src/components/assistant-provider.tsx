@@ -56,8 +56,10 @@ import {
   type StreamAction,
   type StreamState,
 } from "@/lib/stream";
+import { useResearch } from "./use-research";
 
 export interface AssistantState {
+  research: ReturnType<typeof useResearch>;
   catalog: Catalog | null;
   capabilities: Capabilities;
   loading: boolean;
@@ -147,6 +149,11 @@ function activeConsent(receipt: ConsentReceipt | null): receipt is ConsentReceip
 }
 
 export function AssistantProvider({ children, conversationBootstrap }: AssistantProviderProps) {
+  const research = useResearch();
+  const stopResearch = research.stop;
+  const resetResearch = research.reset;
+  const researchSubmitPending = useRef(false);
+  const submitEpoch = useRef(0);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [capabilities, setCapabilities] = useState<Capabilities>(() => conversationBootstrap ? {
     ...unavailableCapabilities,
@@ -253,6 +260,10 @@ export function AssistantProvider({ children, conversationBootstrap }: Assistant
   ), []);
 
   const forgetDiscovery = useCallback(() => {
+    submitEpoch.current += 1;
+    void resetResearch(stateRef.current.messages.some((message) => !!message.researchOffer)).catch(() => {
+      if (mounted.current) setNotice("Research was cleared here; server cleanup could not be confirmed.");
+    });
     controlController.current?.abort();
     controlController.current = null;
     failedControl.current = null;
@@ -282,7 +293,7 @@ export function AssistantProvider({ children, conversationBootstrap }: Assistant
     }
     resetDiscoveryPageToken();
     dispatch({ type: "clear-discovery" });
-  }, [dispatch]);
+  }, [dispatch, resetResearch]);
 
   const clearContextMemory = useCallback(() => {
     if (activeRun.current?.mode === "contextual-demo") cancelActiveRun();
@@ -618,7 +629,21 @@ export function AssistantProvider({ children, conversationBootstrap }: Assistant
     const retrying = submission === undefined;
     submission ??= lastSubmission.current;
     const prompt = (submission?.prompt ?? draftRef.current).trim();
-    if (!mounted.current || !prompt || prompt.length > 4000 || isStreaming(stateRef.current) || controlController.current) return false;
+    if (!mounted.current || !prompt || prompt.length > 4000 || isStreaming(stateRef.current) || controlController.current || researchSubmitPending.current) return false;
+    const epoch = submitEpoch.current;
+    try {
+      const stopping = stopResearch();
+      if (stopping) {
+        researchSubmitPending.current = true;
+        await stopping;
+      }
+    } catch {
+      setNotice("Research cancellation could not be confirmed. Your draft is kept; please retry.");
+      return false;
+    } finally {
+      researchSubmitPending.current = false;
+    }
+    if (!mounted.current || epoch !== submitEpoch.current || isStreaming(stateRef.current) || controlController.current) return false;
     if (activeRun.current) {
       if (stateRef.current.status !== "complete") return false;
       cancelActiveRun();
@@ -749,7 +774,7 @@ export function AssistantProvider({ children, conversationBootstrap }: Assistant
       if (isCurrentRun(run)) dispatch({ type: "failure", runId, message: connectionFailure });
       return false;
     }
-  }, [cancelActiveRun, clearContextMemory, dispatch, isCurrentRun, setDraft]);
+  }, [cancelActiveRun, clearContextMemory, dispatch, isCurrentRun, setDraft, stopResearch]);
 
   const runConversationControl = useCallback(async (control: ConversationControl) => {
     if (!mounted.current || controlController.current || isStreaming(stateRef.current)) return false;
@@ -858,10 +883,12 @@ export function AssistantProvider({ children, conversationBootstrap }: Assistant
   }, [dispatch, forgetDiscovery]);
 
   const stop = useCallback(() => {
+    submitEpoch.current += 1;
+    void stopResearch()?.catch(() => setNotice("Research cancellation could not be confirmed."));
     const runId = stateRef.current.runId;
     cancelActiveRun();
     if (runId) dispatch({ type: "stop", runId });
-  }, [cancelActiveRun, dispatch]);
+  }, [cancelActiveRun, dispatch, stopResearch]);
 
   const reset = useCallback(() => {
     cancelActiveRun();
@@ -888,6 +915,7 @@ export function AssistantProvider({ children, conversationBootstrap }: Assistant
   const busy = isStreaming(state) || controlBusy;
   const contextActive = !!activePersona && activeConsent(consent);
   const value = useMemo<AssistantContextValue>(() => ({
+    research,
     catalog,
     capabilities,
     loading,
@@ -933,6 +961,7 @@ export function AssistantProvider({ children, conversationBootstrap }: Assistant
     stop,
     reset,
   }), [
+    research,
     catalog,
     capabilities,
     loading,

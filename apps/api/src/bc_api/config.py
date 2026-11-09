@@ -7,6 +7,7 @@ from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from bc_api.models import JOURNEY_IDS, LEGACY_JOURNEY_IDS, AgentBinding
+from bc_api.research_contract import WebResearchPermission
 from bc_api.urls import azure_endpoint
 
 
@@ -119,7 +120,38 @@ class Settings(BaseSettings):
     webiq_terms_approval_id: str = ""
     webiq_egress_approved: bool = False
     webiq_zero_query_logging_approved: bool = False
+    webiq_public_query_logging_approved: bool = False
     webiq_transient_handling_verified: bool = False
+    webiq_release_approval_id: str = ""
+    webiq_source_approval_id: str = ""
+    webiq_sources: list[WebResearchPermission] = Field(default_factory=list, max_length=30)
+    webiq_browse_source_identity_approved: bool = False
+    webiq_per_run_cost_microusd: int = Field(default=0, ge=0, le=100000000)
+    webiq_daily_cost_limit_microusd: int = Field(default=0, ge=0, le=1000000000000)
+    foundry_research_agent: AgentBinding | None = None
+    foundry_iq_enabled: bool = False
+    foundry_iq_knowledge_base: str = Field(default="", pattern=r"^(?:|[a-z][a-z0-9-]{1,126})$")
+    foundry_iq_knowledge_source: str = Field(default="", pattern=r"^(?:|[a-z][a-z0-9-]{1,126})$")
+    foundry_iq_model_deployment: str = ""
+    foundry_iq_model_name: str = ""
+    foundry_iq_preview_approval_id: str = ""
+    foundry_iq_contract_approval_id: str = ""
+    foundry_iq_budget_approval_id: str = ""
+    foundry_iq_per_run_cost_microusd: int = Field(default=0, ge=0, le=100000000)
+    foundry_iq_daily_cost_limit_microusd: int = Field(default=0, ge=0, le=1000000000000)
+    research_daily_run_limit: int = Field(default=0, ge=0, le=100000)
+    research_max_concurrent_runs: int = Field(default=1, ge=1, le=7)
+
+    @property
+    def research_requested(self) -> bool:
+        return self.foundry_iq_enabled or self.webiq_enabled
+
+    def research_allowance(self, action: str) -> tuple[int, int]:
+        if action == "web-check":
+            return self.webiq_per_run_cost_microusd, self.webiq_daily_cost_limit_microusd
+        if action == "corpus-explore":
+            return self.foundry_iq_per_run_cost_microusd, self.foundry_iq_daily_cost_limit_microusd
+        raise ValueError("Unknown research action.")
 
     @model_validator(mode="after")
     def complete_agent_registry(self) -> Self:
@@ -192,6 +224,7 @@ class Settings(BaseSettings):
         for binding in (
             self.foundry_grounded_conversation_agent,
             self.foundry_grounded_answer_agent,
+            self.foundry_research_agent,
         ):
             if binding is None:
                 continue

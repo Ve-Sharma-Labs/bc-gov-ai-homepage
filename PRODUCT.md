@@ -55,9 +55,12 @@ session; neither claims deployment or authorizes activation.
 - Main chat does not wait for capability discovery or require a pathway. Social
   dialogue, sourced model answers and official handoffs are clearly distinguished.
   Facts require reviewed evidence; source-free dialogue is not a bypass for facts.
-- Azure AI Search is the default; Foundry IQ is an optional managed-retrieval
-  comparison, not a mandatory extra reasoning layer. Work IQ and Fabric IQ are
-  excluded from the anonymous pilot.
+- Direct Azure AI Search remains the fast default. Two disabled-by-default,
+  per-answer actions can add a separate supplement: Foundry IQ preview planning
+  over the same approved corpus, or Web IQ research on separately approved public
+  pages. Neither runs automatically, changes the original answer, imports personal
+  context, or expands source permissions. Each needs its own release approval.
+  Work IQ and Fabric IQ remain outside the anonymous pilot.
 - Global Azure model processing is accepted for this pilot, not as blanket
   approval of Web IQ terms or future production processing.
 - Ground answers in the supplied provincial, agency, and Crown corporation sites.

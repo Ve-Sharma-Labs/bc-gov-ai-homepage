@@ -826,6 +826,11 @@ export const capabilitiesSchema = z.object({
   mode: z.enum(["guided", "foundry"]),
   aiConfigured: z.boolean(),
   webIqEnabled: z.boolean(),
+  research: z.object({
+    version: z.literal(1),
+    foundryIq: z.object({ available: z.boolean(), preview: z.boolean(), reason: z.string().max(300) }).strict(),
+    webIq: z.object({ available: z.boolean(), preview: z.boolean(), reason: z.string().max(300) }).strict(),
+  }).strict().nullable().optional(),
   transactionsEnabled: z.literal(false),
   message: text,
   journeys: z.record(journeyIdSchema, z.boolean()).optional(),

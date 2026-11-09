@@ -89,14 +89,24 @@ class Run:
     response_kind: str | None = None
     response_origin: str | None = None
     phase_times: dict[str, float] = field(default_factory=dict)
+    research_page_hash: str = ""
+    research_descriptor: str = ""
+    research_action: str = ""
+    research_started: bool = False
+    research_attempts: int = 0
+    research_reasoning_units: int | None = None
+    research_planning_tokens: int | None = None
+    research_sources: int = 0
 
 
 class RunRegistry:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.runs: dict[str, Run] = {}
+        self.research_budgets: dict[tuple[int, str], tuple[int, int]] = {}
+        self.revoked_research_pages: dict[tuple[str, str], float] = {}
 
-    def reserve(self, run_id: str, thread_id: str, owner: str) -> Run:
+    def reserve(self, run_id: str, thread_id: str, owner: str, *, research_action: str = "") -> Run:
         cutoff = time.monotonic() - 600
         self.runs = {
             key: run
@@ -112,9 +122,67 @@ class RunRegistry:
             )
         if len(running) >= self.settings.api_max_concurrent_runs or len(self.runs) >= 2048:
             raise ApiError(429, "RUN_LIMIT", "The local preview is busy. Please try again shortly.")
-        run = Run(run_id, thread_id, owner)
+        if research_action:
+            if (
+                len(running) >= self.settings.api_max_concurrent_runs - 1
+                or sum(bool(run.research_action) for run in running)
+                >= self.settings.research_max_concurrent_runs
+            ):
+                raise ApiError(
+                    429, "RESEARCH_BUSY", "Optional research is busy. Chat is available."
+                )
+            day = int(time.time() // 86400)
+            self.research_budgets = {
+                key: value for key, value in self.research_budgets.items() if key[0] == day
+            }
+            count, cost = self.research_budgets.get((day, research_action), (0, 0))
+            price, limit = self.settings.research_allowance(research_action)
+            if (
+                price <= 0
+                or count >= self.settings.research_daily_run_limit
+                or cost + price > limit
+            ):
+                raise ApiError(429, "RESEARCH_BUDGET", "Optional research reached its allowance.")
+            self.research_budgets[(day, research_action)] = (count + 1, cost + price)
+        run = Run(run_id, thread_id, owner, research_action=research_action)
+        if research_action:
+
+            async def finish(status: str, usage: int | None) -> str:
+                if run.finalized:
+                    return run.status
+                if status == "not-started":
+                    count, cost = self.research_budgets.get((day, research_action), (0, 0))
+                    if (day, research_action) in self.research_budgets:
+                        self.research_budgets[(day, research_action)] = (count, cost - price)
+                    status = "failed"
+                run.status = "cancelled" if run.cancellation.is_set() else status
+                run.finalized = True
+                return run.status
+
+            run.finish = finish
         self.runs[run_id] = run
         return run
+
+    def research_scope(self, run_id: str, owner: str, page: str) -> str:
+        run = self.runs.get(run_id)
+        if (
+            run is None
+            or run.owner != owner
+            or run.status != "finished"
+            or run.created <= time.monotonic() - 600
+            or self.revoked_research_pages.get((owner, page), 0) > time.monotonic()
+        ):
+            raise ApiError(409, "RESEARCH_EXPIRED", "This research action expired. Ask again.")
+        return run.research_descriptor
+
+    def revoke_research_page(self, owner: str, page: str) -> None:
+        now = time.monotonic()
+        self.revoked_research_pages = {
+            key: expiry for key, expiry in self.revoked_research_pages.items() if expiry > now
+        }
+        if len(self.revoked_research_pages) >= 2048:
+            raise ApiError(429, "RESEARCH_BUSY", "Research controls are busy. Please retry.")
+        self.revoked_research_pages[(owner, page)] = now + 600
 
     def cancel(self, run_id: str, owner: str) -> Run:
         run = self.runs.get(run_id)
@@ -217,7 +285,7 @@ class SecurityMiddleware:
                 await rate("http:" + ip, self.settings.api_requests_per_minute)
             if path.endswith("/cancel"):
                 await rate("cancel:" + ip, 60)
-            if path == "/api/agent" and scope["method"] == "POST":
+            if path in ("/api/agent", "/api/research") and scope["method"] == "POST":
                 await rate("agent:" + ip, self.settings.api_agent_runs_per_minute)
             length = headers.get("content-length")
             if length is not None:

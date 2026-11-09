@@ -1,6 +1,222 @@
-# Conversation repair deployment
+# Optional IQ rollout
 
-Status: Validated
+Status: Approved
+
+Current execution selection: Stage B2 metadata preparation. Stage B1's two
+approved role assignments are deployed and verified. Prepare only an isolated
+research prompt-agent version and a knowledge-source/base over the existing
+approved index. Do not update Container Apps or enable research in this stage.
+
+## Stage B2 metadata preparation
+
+- Publish an immutable, tool-free `bc-service-research` prompt-agent version
+  using the existing `bc-fast` deployment and the reviewed research instructions.
+- Create `bc-public-iq-source` and `bc-public-iq-preview` using the pinned
+  `2026-08-01-preview` contract, low single-pass planning and extractive output.
+  The only source is the existing `bc-pilot-public` index with its existing
+  `bc-public-guidance` semantic configuration. No ingestion or index writes.
+- Use conditional creation rather than replacing an unexpected existing
+  definition. Read back the source/base and agent version before using them.
+- Verify an actual indexed-corpus fingerprint before and after preparation.
+  Inference probes must use the existing shared processing budget.
+- Azure MCP's Foundry router could not acquire a token from its credential
+  chain. The documented SDK fallback using the already authenticated,
+  subscription-pinned Azure CLI identity successfully verified that the
+  research agent does not yet exist; no identity switch is required.
+
+Stage B2 does not validate app-image deployment or public activation.
+
+## Stage A execution and service onboarding
+
+- Deployment `iq-webiq-onboarding-c6155a97` succeeded. The approved global G3
+  account exists and reports `provisioningState: Succeeded`.
+- No new resource-level RBAC assignments were created by the account template.
+- The portal shows `webiq-bcassist-xufhsendpx - Default` as Production, with Web
+  and Browse enabled and 15 QPS. The user approved using the pilot-subscription
+  identity for onboarding.
+- The user separately approved binding API client ID
+  `25171ca8-1a53-4ce0-8014-b56f2ba8e4bc`; the portal confirmed that exact binding.
+- The non-secret Web IQ AppID was observed on the approved binding request:
+  `6A4A92413D02E443293765A05E5C06CDC4D58C82`. No API key was copied or exposed.
+- The first managed-identity probe did not execute: a long console command hit
+  the console URL limit. A minimal exec command succeeded. The checksum-protected
+  probe was transferred to one fixed replica, but its final execution received
+  console HTTP 429 with `Retry-After: 600`. Do not retry before
+  `2026-11-09T05:23:21Z`. No Web IQ provider request was launched by these attempts.
+- After that retry window, the guarded probe succeeded with HTTP 200: one Web
+  IQ call, three results, all three from the approved official host. The existing
+  shared processing budget was charged 7,000 microUSD without counting provider
+  usage as model tokens. Run: `iq-web-probe-21e21ee69e49fdcc`. The temporary
+  transferred script was removed; provider passages were not retained.
+
+## Stage B1: individually approved access
+
+The user explicitly approved both resource-scoped grants:
+
+1. Search service identity `4a9e8a78-adae-4266-a3cc-379c41e4e821` gets Cognitive
+   Services OpenAI User on the existing `ai-bcassist-xufhsendpx` account.
+2. API identity `a11afbdb-bbf1-4f58-9e2a-100134b6e13c` gets Reader on the existing
+   `srch-bcassist-xufhsendpx` service. Existing document-read access is retained.
+
+The payload is `infra/iq-access.bicep` with `.azure/iq-access.parameters.json`.
+No model deployment, capacity, service SKU, document, app image or public route
+is changed. The main template records equivalent default-off approval switches.
+
+### All validation checks pass (Stage B1 only)
+
+- Run the shared Azure validation helper for this exact resource-group payload:
+  CLI/auth, Bicep compilation, ARM validation and structured what-if.
+- Confirm exactly the two approved role assignments are created, with zero
+  other modifications or deletions.
+- Docker build is not applicable to this access-only payload.
+- Verify principal IDs and resource scopes statically, then re-read actual role
+  assignments after deployment. Role creation alone does not prove propagation.
+- This stage does not validate or authorize public activation of the app images.
+
+### Stage B1 validation proof
+
+Proof reviewed at `2026-11-09T05:43:17.3329277Z`.
+
+- The shared validation helper completed with `OVERALL: PASS` for
+  `infra/iq-access.bicep`, `.azure/iq-access.parameters.json`, the confirmed
+  subscription and `rg-bcassist-xufhsendpx`.
+- An initial compile error was corrected by passing the already verified API
+  principal ID as a deployment parameter, rather than trying to derive a role
+  assignment name from a runtime reference. The corrected payload passes
+  compilation, ARM validation and what-if.
+- Structured what-if confirms exactly two Create entries and no Modify/Delete:
+  role assignment `21bce750-f7c7-572c-925e-501cbecff469` grants OpenAI User on the
+  existing Foundry account to the existing Search identity; assignment
+  `45e7643b-9b0f-5321-a494-b4a1ac417f6c` grants Reader on Search to the verified
+  API principal. Resource scopes and role definition IDs match the approvals.
+- Static review confirms no document-write, contributor or administrator grant.
+  No resource SKUs, capacity, documents, app images or routes are included.
+- Bicep compilation is the build for this access-only payload. The updated main
+  template also compiles; existing Redis schema warnings are unchanged.
+- Live role propagation remains to be verified after creation. This proof
+  does not validate app-image activation.
+
+### Stage B1 execution
+
+Deployment `iq-access-c6155a97` succeeded. Direct ARM reads of both assignment
+IDs confirm the approved principal IDs, role definitions and resource scopes.
+This proves role creation; actual data-plane probes still check propagation.
+
+## Current scope and authorization
+
+Modify the existing pilot only. The user approved validation followed by public
+activation of both optional per-answer IQ features, preserving indexed-first
+normal chat. The user separately approved creating `webiq-bcassist-xufhsendpx`
+in the existing pilot subscription with the global Web IQ location and no
+increase to the USD 5/day application-processing budget. Existing Canada Central
+hosting remains unchanged. This budget is not an Azure invoice cap.
+
+The user explicitly permits Web IQ's default query logging for fixed public
+topics only. Personal details and transcripts remain excluded. This is owner
+acceptance of that processing mode, not a claim that Microsoft enabled Zero
+Query Logging.
+
+## Current target and recipe
+
+- Subscription: `ad92e163-a85e-40cc-bb50-054b0b8197a8`
+- Resource group: `rg-bcassist-xufhsendpx`
+- Existing application region: Canada Central; new Web IQ location: global
+- Existing model: `bc-fast`, `gpt-5.4-mini`, GlobalStandard, unchanged capacity
+- Recipe: Azure CLI with narrowly scoped existing-resource updates and one new
+  Web IQ metering account; no whole-stack reprovisioning
+
+## Preparation and validation requirements
+
+- Verify Web IQ provider availability, metering-account creation contract,
+  paid-subscription eligibility, AppID connection and managed-identity binding.
+- Update the processing policy to accept either verified Zero Query Logging or
+  explicit owner approval of default logging for constrained public topics.
+- Prepare an isolated Foundry IQ source/base and research answer agent over the
+  existing approved index; verify model/region compatibility and read-only
+  runtime permissions. Obtain specific approval before any access-role change.
+- Preserve current API/web configuration and immutable image digests for rollback.
+- Keep each provider disabled until its real access, evidence, budget and
+  end-to-end checks pass; do not manufacture approval records or source freshness.
+- Perform the Azure validation workflow for the actual deployment payload before
+  provisioning or image/configuration updates. Validate each stage independently.
+
+## Stage A: approved metering-account preparation
+
+The approved Stage A payload is `infra/web-iq.bicep` with
+`.azure/webiq.parameters.json`: exactly one new global G3
+`Microsoft.WebIQ/accounts@2026-06-01-preview` account named
+`webiq-bcassist-xufhsendpx`. No existing resource, access role, app image,
+model capacity, source index or public exposure setting is changed by this
+template. `statisticsEnabled=false` is not a query-logging approval.
+
+The user approved this specific resource, subscription, global location and
+unchanged budget. Default query logging is separately approved for fixed
+public topics. Provider/AppID enablement and public activation are still
+conditional on successful technical validation.
+
+### All validation checks pass (Stage A only)
+
+The following checks must pass before this resource is deployed:
+
+1. Core validation: CLI authentication, compilation, target-scope validation
+   and what-if using the shared Azure validation helper.
+2. Docker build: not applicable to this account-only payload. The later app
+   rollout requires fresh immutable API/web images and its own validation.
+3. Azure policy validation through the target-scope provider validation and
+   what-if; expected diff is one create, zero modifications and zero deletions.
+4. Static role verification: this template declares no role assignments.
+5. Record the actual proof and any subscription/service enablement blocker.
+
+Stage B (knowledge definitions, agent, permissions and app images) is not
+validated by Stage A and cannot be deployed on the strength of its proof.
+
+## 7. Current validation proof
+
+Proof reviewed at `2026-11-09T04:47:32.5716733Z`, before any account creation.
+Subscription, existing resource group, global account location and unchanged
+budget were explicitly confirmed through the user approval prompts. The
+account is still absent. AZD environment creation, ACR/Container Apps updates,
+SQL migrations and app-container builds are not applicable to Stage A.
+
+- The Azure validation helper completed with `OVERALL: PASS`, using
+  `-Scope group -ResourceGroup rg-bcassist-xufhsendpx -Template
+  .\infra\web-iq.bicep -Parameters .\.azure\webiq.parameters.json -Subscription
+  ad92e163-a85e-40cc-bb50-054b0b8197a8`.
+- CLI installation and authentication passed for the explicitly confirmed
+  subscription. Bicep compilation and target-scope ARM validation passed.
+- The helper's compact output counted two Create strings. A separate structured
+  `az deployment group what-if --no-pretty-print` inspection confirms exactly
+  one resource with `changeType: Create`: the approved Web IQ account. All
+  existing resources are Ignore; there are no Modify or Delete entries.
+- Bicep reports BCP081 because its local type catalogue lacks this preview
+  resource schema. The actual provider advertises `2026-06-01-preview` and
+  global, and ARM validation succeeded.
+- The template contains no role assignments, secrets, app-image changes,
+  source publication or networking changes. Docker build is not applicable
+  to this account-only payload.
+- The provider is not yet registered. Registration is a prerequisite of the
+  approved account creation; it does not establish Microsoft service enablement
+  or a working AppID. Account creation and subsequent onboarding still have to
+  demonstrate actual service access and paid-subscription eligibility.
+- The owner-approved public-query logging alternative passed API lint and
+  126 focused tests; the disclosure changes passed web typecheck and nine
+  research UI unit tests. These are preparation results, not public activation.
+
+The historical proof below applies only to the prior conversation repair.
+
+## Current evidence
+
+Read-only inspection confirmed the selected subscription matches the existing
+deployment, the API's app-processing limit remains USD 5/day and 100 runs/day,
+no Foundry IQ knowledge bases exist on the pilot Search service, and no
+`Microsoft.WebIQ/accounts` resource exists in this subscription. The public API
+still runs the prior `renewal-f7ef408` image; the optional IQ changes are not live.
+
+## Historical conversation repair deployment
+
+The record below is historical evidence only, not validation of this IQ rollout.
+
+Historical status: Validated
 
 Release outcome: Deployed and publicly verified November 6, 2026.
 

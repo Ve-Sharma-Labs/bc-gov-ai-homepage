@@ -1,6 +1,6 @@
 import { HttpAgent } from "@ag-ui/client";
 import type { BaseEvent, Message } from "@ag-ui/core";
-import { ApiError, getContextPageToken, getDiscoveryPageToken, getConversationPageToken } from "./api";
+import { ApiError, getContextPageToken, getDiscoveryPageToken, getConversationPageToken, getResearchPageToken } from "./api";
 import type { ConversationCommand, DiscoveryCommand, JourneyId } from "./contract";
 
 type AgentRunOptions = {
@@ -46,6 +46,7 @@ export function startAgentRun(options: AgentRunOptions) {
     debug: false,
     fetch: async (url, init) => {
       const headers = new Headers(init?.headers);
+      if (options.mode !== "contextual-demo") headers.set("x-bc-research-page", getResearchPageToken());
       if (options.mode === "contextual-demo") {
         headers.set("x-bc-context-page", getContextPageToken());
       }

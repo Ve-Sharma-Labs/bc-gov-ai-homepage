@@ -1016,10 +1016,23 @@ class SourceHealth(WireModel):
     error_code: Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]{0,63}$")] | None = None
 
 
+class ResearchAvailability(WireModel):
+    available: StrictBool
+    preview: StrictBool
+    reason: str = Field(max_length=300)
+
+
+class ResearchCapabilities(WireModel):
+    version: Literal[1] = 1
+    foundry_iq: ResearchAvailability
+    web_iq: ResearchAvailability
+
+
 class Capabilities(WireModel):
     mode: Literal["guided", "foundry"]
     ai_configured: bool
-    web_iq_enabled: Literal[False] = False
+    web_iq_enabled: StrictBool = False
+    research: ResearchCapabilities | None = None
     transactions_enabled: Literal[False] = False
     message: str
     journeys: dict[JourneyId, bool] = Field(default_factory=dict)

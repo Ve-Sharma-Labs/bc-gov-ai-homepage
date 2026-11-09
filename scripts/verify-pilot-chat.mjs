@@ -42,7 +42,7 @@ export function hasOfficialHandoff(text, expectedUrl) {
   });
 }
 
-export function assertReleaseCapabilities(capabilities) {
+export function assertReleaseCapabilities(capabilities, { researchApproved = false } = {}) {
   assert.ok(capabilities.mode === "foundry" && capabilities.aiConfigured
     && capabilities.generalChatConfigured
     && capabilities.conversationAvailable && capabilities.conversationAgentReady
@@ -53,7 +53,17 @@ export function assertReleaseCapabilities(capabilities) {
   assert.ok(!capabilities.requestVersions.includes(6) && !capabilities.localEvidenceEvaluation,
     "This public release must not enable the experimental/local-only evidence profile.");
   assert.equal(capabilities.transactionsEnabled, false, "Transactions must remain disabled.");
-  assert.equal(capabilities.webIqEnabled, false, "Unreviewed live research must remain disabled.");
+  if (researchApproved) {
+    assert.ok(capabilities.webIqEnabled === true && capabilities.research?.version === 1
+      && capabilities.research.foundryIq?.available === true
+      && capabilities.research.foundryIq.preview === true
+      && capabilities.research.webIq?.available === true,
+    "Both separately approved research paths must report the expected capabilities.");
+  } else {
+    assert.equal(capabilities.webIqEnabled, false, "Unreviewed live research must remain disabled.");
+    assert.ok(!capabilities.research?.foundryIq?.available && !capabilities.research?.webIq?.available,
+      "Research needs an explicit release-approval selection.");
+  }
   const health = capabilities.sourceHealth;
   assert.ok(capabilities.retrievalReady && health?.status === "ready"
     && health.usableDocuments >= 4
@@ -86,7 +96,7 @@ export function decodeReleaseTurn(raw, threadId, previousRevision) {
 }
 
 export async function verifyPilotChat({
-  baseUrl, liveApproved = false, fetchImpl = fetch,
+  baseUrl, liveApproved = false, researchApproved = false, fetchImpl = fetch,
   pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 }) {
   const base = releaseTarget(baseUrl);
@@ -99,7 +109,7 @@ export async function verifyPilotChat({
     return response.json();
   };
   const capabilities = await get("/api/capabilities");
-  assertReleaseCapabilities(capabilities);
+  assertReleaseCapabilities(capabilities, { researchApproved });
   const catalog = await get("/api/catalog");
   for (const id of journeyIds) {
     const journey = catalog.journeys?.find((item) => item.id === id);
@@ -245,6 +255,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     assert.ok(target, "Select the exact app with --url=https://your-reviewed-app/.");
     const report = await verifyPilotChat({
       baseUrl: target, liveApproved: process.argv.includes("--live-approved"),
+      researchApproved: process.argv.includes("--research-approved"),
     });
     console.log(JSON.stringify({ passed: true, ...report }, null, 2));
   } catch (error) {

@@ -13,6 +13,7 @@ import { OfficialLink } from "./official-link";
 import { SourceCard } from "./sources";
 import { Button as UiButton } from "./ui/button";
 import { ChatArtifacts } from "./chat-artifacts";
+import { ResearchSupplement } from "./research-supplement";
 
 export function resolveCitation(citation: Citation, catalog: Catalog | null, index: number): Source | null {
   const existing = catalog?.sources.find((source) => source.id === citation.sourceId || source.url === citation.url);
@@ -157,6 +158,8 @@ export function Conversation({ state, catalog, children, hasDiscoveryContext = f
         return (
           <Fragment key={message.id}>
             <ConversationMessage message={message} catalog={catalog} compactAttribution={textFirst || state.expectsTask} />
+            {message.role === "assistant" && message.status === "complete" && message.researchOffer
+              && <ResearchSupplement offer={message.researchOffer} renderText={(text) => <SafeMarkdown>{text}</SafeMarkdown>} />}
             {lastMessageByRun.get(message.runId) === message.id && !!artifacts.length && <ChatArtifacts artifacts={artifacts} />}
           </Fragment>
         );

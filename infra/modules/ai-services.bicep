@@ -7,6 +7,10 @@ param deployments array
 param searchSku string
 param apiPrincipalId string
 param publisherPrincipalId string
+@description('Separate approval to let the Search identity invoke the existing planning deployment. Does not enable retrieval billing or the optional UI.')
+param foundryIqInferenceApproved bool = false
+@description('Separate approval for the API identity to read Search configuration. Does not grant document writes or administrator access.')
+param foundryIqMetadataReadApproved bool = false
 
 resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   name: 'ai-${name}'
@@ -119,6 +123,24 @@ resource searchReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     principalId: apiPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '1407120a-92aa-4202-b7e9-c0e197c71c8f')
+  }
+}
+resource searchPlanningInference 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (foundryIqInferenceApproved) {
+  scope: foundry
+  name: guid(foundry.id, search.id, openAIUser)
+  properties: {
+    principalId: search.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: openAIUser
+  }
+}
+resource apiKnowledgeReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (foundryIqMetadataReadApproved) {
+  scope: search
+  name: guid(search.id, apiPrincipalId, subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7'))
+  properties: {
+    principalId: apiPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')
   }
 }
 resource searchPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for role in [

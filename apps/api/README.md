@@ -423,33 +423,136 @@ this is **not** a promise about provider operational retention or approved
 residency. A basic identifier detector is an extra safeguard, not a PIA or a
 general-purpose personal-data guarantee.
 
-## Web IQ remains planned and disabled
+## Optional per-answer research
 
-`research.py` accepts only enumerated public topics and coarse municipalities,
-not a transcript, free-form query or exact address. The policy records independent
-AppID, privacy, terms, egress, zero-query-logging and transient-handling gates.
-An absent gate is not approval. A non-configurable `reviewed_transport` gate
-remains false even when every setting is supplied.
+Both providers remain disabled by default. Ordinary `/api/agent` requests use
+the existing direct Search pipeline; versions 1-6 keep their existing contracts,
+and the legacy `researchRequested` flag still cannot enable research.
 
-There is no Web IQ HTTP transport, registered model tool, corpus collection,
-cache, or substitute commercial search provider. Future destination preflight
-checks cover HTTPS, a fixed publisher allowlist, every redirect, a three-hop
-limit, credentials/unsafe characters, and all resolved IP addresses. A future
-reviewed transport must additionally pin the validated address and bound bytes/
-time to address DNS rebinding; the present code does not claim that preflight
-alone is safe fetching.
+When a provider is separately approved and configured, completed eligible
+answers carry a `bc.research.offer` with a parent run/message, public topics,
+available actions and expiry. The descriptor is recorded during existing run
+finalization; ordinary chat adds no IQ call, planning call or capability probe.
+`POST /api/research` accepts only version 1, action (`corpus-explore` or
+`web-check`), run/thread/parent identifiers and an enumerated geography.
+`x-bc-research-page` binds it to the originating page. Session ownership, source
+scope and expiry are checked before admission and each subsequent provider step.
+It returns separate `bc.research.progress` and `bc.research.result` SSE events.
+It never changes conversation facts, task progress or the original answer.
 
-Web IQ is not Foundry Responses web search or a Foundry IQ web source. It needs
-separate AppID/access, legal/privacy, logging, downstream-retention, display and
-evaluation approvals. Do not use it to bypass source/robots gates, store raw
-responses in the owned index or reusable history, or assume a blanket 30-day
-cache right. Source-text display and Atomic Action handling require the applicable
-executed terms to be reviewed.
+The existing cancellation endpoint owns optional runs too. `DELETE /api/research`
+revokes the current page's offers; the browser rotates that page binding on
+Start over. Normal Send does not await research unless an optional run must first
+be cancelled. Supplements stay in tab memory and never enter `historyForAgent`.
+Synthetic context and local non-commercial evidence mode do not use these paths.
 
-Direct Azure AI Search remains the baseline. A separately approved comparison
-may evaluate stable minimal/extractive Foundry IQ against that same owned corpus
-behind the existing retrieval API. It is not a mandatory extra reasoning agent.
-Work IQ and Fabric IQ are excluded from the anonymous citizen pilot.
+### Foundry IQ preview
+
+`foundry_iq.py` pins `2026-08-01-preview`, `low` single-pass planning and
+`extractiveData`. The live preview contract requires `maxOutputSize`; it rejects
+the GA-style `maxOutputSizeInTokens` argument. Requests bound extractive output
+with `maxOutputSize=8192` (the service rejects values at or below 5000) and
+runtime; the client bounds response bytes/references and retains at most
+five validated evidence items without relying on a server-side document-cap
+argument. It reads back the selected knowledge-base/source definitions
+and verifies the existing index, source data fields and approved planning model.
+Returned activity must preserve the application's source/rights/legal filter;
+references pass the same evidence-row validation used by direct Search.
+Additional knowledge sources, Web sources, answer synthesis, partial responses,
+missing source identity and unexpected planning are not accepted.
+
+Configure `FOUNDRY_IQ_KNOWLEDGE_BASE`, `FOUNDRY_IQ_KNOWLEDGE_SOURCE`,
+`FOUNDRY_IQ_MODEL_DEPLOYMENT`, `FOUNDRY_IQ_MODEL_NAME`, the existing Search and
+OpenAI endpoints, and real `FOUNDRY_IQ_PREVIEW_APPROVAL_ID`,
+`FOUNDRY_IQ_CONTRACT_APPROVAL_ID` and `FOUNDRY_IQ_BUDGET_APPROVAL_ID`.
+Do not grant the API write privileges just to make readback pass: verify the
+least-privilege metadata-read/retrieval authorization before release.
+The Search identity separately needs approved planning-model inference access
+and network reachability. Agentic retrieval billing is a distinct service
+setting, not implied by semantic ranker billing.
+
+`python -m bc_api.export_research` exports review-only knowledge definitions
+and the isolated answer-agent definition, without network or resource changes.
+`python -m bc_api.publish_agents --research-only --model-deployment <approved-name>`
+exports the answer agent alone. Actual publication retains the existing
+`--publish --approved --project-endpoint` approval requirement.
+Pin its returned `FOUNDRY_RESEARCH_AGENT` binding; never repoint the normal agents.
+
+### Web IQ
+
+`webiq.py` only calls `https://api.microsoft.ai/v3` with Entra scope
+`https://api.microsoft.ai/.default` and the selected AppID. It accepts public
+topics and coarse municipalities, never a transcript, free-form search or
+address. Search uses bounded passages and post-filters results against reviewed
+source IDs and exact host/path prefixes. `WEBIQ_SOURCES` is a JSON array with
+`sourceId`, `urlPrefix`, and `quoteLimit` (at most 200); source catalogue status,
+publisher identity and the narrower research-host allowlist must also agree.
+Listing a source or a link never grants acquisition rights.
+
+Existing AppID, privacy, terms, egress, logging-review and transient-handling
+gates remain mandatory. Logging review accepts either Microsoft-approved Zero
+Query Logging (`WEBIQ_ZERO_QUERY_LOGGING_APPROVED`) or explicit owner acceptance
+of default logging for fixed public topics (`WEBIQ_PUBLIC_QUERY_LOGGING_APPROVED`).
+Both default false; neither permits personal details, free-text queries or
+transcripts. Owner acceptance must never be recorded as Microsoft ZQL approval.
+Additionally record `WEBIQ_RELEASE_APPROVAL_ID`,
+`WEBIQ_SOURCE_APPROVAL_ID` and the source permissions. For a known approved
+handoff URL, Browse is used only when
+`WEBIQ_BROWSE_SOURCE_IDENTITY_APPROVED=true`; otherwise Search is used.
+The app cannot inspect the redirect chain followed inside Web IQ. Do not approve
+Browse without verifying the service's source-identity contract. Returned Browse
+URLs must match the requested page. No direct-fetch or other-provider workaround
+exists.
+
+Browse passage requests include a public query. A `202` contains no evidence;
+its `retryAfter` is an absolute timestamp, with at most one bounded retry for
+that page. A fallback crawl is not a guarantee of a fresh fetch. Retrieval,
+crawl and publisher dates are separate; an absent timezone/date stays unknown.
+
+Web results have distinct, non-reviewed provenance: no invented document
+versions or review hashes. Raw passages exist only during the logical research
+request and are excluded from shared state, caches, logging, evaluation goldens
+and later prompts. The answer model uses `store=False`. Only the generated
+supplement and displayed source links remain in tab memory, subject to executed
+terms. The validator conservatively caps all displayed prose attributed to each
+web source (including citation labels) at its approved excerpt allowance, not
+just quoted substrings. Source-card labels come from the approved catalogue,
+not copied provider titles.
+Web IQ is not Foundry Responses web search or a Foundry IQ Web knowledge source.
+
+### Admission, failure and release
+
+Set `RESEARCH_DAILY_RUN_LIMIT` and independent
+`FOUNDRY_IQ_PER_RUN_COST_MICROUSD` / `WEBIQ_PER_RUN_COST_MICROUSD` reservations and
+their matching `*_DAILY_COST_LIMIT_MICROUSD` limits only after reviewing actual
+billing and safe upper bounds. Zero keeps admission closed. These service-cost
+reservations are additional to the normal answer-model allowance, included in
+the shared aggregate cost cap, and not refunded after uncertain billable work.
+Provider budgets and the optional concurrency lane are atomic across replicas.
+`RESEARCH_MAX_CONCURRENT_RUNS` defaults to one; optional work leaves a normal-chat
+concurrency slot available. A new session cannot reset daily allowances.
+
+Each optional run has at most one IQ retrieval and one answer-generation call.
+Web IQ permits at most three HTTP attempts, one Search, five results and
+3,000 characters per passage. Response bytes, run time, prompt size and model
+output are bounded. Cancellation closes owned tasks/transports. Partial evidence,
+timeouts and budget/provider errors produce a supplement-local limitation, not
+automatic retries across providers or replacement answers.
+
+Operations record counts, outcomes, timing and separate provider-reported IQ
+reasoning units/planning tokens, never queries or content. These units are not
+answer tokens or a calculated invoice. No benchmark or live service approval
+is established by the offline fixtures.
+
+Release each provider independently: confirm access/terms/privacy/retention,
+readback and networking; compare public, independently authored questions against
+direct Search on the same corpus/model; check citation correctness, abstention,
+complete cost and default-path latency under mixed traffic; then authorize a
+canary. Require no more than a 5% default p95 regression in matched measurements.
+Do not store actual Web IQ responses as test data. Keep a provider disabled when
+benefit or a safe cost bound is unproven. Turning its enable flag off is the kill
+switch; it does not change standard chat. Corpus growth, resident identities,
+transactions, Work IQ and Fabric IQ remain out of scope.
 
 ## Live operational checks
 

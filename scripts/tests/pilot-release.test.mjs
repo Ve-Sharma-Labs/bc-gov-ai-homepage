@@ -16,6 +16,23 @@ const capabilities = {
   sourceHealth: { status: "ready", usableDocuments: 4, coveredSourceIds: ["health", "healthlink-bc", "service-bc"] },
 };
 
+test("optional research requires explicit release approval and both capability contracts", () => {
+  const enabled = {
+    ...capabilities, webIqEnabled: true,
+    research: {
+      version: 1,
+      foundryIq: { available: true, preview: true },
+      webIq: { available: true, preview: false },
+    },
+  };
+  assert.throws(() => assertReleaseCapabilities(enabled));
+  assert.doesNotThrow(() => assertReleaseCapabilities(enabled, { researchApproved: true }));
+  assert.throws(() => assertReleaseCapabilities(capabilities, { researchApproved: true }));
+  assert.throws(() => assertReleaseCapabilities({
+    ...enabled, research: { ...enabled.research, foundryIq: { available: false, preview: true } },
+  }, { researchApproved: true }));
+});
+
 test("release verification rejects legacy, unready, stale, and local-only deployments", () => {
   assert.doesNotThrow(() => assertReleaseCapabilities(capabilities));
   for (const change of [

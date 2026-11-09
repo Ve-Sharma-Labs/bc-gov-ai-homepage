@@ -39,7 +39,8 @@ from bc_api.foundry import FoundryRuntime, local_credential_timeout_error
 from bc_api.input import parse_options
 from bc_api.output import OutputGate
 from bc_api.protocol import TOOL_PHASES, progress_event, response_context_event
-from bc_api.retrieval import EvidenceLedger
+from bc_api.research import make_research_offer
+from bc_api.retrieval import EvidenceLedger, journey_matches
 from bc_api.security import Run
 from bc_api.telemetry import Telemetry
 from bc_api.tools import TOOL_NAMES, ToolContext
@@ -374,6 +375,34 @@ async def stream_run(
                     await conversation_service.commit(conversation_plan)
                 if context.model_work_started is False:
                     run.usage_tokens = 0
+                research_offer = None
+                if (
+                    settings.research_requested and run.research_page_hash
+                    and options.version in (2, 5, 6) and options.mode != "contextual-demo"
+                    and not settings.local_evidence_evaluation_enabled
+                    and (run.response_kind if application_replied else gate.response_kind)
+                    in ("grounded", "handoff")
+                ):
+                    public_query = (
+                        conversation_plan.public_query or ""
+                        if conversation_plan is not None else request.messages[-1].content
+                    )
+                    topic = options.journey_id or (
+                        conversation_plan.summary.journey_id
+                        if conversation_plan is not None and conversation_plan.summary is not None
+                        else None
+                    )
+                    offered = make_research_offer(
+                        settings=settings, catalog=catalog, run_id=run.run_id,
+                        thread_id=run.thread_id,
+                        parent_message_id=f"{run.run_id}-reply" if application_replied
+                        else next(reversed(gate.text)),
+                        page=run.research_page_hash, created=run.created,
+                        topics=[topic] if topic else journey_matches(public_query),
+                    )
+                    if offered is not None:
+                        descriptor, research_offer = offered
+                        run.research_descriptor = descriptor.model_dump_json(by_alias=True)
                 if run.finish is not None:
                     status = await run.finish(
                         "finished", run.usage_tokens if run.usage_valid else None
@@ -432,6 +461,11 @@ async def stream_run(
                                 value=artifact.model_dump(by_alias=True),
                             )
                         )
+                if research_offer is not None:
+                    yield encoder.encode(CustomEvent(
+                        name="bc.research.offer",
+                        value=research_offer.model_dump(mode="json", by_alias=True),
+                    ))
                 yield encoder.encode(event)
                 return
             else:
