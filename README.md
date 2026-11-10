@@ -1,5 +1,30 @@
 # BC Government service assistant
 
+**[BC service assistant diagram - interactive Azure HTML story](docs/architecture-walkthrough.html)**
+
+Explore nine slides covering the Azure deployment, Foundry agents and shared
+model, answer flow, optional research and release gates. On GitHub, follow the
+link, choose **Download raw file**, then open the saved HTML in a browser.
+The story runs offline with slide navigation, light/dark themes and print-to-PDF.
+
+[![BC service assistant architecture overview: reviewed sources, controlled answers and official handoffs](docs/images/architecture-overview.png)](docs/architecture-walkthrough.html)
+
+<details>
+<summary>Preview the Azure deployment and Foundry agent diagrams</summary>
+
+### Azure deployment
+
+[![Azure deployment: Front Door, private Container Apps, Search, Microsoft Foundry and Redis](docs/images/architecture-deployment.png)](docs/architecture-walkthrough.html#deployment)
+
+### Foundry agents and model
+
+[![Recorded Foundry agents: conversation planner, general and seven pathway agents, separate demo and disabled research, sharing bc-fast](docs/images/architecture-foundry-agents.png)](docs/architecture-walkthrough.html#foundry-agents)
+
+These are screenshots of the HTML story, not a new live Azure inspection.
+Open the downloaded story to follow diagram links and explore all nine slides.
+
+</details>
+
 A pilot for a conversation-first BC service experience: Next.js/React, light and
 dark themes, sourced preparation plans, and a Microsoft Agent Framework/Foundry
 backend. This is not a live government transaction service.
@@ -321,7 +346,7 @@ This code change does not enable or deploy the feature in the public pilot.
 See `.env.example` for non-secret setting names. The key connections are:
 
 - `FOUNDRY_PROJECT_ENDPOINT`
-- `FOUNDRY_AGENTS`: five pinned journey/name/version/model-deployment bindings
+- `FOUNDRY_AGENTS`: seven pinned journey/name/version/model-deployment bindings
 - `FOUNDRY_GENERAL_AGENT`: a separate pinned general name/version/model binding
 - `AZURE_SEARCH_ENDPOINT` and the reviewed Search index settings. Keep the v1
   defaults until `AZURE_SEARCH_INDEX=bc-pilot-public-v2`,
@@ -488,8 +513,8 @@ the separate demo-rule review deadlines.
 is running. It binds exposed ports to loopback and does not provision Azure.
 Host developer credentials are not mounted into containers automatically.
 
-The isolated Azure pilot now has real application images, six versioned
-Foundry agents, Search, private Redis, protected application ingress, managed
+The isolated Azure pilot has real application images, pinned general,
+conversation and pathway Foundry agents, Search, private Redis, protected application ingress, managed
 identity and metadata-only monitoring. The general-chat release is available at
 [the BC service assistant](https://bcassist-xufhsendpx-ddabgxfdera9azbp.b01.azurefd.net/).
 Real public-browser chat, exact source citations, same-thread follow-ups,
@@ -504,7 +529,12 @@ cancellation retains its conservative allowance.
 
 The initial published corpus contains four explicitly reviewed snapshots:
 Service BC, Health Connect Registry, MSP and Fair PharmaCare. Held BC Housing
-and ICBC material remains excluded. Web IQ remains disabled.
+and ICBC material remains excluded. The November 6 refresh records 20 active
+chunks across those same four documents; the original publication had 12.
+These are dated publication records, not a fresh readiness check. The latest
+recorded November 9 configuration has both optional IQ features disabled;
+prepared resources and validated activation settings are not public activation.
+See the [release evidence boundary](docs/architecture.md#recorded-iq-rollout-state).
 The seven curated guided journeys remain available, but agent readiness does
 not imply that every question has approved evidence. Unavailable evidence is
 reported explicitly rather than replaced with an unsourced answer.
