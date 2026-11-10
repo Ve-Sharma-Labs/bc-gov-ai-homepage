@@ -2,15 +2,53 @@
 
 **[BC service assistant diagram - interactive Azure HTML story](docs/architecture-walkthrough.html)**
 
+A pilot for a conversation-first BC service experience: Next.js/React, light and
+dark themes, sourced preparation plans, and a Microsoft Agent Framework/Foundry
+backend. This is not a live government transaction service.
+
+## App preview
+
+**[Open the deployed pilot](https://bcassist-xufhsendpx-ddabgxfdera9azbp.b01.azurefd.net/)**
+
+Screenshots captured from the public pilot on November 10, 2026.
+
+[![Desktop homepage of the BC service assistant, with a question composer and Vancouver waterfront photograph](docs/images/app-home-desktop.png)](https://bcassist-xufhsendpx-ddabgxfdera9azbp.b01.azurefd.net/)
+
+<details>
+<summary>See dark theme, guided-plan and mobile screenshots</summary>
+
+### Dark theme
+
+![BC service assistant desktop homepage in dark theme](docs/images/app-home-dark.png)
+
+### Guided preparation plan
+
+The licence-renewal example is curated guidance, not an AI-generated answer.
+It shows preparation steps, source links and handoffs to the official service.
+
+![Licence or BCID renewal guided plan with a preparation checklist and official sources](docs/images/app-guided-plan.png)
+
+### Mobile
+
+![BC service assistant homepage at a 390-pixel mobile viewport, with the question composer and Vancouver photograph](docs/images/app-home-mobile.png)
+
+</details>
+
+## Azure HTML story
+
 Explore nine slides covering the Azure deployment, Foundry agents and shared
 model, answer flow, optional research and release gates. On GitHub, follow the
 link, choose **Download raw file**, then open the saved HTML in a browser.
 The story runs offline with slide navigation, light/dark themes and print-to-PDF.
 
-[![BC service assistant architecture overview: reviewed sources, controlled answers and official handoffs](docs/images/architecture-overview.png)](docs/architecture-walkthrough.html)
+[![Azure HTML story showing the deployment topology, slide navigation, theme and full-screen controls](docs/images/architecture-story.png)](docs/architecture-walkthrough.html#deployment)
 
 <details>
-<summary>Preview the Azure deployment and Foundry agent diagrams</summary>
+<summary>See the story overview, Azure deployment and Foundry agent diagrams</summary>
+
+### Architecture overview
+
+[![BC service assistant architecture overview: reviewed sources, controlled answers and official handoffs](docs/images/architecture-overview.png)](docs/architecture-walkthrough.html)
 
 ### Azure deployment
 
@@ -24,10 +62,6 @@ These are screenshots of the HTML story, not a new live Azure inspection.
 Open the downloaded story to follow diagram links and explore all nine slides.
 
 </details>
-
-A pilot for a conversation-first BC service experience: Next.js/React, light and
-dark themes, sourced preparation plans, and a Microsoft Agent Framework/Foundry
-backend. This is not a live government transaction service.
 
 See the [as-built architecture](docs/architecture.md) for the Azure topology,
 chat/cancellation flow, reviewed-content lifecycle and current release boundaries.
