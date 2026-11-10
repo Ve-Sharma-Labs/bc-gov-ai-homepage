@@ -19,6 +19,8 @@ param foundryGeneralAgentJson string = ''
 param foundryContextualAgentJson string = ''
 @description('Distinct, published and pinned version-5 conversation agent.')
 param foundryConversationAgentJson string = ''
+@description('Server-only optional research configuration. Empty keeps both IQ paths disabled; approval IDs must represent completed reviews.')
+param researchConfigJson string = '{}'
 @allowed(['false', 'true'])
 param aiConversationEnabled string = 'false'
 @allowed(['false', 'true'])
@@ -81,6 +83,7 @@ module pilot './modules/pilot.bicep' = {
     foundryGeneralAgentJson: foundryGeneralAgentJson
     foundryContextualAgentJson: foundryContextualAgentJson
     foundryConversationAgentJson: foundryConversationAgentJson
+    researchConfig: json(researchConfigJson)
     aiConversationEnabled: aiConversationEnabled
     taskAssistanceEnabled: taskAssistanceEnabled
     aiConversationPrivacyReviewed: aiConversationPrivacyReviewed

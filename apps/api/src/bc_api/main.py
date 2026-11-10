@@ -46,6 +46,9 @@ from bc_api.models import (
     Journey,
     LocationsResponse,
 )
+from bc_api.research import page_hash, research_capabilities
+from bc_api.research_contract import RESEARCH_PAGE_HEADER, ResearchRequest
+from bc_api.research_runs import ResearchService
 from bc_api.security import PreviewControls, RunRegistry, SecurityMiddleware
 from bc_api.streaming import RunStreamingResponse, stream_run
 from bc_api.synthetic_context import (
@@ -140,6 +143,7 @@ def create_app(
     runtime = runtime or FoundryRuntime(settings, catalog)
     runtime.context_agent = context_agent
     telemetry = Telemetry(settings)
+    research = ResearchService(settings, catalog, runtime, runs, shared, telemetry)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -187,6 +191,7 @@ def create_app(
     app.state.context_tracker = context_tracker
     app.state.discovery = discovery
     app.state.conversation = conversation
+    app.state.research = research
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.origins),
@@ -199,6 +204,7 @@ def create_app(
             CONVERSATION_PAGE_HEADER,
             "X-BC-Client-Version",
             "X-BC-Evaluation-Scope",
+            RESEARCH_PAGE_HEADER,
         ],
         allow_credentials=True,
     )
@@ -325,8 +331,13 @@ def create_app(
             general_chat_configured=conversation_ready if grounded_client else general_ready,
             retrieval_ready=sources_ready,
             source_health=runtime.source_health,
+            research=research_capabilities(settings) if settings.research_requested else None,
+            web_iq_enabled=research_capabilities(settings).web_iq.available,
             message=(
-                "Local non-commercial evaluation. Named licensed sources and dated snapshots "
+                "Standard answers use approved sources. Optional research is separately gated "
+                "and never runs automatically. Transactions remain disabled."
+                if settings.research_requested
+                else "Local non-commercial evaluation. Named licensed sources and dated snapshots "
                 "support the starter flows; runtime checks are not human publication approval. "
                 "Public/commercial redistribution and transactions are disabled."
                 if settings.local_evidence_evaluation_enabled
@@ -465,6 +476,21 @@ def create_app(
             request.cookies.get(CONTEXT_COOKIE),
         )
 
+    @app.post("/api/research")
+    async def run_research(data: ResearchRequest, request: Request):
+        page = page_hash(request.headers.get(RESEARCH_PAGE_HEADER))
+        owner = request.state.session.token
+        run = await research.reserve(data, owner, page)
+        return RunStreamingResponse(research.stream(data, owner, page, run), run)
+
+    @app.delete("/api/research")
+    async def reset_research(request: Request):
+        await research.revoke(
+            request.state.session.token,
+            page_hash(request.headers.get(RESEARCH_PAGE_HEADER)),
+        )
+        return Response(status_code=204)
+
     @app.post("/api/agent")
     async def run_agent(request: Request):
         dispatched_at = time.monotonic()
@@ -476,6 +502,11 @@ def create_app(
             raise ApiError(422, "INVALID_JSON", "The request is not valid JSON.") from None
         data = validate_run(raw, settings)
         options = parse_options(data.forwarded_props)
+        research_page = (
+            page_hash(request.headers.get(RESEARCH_PAGE_HEADER))
+            if settings.research_requested and request.headers.get(RESEARCH_PAGE_HEADER)
+            else ""
+        )
         discovery_plan = (
             await discovery.prepare(
                 request.state.session.token, request.headers.get(DISCOVERY_PAGE_HEADER), data
@@ -539,6 +570,7 @@ def create_app(
             runs.runs[run.run_id] = run
         else:
             run = runs.reserve(data.run_id, data.thread_id, request.state.session.token)
+        run.research_page_hash = research_page
         if context_plan is not None:
             run.trace_ref = context_plan.authorization.trace_ref
         run.created = dispatched_at

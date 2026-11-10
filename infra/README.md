@@ -180,6 +180,22 @@ Front Door endpoint is disabled, rather than trusting a stage variable. New
 images must pass validation before their immutable digests are promoted and
 traffic reopened. No workflow has been run.
 
+For a focused diagnosis, run `scripts/verify-pilot-chat.mjs` with the exact
+`--url`, `--live-approved` and a supported `--case` such as `--case=job-loss`.
+Focused results explicitly report partial coverage and do not replace the full
+release check. Planner failures expose only fixed stage labels, not model text.
+
+After separate research approval and configuration, use
+`scripts/verify-optional-research.mjs --url=<reviewed-origin> --live-approved
+--research-approved` for the real per-answer flow. It performs at most seven
+submissions, plus two cancellation controls: two ordinary indexed answers, both
+provider supplements, one cancelled Web IQ run, and two rejected-scope checks.
+It verifies unchanged conversation state, separate provenance, next-Send
+isolation and page revocation, then clears its own synthetic state. Without live
+approval it reads capabilities only. The existing shared budget still applies;
+failed or cancelled work can retain its full reservation. Never reset counters
+or bypass admission to make a release check pass.
+
 **BC Gov App - Container Build & Smoke Tests** is separate CI: it builds and
 checks API, web, and ingestion images without publishing or deploying them.
 Renaming the release workflow does not rename the `pilot` environment,
@@ -320,6 +336,56 @@ is complete and Direct Search remains the production choice; see the
 [architecture decision and its measurement limits](../docs/architecture.md#7-deployment-and-operations).
 The evaluation-only definitions were removed. Work IQ and Fabric IQ are not
 part of this anonymous pilot.
+
+### Optional IQ configuration
+
+`researchConfigJson` defaults to `{}` and passes only explicitly mapped,
+server-side settings to the API. It does not change the default chat route or
+provision a knowledge base, source, Web IQ resource/AppID or billing consent.
+Use the camelCase properties in `modules/hosting.bicep` for the pinned research
+answer binding, provider names, genuine approval IDs, public source/path
+permissions and reviewed reservations. Zero budgets and missing approvals keep
+both providers unavailable even when an enable flag is set.
+
+`foundryIqInferenceApproved` separately controls a default-off Search-identity
+model-inference role assignment. Approving this deployment/permission does not
+approve preview usage or enable a provider. The API's read-only knowledge
+definition/retrieval access and Search-to-model networking must be verified
+before recording the contract approval; do not grant contributor rights as a
+shortcut. Export proposed definitions with `python -m bc_api.export_research`
+and publish the isolated answer agent through the existing review/approval
+command, not a normal-agent replacement.
+
+`foundryIqMetadataReadApproved` separately controls Reader on the Search
+service for the API identity. `infra/iq-access.bicep` can apply just the two
+individually approved access grants without reprovisioning the stack; its role
+assignment names match the main template. This grants no document writes or
+service-administrator permissions.
+
+Web IQ additionally needs its AppID-to-Entra binding, public egress, executed
+terms/privacy review, an explicit logging decision and verified transient
+downstream processing. Browse stays separately closed until source-identity
+handling is reviewed. Each provider has an independent enable flag/kill switch.
+Activation and any live evaluation remain separate authorizations; see
+[API setup and release criteria](../apps/api/README.md#optional-per-answer-research).
+
+`infra/web-iq.bicep` is a separate, one-resource metering-account template for
+an explicitly approved global G3 account. It does not update the existing stack
+or activate an AppID. Registering `Microsoft.WebIQ` is not proof of subscription
+access: service enablement and the paid-subscription requirement still apply.
+Connect the created resource in the Web IQ portal before binding the API identity.
+`statisticsEnabled=false` must not be interpreted as Zero Query Logging.
+
+`app-image-update.bicep` is a **validation-only** mirror of existing Container
+Apps, not a deployment template. Use its secure snapshot parameter for ARM
+validation and what-if; never deploy the complete mirror. The actual rollout
+must compare fresh template hashes and PATCH only `properties.template`,
+preserving identity, configuration, networking, scale and spending limits.
+Wait for the requested revision to become ready: an accepted asynchronous PATCH
+can initially return the old template. Keep the prior image digests for rollback
+and verify public-edge recovery after restoring Front Door's enabled state.
+Treat snapshot parameters as confidential and remove temporary secret values
+after validation.
 
 ## References
 

@@ -57,6 +57,8 @@ from bc_api.model_budget import ModelBudget
 from bc_api.models import JOURNEY_IDS, AgentBinding, SourceHealth
 from bc_api.output import CRITICAL, OutputGate, normalize_quote
 from bc_api.protocol import progress_event
+from bc_api.research_contract import ResearchEvidence
+from bc_api.research_output import RESEARCH_INSTRUCTIONS
 from bc_api.retrieval import AzureRetriever, EvidenceLedger, choose_journey, model_evidence_json
 from bc_api.tools import ToolContext, create_tools, function_declarations, verify_tool_declarations
 
@@ -302,7 +304,9 @@ class FoundryRuntime:
     ) -> None:
         definition = version.definition
         policy = (
-            GROUNDED_PLANNER_INSTRUCTIONS
+            RESEARCH_INSTRUCTIONS
+            if mode == "research"
+            else GROUNDED_PLANNER_INSTRUCTIONS
             if mode == "grounded-conversation"
             else GROUNDED_ANSWER_INSTRUCTIONS
             if mode == "grounded-answer"
@@ -329,6 +333,10 @@ class FoundryRuntime:
                 "AGENT_POLICY_MISMATCH",
                 "The configured Foundry agent does not match the reviewed agent policy.",
             )
+        if mode == "research":
+            if definition.tools or getattr(definition, "tool_choice", None) not in (None, "none"):
+                raise ApiError(503, "AGENT_POLICY_MISMATCH", "Research must not have tools.")
+            return
         if mode in ("conversation", "grounded-conversation"):
             actual = [item.as_dict() for item in definition.tools or []]
             if (
@@ -350,6 +358,66 @@ class FoundryRuntime:
             )
         )
         verify_tool_declarations([item.as_dict() for item in definition.tools or []], tools)
+
+    async def summarize_research(
+        self,
+        query: str,
+        evidence: list[ResearchEvidence],
+        authorize: Callable[[], Awaitable[None]],
+        mark_started: Callable[[], None],
+    ) -> tuple[str, int | None]:
+        binding = self.settings.foundry_research_agent
+        if binding is None:
+            raise ApiError(
+                503, "RESEARCH_DISABLED", "The isolated research agent is not configured."
+            )
+        self._initialize()
+        if self.project is None:
+            raise unavailable()
+        async with asyncio.timeout(self.settings.api_upstream_timeout_seconds):
+            await authorize()
+            version = await self.project.agents.get_version(
+                agent_name=binding.name, agent_version=binding.version
+            )
+            self._verify_version(version, binding, mode="research")
+        model_input = json.dumps(
+            {
+                "publicQuestion": query,
+                "untrustedEvidence": [
+                    item.model_dump(mode="json", by_alias=True) for item in evidence
+                ],
+            },
+            ensure_ascii=True,
+        )
+        if len(model_input.encode()) + len(RESEARCH_INSTRUCTIONS.encode()) > (
+            self.settings.api_model_input_byte_budget
+        ):
+            raise ApiError(
+                502, "RESEARCH_LIMIT", "The research evidence exceeded its model budget."
+            )
+        await authorize()
+        mark_started()
+        async with self.project.get_openai_client().with_options(
+            timeout=self.settings.api_upstream_timeout_seconds, max_retries=0
+        ) as client:
+            response = await client.responses.create(
+                input=[{"role": "user", "content": model_input}],
+                store=False,
+                max_output_tokens=self.settings.api_model_output_tokens,
+                extra_body={
+                    "agent_reference": {
+                        "type": "agent_reference",
+                        "name": binding.name,
+                        "version": binding.version,
+                    }
+                },
+            )
+        if response.status != "completed" or any(
+            item.type not in ("message", "reasoning") for item in response.output
+        ):
+            raise ApiError(502, "RESEARCH_OUTPUT_INVALID", "The research answer was incomplete.")
+        await authorize()
+        return response.output_text, response.usage.total_tokens if response.usage else None
 
     @property
     def general_available(self) -> bool:
@@ -504,6 +572,15 @@ class FoundryRuntime:
                 context.decision_usage_valid = False
             calls = [item for item in response.output if item.type == "function_call"]
             if response.status != "completed" or len(calls) != 1:
+                status = response.status if response.status in (
+                    "completed", "failed", "in_progress", "cancelled", "queued", "incomplete",
+                ) else "unknown"
+                reason = getattr(getattr(response, "incomplete_details", None), "reason", None)
+                reason = reason if reason in ("max_output_tokens", "content_filter") else "unknown"
+                logging.getLogger("bc_api.conversation").warning(
+                    "Planner response rejected (attempt %s): status=%s calls=%s incomplete=%s",
+                    attempt + 1, status, len(calls), reason,
+                )
                 raise ApiError(
                     502,
                     "CONVERSATION_DECISION_INVALID",
@@ -519,10 +596,25 @@ class FoundryRuntime:
                     return parse_grounded_proposal(call.arguments)
                 return ConversationProposal.model_validate_json(call.arguments)
             except (ValidationError, json.JSONDecodeError) as exc:
-                errors = exc.errors(include_input=False) if isinstance(exc, ValidationError) else []
+                errors = (
+                    exc.errors(include_input=False, include_context=False)
+                    if isinstance(exc, ValidationError) else []
+                )
                 codes = sorted({item["type"] for item in errors}) or ["json_invalid"]
+                known_rules = {
+                    "Value error, Only provided answers may have a value.": "answer-state",
+                    "Value error, Only ask can propose a question.": "question-action",
+                    "Value error, Candidates are only for an intent question.": "candidate-scope",
+                    "Value error, Answer topics require a current information request.": (
+                        "answer-topics"
+                    ),
+                }
+                rules = sorted({
+                    known_rules.get(item["msg"], "unclassified") for item in errors
+                }) or ["json-invalid"]
                 logging.getLogger("bc_api.conversation").warning(
-                    "Planner schema validation failed (attempt %s): %s", attempt + 1, codes
+                    "Planner schema validation failed (attempt %s): %s; rules=%s",
+                    attempt + 1, codes, rules,
                 )
                 if attempt:
                     raise ApiError(

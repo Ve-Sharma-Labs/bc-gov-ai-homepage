@@ -376,6 +376,13 @@ as-of label. Confirm the BC Laws XML/API contract and permitted licence before u
 
 ### B. Web IQ live research
 
+The implementation provides a disabled-by-default, per-answer research path;
+it does not enable Web IQ automatically. The user-selected action produces a
+separate supplement and never changes the original indexed answer. Foundry IQ
+preview planning is another independent per-answer action over the existing
+approved corpus, not a replacement for direct Search. Both require separate
+release approval. See [the implemented API gates and limits](../apps/api/README.md#optional-per-answer-research).
+
 Web IQ finds public evidence; it is not an LLM, workflow engine, general browser
 operator, or our indexing service. Search discovers relevant passages; Browse
 retrieves a known URL. Neither is a substitute for an ICBC transaction API. [M3][M4]
@@ -405,6 +412,9 @@ Current Microsoft documentation says Web IQ has **no Private Link, no
 region-specific residency commitment, default query logging, and separate terms
 outside the Microsoft Products and Services Data Protection Addendum**.
 Zero Query Logging requires individual approval; it is not an assumed setting.
+For fixed public-topic queries only, the owner has approved the alternative of
+default provider query logging. This is recorded separately from Microsoft ZQL
+approval and does not permit transcripts, identifiers or personal context.
 Its storage exceptions are narrow and do not authorize a derivative search
 corpus. The pilot uses the transient-processing path rather than treating
 possible history/work-product exceptions as general permission. [M3]

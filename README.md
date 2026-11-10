@@ -381,6 +381,13 @@ Web IQ is disabled by default. Its access, public-query policy, transient-data
 handling, and privacy review are separate gates. It is not the source of the
 maintained search corpus.
 
+Optional per-answer research is implemented behind independent, closed gates:
+**Explore across sources (Preview)** uses Foundry IQ on the existing approved
+index; **Check current official information** uses Web IQ on approved public
+pages. Results are separate supplements, not replacements or automatic fallback
+answers. Ordinary Send never invokes either provider. See the
+[API configuration and release gates](apps/api/README.md#optional-per-answer-research).
+
 The repository also contains a disabled-by-default, synthetic citizen-context
 validation implementation. It uses three fixed fictional personas,
 purpose-specific consent, deterministic screening, review-only previews and a

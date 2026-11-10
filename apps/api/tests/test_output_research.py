@@ -359,7 +359,9 @@ async def test_research_has_no_free_text_or_network_and_stays_disabled(settings,
             }
         )
     )
-    assert not policy.enabled and policy.unmet_gates == ("reviewed_transport",)
+    assert not policy.enabled and policy.unmet_gates == (
+        "release_review", "source_review", "approved_paths",
+    )
     topic = PublicResearchTopic(topic="service-bc", geography="vancouver")
     assert "Vancouver" in topic.query()
     with pytest.raises(ApiError) as error:

@@ -109,6 +109,11 @@ class Telemetry:
             "firstValidatedContentMs": round(first) if first is not None else None,
             "responseKind": run.response_kind,
             "responseOrigin": run.response_origin,
+            "researchAction": run.research_action or None,
+            "researchAttempts": run.research_attempts,
+            "researchReasoningUnits": run.research_reasoning_units,
+            "researchPlanningTokens": run.research_planning_tokens,
+            "researchSourceCount": run.research_sources,
             "firstResponseMs": (
                 round(max(0, (run.first_response_at - run.created) * 1000))
                 if run.first_response_at is not None

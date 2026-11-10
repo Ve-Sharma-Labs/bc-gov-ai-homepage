@@ -171,7 +171,8 @@ and Agent Framework AG-UI adapters; neither side simulates a live model.
 
 Node 24 and Python 3.14 are the verified runtime combination. Catalogue plans
 work without Azure; AI requires both the approved agent definition and a
-nonempty reviewed index. Web IQ is planned but has no enabled HTTP transport.
+nonempty reviewed index. Optional IQ transports are implemented but disabled by
+default and independently approval-gated.
 
 `API_ALLOWED_ORIGINS` and `API_ALLOWED_HOSTS` are the API's actual connection
 settings. Development run and synthetic-context metadata are opaque and
@@ -341,9 +342,15 @@ conservatively charged. The current index contains the limited four-snapshot
 publication, not full coverage of every configured journey. A ready agent may
 still return `SOURCES_UNAVAILABLE` for a particular question.
 
-Azure AI Search is the default evidence path. Foundry IQ is an optional bounded
-managed-retrieval comparison, Web IQ a separate disabled-until-approved public
-research capability, and Work IQ/Fabric IQ are outside the anonymous pilot.
+Direct Azure AI Search is the default evidence path. A separate versioned
+`POST /api/research` accepts explicit, page/session-bound per-answer actions for
+Foundry IQ preview planning over the same approved index or Web IQ on reviewed
+public pages. Neither is an automatic fallback or accepts personal context.
+Results are distinct supplements; versions 1-6 and their legacy research
+rejections remain unchanged. The optional `research` capabilities object is
+configuration-only and does not add provider probes to chat startup.
+See [the API contract and gates](../apps/api/README.md#optional-per-answer-research).
+Work IQ/Fabric IQ remain outside the anonymous pilot.
 
 ### Version 4 context-first discovery
 
@@ -613,7 +620,8 @@ inventory with no source bodies or approval records. Its validator rejects
 adding an invented rights/publication approval. Candidate URL/topic coverage
 is not evidence coverage. Canada.ca and trustee.bc.ca are valid official
 **link destinations**, not automatically permitted fetch targets. The Web IQ
-transport remains unimplemented/fail-closed. Live provider integration and
+transport is separately gated and does not inherit local-demo permissions. Live
+provider activation and
 source publication must wait for actual permission, scope, extraction and
 accountable content review; blueprint metadata does not satisfy those gates.
 

@@ -23,9 +23,10 @@ export function allowedApiRequest(method: string, pathname: string, query: URLSe
   if (method === "GET") {
     return READ_PATHS.has(pathname) || journeyIds.some((id) => pathname === `/api/journeys/${id}`);
   }
-  if (method === "DELETE") return ["/api/demo/session", "/api/discovery", "/api/conversation"].includes(pathname);
+  if (method === "DELETE") return ["/api/demo/session", "/api/discovery", "/api/conversation", "/api/research"].includes(pathname);
   return method === "POST" && (
     pathname === "/api/agent"
+    || pathname === "/api/research"
     || pathname === "/api/demo/session"
     || pathname === "/api/context/consents"
     || pathname === "/api/conversation/control"
@@ -81,7 +82,7 @@ export async function proxyRequest(request: Request): Promise<Response> {
   request.signal.addEventListener("abort", abort, { once: true });
   if (request.signal.aborted) abort();
   // Readiness can include CLI credential priming followed by agent/source metadata checks.
-  const timeoutMs = incoming.pathname === "/api/agent" ? 180_000
+  const timeoutMs = ["/api/agent", "/api/research"].includes(incoming.pathname) ? 180_000
     : incoming.pathname === "/api/capabilities" ? 45_000 : 15_000;
   const timeout = setTimeout(abort, timeoutMs);
   const cleanup = () => {
@@ -128,7 +129,7 @@ export async function proxyRequest(request: Request): Promise<Response> {
       }
     }
     const headers = new Headers();
-    for (const name of ["accept", "content-type", "cookie", "origin", "x-bc-context-page", "x-bc-discovery-page", "x-bc-conversation-page", "x-bc-client-version"]) {
+    for (const name of ["accept", "content-type", "cookie", "origin", "x-bc-context-page", "x-bc-discovery-page", "x-bc-conversation-page", "x-bc-research-page", "x-bc-client-version"]) {
       const value = request.headers.get(name);
       if (value) headers.set(name, value);
     }

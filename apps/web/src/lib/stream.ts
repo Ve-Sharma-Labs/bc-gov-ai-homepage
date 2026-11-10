@@ -1,6 +1,7 @@
 import type { BaseEvent, Message } from "@ag-ui/core";
 import { z } from "zod";
 import { safeOfficialUrl } from "./links";
+import { researchOfferSchema, type ResearchOffer } from "./research-schema";
 import {
   anonymousArtifactSchema,
   contextArtifactSchema,
@@ -46,6 +47,7 @@ export interface ChatMessage {
   response?: ResponseContext;
   discovery?: true;
   conversation?: true;
+  researchOffer?: ResearchOffer;
 }
 
 export interface StreamState {
@@ -365,6 +367,16 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
   const event = parsed.data;
   if (typeof event.runId === "string" && event.runId !== state.runId) return state;
   // Native citation events can follow text, snapshots, and even the terminal run event.
+  if (event.type === "CUSTOM" && event.name === "bc.research.offer") {
+    const offer = researchOfferSchema.safeParse(event.value);
+    if (!offer.success || offer.data.parentRunId !== state.runId) return state;
+    return {
+      ...state,
+      messages: state.messages.map((message) => message.id === offer.data.parentMessageId
+        && message.runId === state.runId && message.role === "assistant"
+        ? { ...message, researchOffer: offer.data } : message),
+    };
+  }
   if (event.type === "CUSTOM" && event.name === "annotations") {
     if (!isStreaming(state) && state.status !== "complete") return state;
     const annotations = parseCitations(event.value);

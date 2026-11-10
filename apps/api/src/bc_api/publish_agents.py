@@ -17,6 +17,7 @@ from bc_api.agents import (
     conversation_agent_definition,
     general_agent_definition,
     grounded_agent_definition,
+    research_agent_definition,
 )
 from bc_api.catalog import CatalogRepository
 from bc_api.config import Settings
@@ -54,7 +55,9 @@ async def publish(
                     metadata={
                         "journey": entry["journeyId"] or entry.get("mode", "general"),
                         "contract": (
-                            "6"
+                            "research-v1"
+                            if entry.get("mode") == "research"
+                            else "6"
                             if entry.get("mode") in ("grounded-conversation", "grounded-answer")
                             else "1"
                             if entry["journeyId"]
@@ -95,13 +98,21 @@ def main() -> int:
     selection.add_argument("--conversation-only", action="store_true")
     selection.add_argument("--grounded-planner-only", action="store_true")
     selection.add_argument("--grounded-answer-only", action="store_true")
+    selection.add_argument("--research-only", action="store_true")
     args = parser.parse_args()
     if args.publish and (not args.approved or not args.project_endpoint):
         parser.error("Publishing requires --approved and a user-confirmed --project-endpoint.")
     configure_safe_logging()
     try:
         catalog = CatalogRepository(Settings().catalog_path)
-        if args.grounded_planner_only or args.grounded_answer_only:
+        if args.research_only:
+            definitions = [
+                research_agent_definition(
+                    prefix=args.prefix,
+                    model_deployment=args.model_deployment,
+                )
+            ]
+        elif args.grounded_planner_only or args.grounded_answer_only:
             definitions = [
                 grounded_agent_definition(
                     catalog,
@@ -142,7 +153,9 @@ def main() -> int:
         if args.publish:
             endpoint = azure_endpoint(args.project_endpoint, service="foundry")
             label = (
-                "grounded conversation planner"
+                "isolated research answer agent"
+                if args.research_only
+                else "grounded conversation planner"
                 if args.grounded_planner_only
                 else "grounded answer agent"
                 if args.grounded_answer_only
@@ -158,7 +171,9 @@ def main() -> int:
             result = asyncio.run(publish(definitions, endpoint, args.subscription))
             print(
                 json.dumps(
-                    {"FOUNDRY_GROUNDED_CONVERSATION_AGENT": result[0]}
+                    {"FOUNDRY_RESEARCH_AGENT": result[0]}
+                    if args.research_only
+                    else {"FOUNDRY_GROUNDED_CONVERSATION_AGENT": result[0]}
                     if args.grounded_planner_only
                     else {"FOUNDRY_GROUNDED_ANSWER_AGENT": result[0]}
                     if args.grounded_answer_only

@@ -48,6 +48,8 @@ export default defineConfig({
       APP_ENV: "development",
       NEXT_TELEMETRY_DISABLED: "1",
       WEBIQ_ENABLED: "false",
+      FOUNDRY_IQ_ENABLED: "false",
+      FOUNDRY_RESEARCH_AGENT: "",
       SYNTHETIC_CONTEXT_ENABLED: "true",
       CONVERSATION_DISCOVERY_ENABLED: discovery ? "true" : "false",
       CONVERSATION_DISCOVERY_PRIVACY_REVIEWED: "false",

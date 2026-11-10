@@ -12,6 +12,7 @@ from bc_api.errors import ApiError
 from bc_api.grounded_policy import GROUNDED_ANSWER_INSTRUCTIONS, GROUNDED_PLANNER_INSTRUCTIONS
 from bc_api.input import parse_options
 from bc_api.models import JOURNEY_IDS, AgentBinding
+from bc_api.research_output import RESEARCH_INSTRUCTIONS
 from bc_api.retrieval import EvidenceLedger, journey_matches
 from bc_api.tools import ToolContext, create_tools, function_declarations
 
@@ -174,6 +175,18 @@ def conversation_agent_definition(*, prefix: str, model_deployment: str) -> dict
             "instructions": CONVERSATION_INSTRUCTIONS,
             "tools": [decision_schema()],
             "tool_choice": "required",
+        },
+    }
+
+
+def research_agent_definition(*, prefix: str, model_deployment: str) -> dict:
+    return {
+        "journeyId": None,
+        "mode": "research",
+        "name": f"{prefix}-research",
+        "definition": {
+            "kind": "prompt", "model": model_deployment,
+            "instructions": RESEARCH_INSTRUCTIONS, "tools": [],
         },
     }
 

@@ -8,6 +8,7 @@ param foundryAgentsJson string
 param foundryGeneralAgentJson string
 param foundryContextualAgentJson string
 param foundryConversationAgentJson string
+param researchConfig object = {}
 param aiConversationEnabled string
 param taskAssistanceEnabled string
 param aiConversationPrivacyReviewed string
@@ -67,6 +68,8 @@ module ai './ai-services.bicep' = {
     searchSku: searchSku
     apiPrincipalId: apiIdentity.properties.principalId
     publisherPrincipalId: publisherIdentity.properties.principalId
+    foundryIqInferenceApproved: researchConfig.?foundryIqInferenceApproved ?? false
+    foundryIqMetadataReadApproved: researchConfig.?foundryIqMetadataReadApproved ?? false
   }
 }
 module state './shared-controls.bicep' = {
@@ -101,6 +104,7 @@ module hosting './hosting.bicep' = {
     foundryGeneralAgentJson: foundryGeneralAgentJson
     foundryContextualAgentJson: foundryContextualAgentJson
     foundryConversationAgentJson: foundryConversationAgentJson
+    researchConfig: researchConfig
     aiConversationEnabled: aiConversationEnabled
     taskAssistanceEnabled: taskAssistanceEnabled
     aiConversationPrivacyReviewed: aiConversationPrivacyReviewed

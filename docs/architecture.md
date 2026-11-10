@@ -920,6 +920,25 @@ mode and reviewed-schema flag must enter one new API revision together.
   integrations, consent and authority. Work IQ/Fabric IQ are not part of this
   anonymous public assistant.
 
+### Optional per-answer IQ research
+
+Direct Search remains the standard answer path. `/api/research` is a separate,
+owned SSE run triggered only by an explicit action on an eligible completed
+answer. Its public intent is bound to the original page/thread/run; it does not
+reuse personal conversation state or mutate task progress.
+
+The independently gated adapters are Foundry IQ preview (`low` planning,
+extractive evidence, the existing approved index only) and Web IQ public-page
+research. An isolated pinned, tool-free research answer agent returns a
+validated supplement with distinct provenance. The original answer remains
+unchanged. No optional provider is queried during ordinary chat or capability
+bootstrap, and there is no cross-provider fallback.
+
+Both flags and budgets default closed. The historical GA experiment above is
+not a preview-planning or answer-quality evaluation. Separate live quality,
+cost, privacy and performance approval is still required; no new source
+publication is implied. See [the configuration, limits and release procedure](../apps/api/README.md#optional-per-answer-research).
+
 ## 9. Implementation references
 
 | Topic | Source of detail |

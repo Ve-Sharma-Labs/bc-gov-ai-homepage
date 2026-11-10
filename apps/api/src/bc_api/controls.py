@@ -60,19 +60,37 @@ if tonumber(redis.call('HGET', KEYS[4], 'day') or '-1') ~= day then
 end
 local tokens = billable and tonumber(ARGV[5]) or 0
 local price = billable and tonumber(ARGV[9]) or 0
-local cost = tokens * price
+local cost = tokens * price + tonumber(ARGV[15])
 if billable then
 if tonumber(ARGV[6]) <= 0 or tonumber(ARGV[7]) <= 0
   or tonumber(ARGV[8]) <= 0 or price <= 0 then return -4 end
 if tonumber(redis.call('HGET', KEYS[4], 'runs')) + 1 > tonumber(ARGV[6])
   or tonumber(redis.call('HGET', KEYS[4], 'tokens')) + tokens > tonumber(ARGV[7])
   or tonumber(redis.call('HGET', KEYS[4], 'cost')) + cost > tonumber(ARGV[8]) then return -4 end
+end
+if ARGV[11] ~= '' then
+  redis.call('ZREMRANGEBYSCORE', KEYS[6], '-inf', now)
+  if redis.call('ZCARD', KEYS[6]) >= tonumber(ARGV[12])
+    or redis.call('ZCARD', KEYS[2]) >= tonumber(ARGV[4]) - 1 then return -6 end
+  if tonumber(redis.call('HGET', KEYS[7], 'day') or '-1') ~= day then
+    redis.call('HSET', KEYS[7], 'day', day, 'runs', 0, 'cost', 0)
+  end
+  if tonumber(ARGV[13]) <= 0 or tonumber(ARGV[15]) <= 0
+    or tonumber(redis.call('HGET', KEYS[7], 'runs')) >= tonumber(ARGV[13])
+    or tonumber(redis.call('HGET', KEYS[7], 'cost')) + tonumber(ARGV[15])
+      > tonumber(ARGV[14]) then return -7 end
+  redis.call('HINCRBY', KEYS[7], 'runs', 1)
+  redis.call('HINCRBY', KEYS[7], 'cost', ARGV[15])
+  redis.call('ZADD', KEYS[6], now + tonumber(ARGV[3]), ARGV[2])
+end
+if billable then
 redis.call('HINCRBY', KEYS[4], 'runs', 1)
 redis.call('HINCRBY', KEYS[4], 'tokens', tokens)
 redis.call('HINCRBY', KEYS[4], 'cost', cost)
 end
 redis.call('HSET', KEYS[1], 'owner', ARGV[1], 'status', 'running', 'cancel', 0,
-  'day', day, 'reserved', tokens, 'price', price)
+  'day', day, 'reserved', tokens, 'price', price, 'researchAction', ARGV[11],
+  'researchCost', ARGV[15])
 redis.call('EXPIRE', KEYS[1], 600)
 redis.call('SET', KEYS[3], ARGV[2], 'EX', ARGV[3])
 redis.call('ZADD', KEYS[2], now + tonumber(ARGV[3]), ARGV[2])
@@ -106,6 +124,21 @@ if redis.call('HGET', KEYS[4], 'day') == redis.call('HGET', KEYS[1], 'day') then
   redis.call('HINCRBY', KEYS[4], 'cost', (charged - reserved) * price)
 end
 redis.call('HSET', KEYS[1], 'status', status, 'charged', charged)
+if status == 'finished' and ARGV[5] ~= '' then
+  redis.call('HSET', KEYS[1], 'research', ARGV[5])
+end
+if redis.call('HGET', KEYS[1], 'researchAction') ~= '' then
+  redis.call('ZREM', KEYS[5], ARGV[2])
+  if ARGV[3] == 'not-started'
+    and redis.call('HGET', KEYS[6], 'day') == redis.call('HGET', KEYS[1], 'day') then
+    redis.call('HINCRBY', KEYS[6], 'cost',
+      -tonumber(redis.call('HGET', KEYS[1], 'researchCost')))
+    if redis.call('HGET', KEYS[4], 'day') == redis.call('HGET', KEYS[1], 'day') then
+      redis.call('HINCRBY', KEYS[4], 'cost',
+        -tonumber(redis.call('HGET', KEYS[1], 'researchCost')))
+    end
+  end
+end
 redis.call('EXPIRE', KEYS[1], 600)
 redis.call('ZREM', KEYS[2], ARGV[2])
 if redis.call('GET', KEYS[3]) == ARGV[2] then redis.call('DEL', KEYS[3]) end
@@ -224,7 +257,8 @@ class SharedControls:
             )
 
     async def reserve(
-        self, run_id: str, thread_id: str, token: str, *, model_work: bool = True
+        self, run_id: str, thread_id: str, token: str, *, model_work: bool = True,
+        research_action: str = "",
     ) -> Run:
         owner = token_hash(token)
         run_key = self.prefix + "run:" + run_id
@@ -234,6 +268,8 @@ class SharedControls:
             self.prefix + "owner:" + owner,
             self.prefix + "budget",
             self.prefix + "session:" + owner,
+            self.prefix + "research-active",
+            self.prefix + "research-budget:" + research_action,
         ]
         lease = int(
             self.settings.api_run_timeout_seconds + self.settings.api_upstream_timeout_seconds + 30
@@ -251,11 +287,18 @@ class SharedControls:
             self.settings.api_daily_cost_limit_microusd,
             self.settings.api_token_price_microusd,
             int(model_work),
+            research_action,
+            self.settings.research_max_concurrent_runs,
+            self.settings.research_daily_run_limit,
+            self.settings.research_allowance(research_action)[1] if research_action else 0,
+            self.settings.research_allowance(research_action)[0] if research_action else 0,
         )
         errors = {
             -1: (409, "RUN_CONFLICT", "Use a new run identifier for each request."),
             -2: (409, "SESSION_BUSY", "Stop the current response before starting another."),
             -3: (429, "RUN_LIMIT", "The assistant is busy. Please try again shortly."),
+            -6: (429, "RESEARCH_BUSY", "Optional research is busy. Normal chat is available."),
+            -7: (429, "RESEARCH_BUDGET", "Optional research reached its processing allowance."),
             -5: (
                 409,
                 "SESSION_EXPIRED",
@@ -277,16 +320,17 @@ class SharedControls:
             raise ApiError(
                 503, "CONTROL_STORE_UNAVAILABLE", "Request admission could not be verified."
             )
-        run = Run(run_id, thread_id, owner)
+        run = Run(run_id, thread_id, owner, research_action=research_action)
 
         async def finish(status: str, usage: int | None) -> str:
             result = await self._eval(
                 FINISH_SCRIPT,
-                keys[:4],
+                [*keys[:4], *keys[5:]],
                 owner,
                 run_id,
                 status,
                 usage if status == "finished" and usage is not None else -1,
+                run.research_descriptor,
             )
             if result not in ("finished", "failed", "cancelled"):
                 raise ApiError(
@@ -319,6 +363,26 @@ class SharedControls:
         run.finish = finish
         run.watch = watch
         return run
+
+    async def research_scope(self, run_id: str, token: str, page: str) -> str:
+        owner = token_hash(token)
+        result = await self._eval(
+            """if redis.call('EXISTS', KEYS[2]) == 1
+            or redis.call('HGET', KEYS[1], 'owner') ~= ARGV[1]
+            or redis.call('HGET', KEYS[1], 'status') ~= 'finished' then return '' end
+            return redis.call('HGET', KEYS[1], 'research') or ''""",
+            [self.prefix + "run:" + run_id, self.prefix + "research-revoked:" + owner + ":" + page],
+            owner,
+        )
+        if not isinstance(result, str) or not result:
+            raise ApiError(409, "RESEARCH_EXPIRED", "This research action expired. Ask again.")
+        return result
+
+    async def revoke_research_page(self, token: str, page: str) -> None:
+        await self._eval(
+            "return redis.call('SET', KEYS[1], '1', 'EX', 600)",
+            [self.prefix + "research-revoked:" + token_hash(token) + ":" + page],
+        )
 
     async def cancel(self, run_id: str, token: str) -> str:
         result = await self._eval(CANCEL_SCRIPT, [self.prefix + "run:" + run_id], token_hash(token))

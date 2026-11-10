@@ -219,6 +219,21 @@ def validate_evidence_row(
         return None, "invalid"
 
 
+def add_metadata_filter(filters: str, day: str | None) -> str:
+    if day is not None:
+        filters += (
+            " and metadataVersion eq 1"
+            " and rightsStatus eq 'candidate-acquisition-permitted'"
+            " and rightsReviewId ne null and rightsHash ne null and reviewHash ne null"
+            " and (documentType ne 'legal' or (legalStatus eq 'in-force'"
+            " and isHistorical eq false and effectiveFrom ne null"
+            f" and effectiveFrom le '{day}'"
+            f" and (effectiveTo eq null or effectiveTo gt '{day}')"
+            f" and (repealedAt eq null or repealedAt gt '{day}')))"
+        )
+    return filters
+
+
 class AzureRetriever:
     def __init__(
         self,
@@ -376,17 +391,7 @@ class AzureRetriever:
                     f"sourceIds/any(s: s eq '{key}')" for key in sorted(requested_topics)
                 )
             filters += f" and ({topic_filter})"
-        if day is not None:
-            filters += (
-                " and metadataVersion eq 1"
-                " and rightsStatus eq 'candidate-acquisition-permitted'"
-                " and rightsReviewId ne null and rightsHash ne null and reviewHash ne null"
-                " and (documentType ne 'legal' or (legalStatus eq 'in-force'"
-                " and isHistorical eq false and effectiveFrom ne null"
-                f" and effectiveFrom le '{day}'"
-                f" and (effectiveTo eq null or effectiveTo gt '{day}')"
-                f" and (repealedAt eq null or repealedAt gt '{day}')))"
-            )
+        filters = add_metadata_filter(filters, day)
         options: dict[str, Any] = {
             "search_text": query,
             "filter": filters,
