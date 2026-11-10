@@ -29,6 +29,12 @@ The deployment slide links to a dedicated
 [Foundry agent/model map](architecture-walkthrough.html#foundry-agents) with
 the recorded binding names and versions, shared `bc-fast` model, and separate
 synthetic-demo and disabled-research scopes.
+Repository screenshots are available for the
+[overview](images/architecture-overview.png),
+[Azure deployment](images/architecture-deployment.png) and
+[Foundry agents and model](images/architecture-foundry-agents.png);
+the [repository homepage](../README.md) shows a linked preview at the top.
+
 The assistant provides official information, preparation plans and handoffs.
 It does not renew licences, book appointments, submit forms, make payments or
 decide a resident's eligibility.

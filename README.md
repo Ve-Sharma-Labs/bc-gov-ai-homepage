@@ -1,15 +1,36 @@
 # BC Government service assistant
 
+**[BC service assistant diagram - interactive Azure HTML story](docs/architecture-walkthrough.html)**
+
+Explore nine slides covering the Azure deployment, Foundry agents and shared
+model, answer flow, optional research and release gates. On GitHub, follow the
+link, choose **Download raw file**, then open the saved HTML in a browser.
+The story runs offline with slide navigation, light/dark themes and print-to-PDF.
+
+[![BC service assistant architecture overview: reviewed sources, controlled answers and official handoffs](docs/images/architecture-overview.png)](docs/architecture-walkthrough.html)
+
+<details>
+<summary>Preview the Azure deployment and Foundry agent diagrams</summary>
+
+### Azure deployment
+
+[![Azure deployment: Front Door, private Container Apps, Search, Microsoft Foundry and Redis](docs/images/architecture-deployment.png)](docs/architecture-walkthrough.html#deployment)
+
+### Foundry agents and model
+
+[![Recorded Foundry agents: conversation planner, general and seven pathway agents, separate demo and disabled research, sharing bc-fast](docs/images/architecture-foundry-agents.png)](docs/architecture-walkthrough.html#foundry-agents)
+
+These are screenshots of the HTML story, not a new live Azure inspection.
+Open the downloaded story to follow diagram links and explore all nine slides.
+
+</details>
+
 A pilot for a conversation-first BC service experience: Next.js/React, light and
 dark themes, sourced preparation plans, and a Microsoft Agent Framework/Foundry
 backend. This is not a live government transaction service.
 
 See the [as-built architecture](docs/architecture.md) for the Azure topology,
 chat/cancellation flow, reviewed-content lifecycle and current release boundaries.
-Open the [offline architecture walkthrough](docs/architecture-walkthrough.html)
-in a browser for resource-level diagrams, the standard answer path, optional IQ
-research, source review and release gates. It supports slides, light/dark themes,
-keyboard navigation and print-to-PDF; it makes no runtime network requests.
 The [agentic workflows guide](docs/agentic-workflows.md) covers the official-source
 freshness watchdog and automatic bug-report regression tests and draft fixes.
 
