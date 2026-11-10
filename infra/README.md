@@ -331,10 +331,17 @@ actual Azure validation/what-if against the confirmed target is still required.
 For the current isolated pilot, that validation and provisioning subsequently
 succeeded; the compiler warning is not an outstanding deployment failure.
 
-Web IQ is still disabled and separately gated. The bounded Foundry IQ comparison
-is complete and Direct Search remains the production choice; see the
+The latest recorded configuration keeps both optional IQ features disabled.
+The later diagnostic candidates and validated activation draft are distinct
+from the earlier rollback; see the
+[dated rollout checkpoints](../docs/architecture.md#recorded-iq-rollout-state).
+This guide does not constitute a new live status check.
+
+The bounded historical Foundry IQ comparison
+is complete and Direct Search remains the default answer path; see the
 [architecture decision and its measurement limits](../docs/architecture.md#7-deployment-and-operations).
-The evaluation-only definitions were removed. Work IQ and Fabric IQ are not
+The comparison's temporary definitions were removed; later optional-research
+definitions are separate prerequisites, not activation. Work IQ and Fabric IQ are not
 part of this anonymous pilot.
 
 ### Optional IQ configuration

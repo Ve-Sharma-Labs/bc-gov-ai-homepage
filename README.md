@@ -6,6 +6,10 @@ backend. This is not a live government transaction service.
 
 See the [as-built architecture](docs/architecture.md) for the Azure topology,
 chat/cancellation flow, reviewed-content lifecycle and current release boundaries.
+Open the [offline architecture walkthrough](docs/architecture-walkthrough.html)
+in a browser for resource-level diagrams, the standard answer path, optional IQ
+research, source review and release gates. It supports slides, light/dark themes,
+keyboard navigation and print-to-PDF; it makes no runtime network requests.
 The [agentic workflows guide](docs/agentic-workflows.md) covers the official-source
 freshness watchdog and automatic bug-report regression tests and draft fixes.
 
@@ -321,7 +325,7 @@ This code change does not enable or deploy the feature in the public pilot.
 See `.env.example` for non-secret setting names. The key connections are:
 
 - `FOUNDRY_PROJECT_ENDPOINT`
-- `FOUNDRY_AGENTS`: five pinned journey/name/version/model-deployment bindings
+- `FOUNDRY_AGENTS`: seven pinned journey/name/version/model-deployment bindings
 - `FOUNDRY_GENERAL_AGENT`: a separate pinned general name/version/model binding
 - `AZURE_SEARCH_ENDPOINT` and the reviewed Search index settings. Keep the v1
   defaults until `AZURE_SEARCH_INDEX=bc-pilot-public-v2`,
@@ -488,8 +492,8 @@ the separate demo-rule review deadlines.
 is running. It binds exposed ports to loopback and does not provision Azure.
 Host developer credentials are not mounted into containers automatically.
 
-The isolated Azure pilot now has real application images, six versioned
-Foundry agents, Search, private Redis, protected application ingress, managed
+The isolated Azure pilot has real application images, pinned general,
+conversation and pathway Foundry agents, Search, private Redis, protected application ingress, managed
 identity and metadata-only monitoring. The general-chat release is available at
 [the BC service assistant](https://bcassist-xufhsendpx-ddabgxfdera9azbp.b01.azurefd.net/).
 Real public-browser chat, exact source citations, same-thread follow-ups,
@@ -504,7 +508,12 @@ cancellation retains its conservative allowance.
 
 The initial published corpus contains four explicitly reviewed snapshots:
 Service BC, Health Connect Registry, MSP and Fair PharmaCare. Held BC Housing
-and ICBC material remains excluded. Web IQ remains disabled.
+and ICBC material remains excluded. The November 6 refresh records 20 active
+chunks across those same four documents; the original publication had 12.
+These are dated publication records, not a fresh readiness check. The latest
+recorded November 9 configuration has both optional IQ features disabled;
+prepared resources and validated activation settings are not public activation.
+See the [release evidence boundary](docs/architecture.md#recorded-iq-rollout-state).
 The seven curated guided journeys remain available, but agent readiness does
 not imply that every question has approved evidence. Unavailable evidence is
 reported explicitly rather than replaced with an unsourced answer.

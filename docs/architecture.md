@@ -1,6 +1,8 @@
 # BC service assistant architecture
 
-**Status:** Version-5 conversation repair deployed and publicly verified November 6, 2026. Anonymous access remains the default. The synthetic citizen-context ADM demo remains available. Broader private full-corpus publication remains disabled.
+**Documentation reviewed:** November 10, 2026, against repository revision `a719980`.
+**Recorded deployment:** Version-5 conversation repair publicly verified November 6; November 9 diagnostic candidates recorded ready with both IQ options disabled. The configuration-only IQ activation draft was validated, not applied. These are historical observations, not a new live Azure/readiness check.
+**Scope:** Anonymous access remains the default. Synthetic citizen context is a separate demo; real citizen integration and broader private full-corpus publication are not claimed.
 **Resource group:** `rg-bcassist-xufhsendpx`
 **Subscription:** `ME-MngEnvMCAP744360-sharmave-1`
 **Primary resource region:** Canada Central; Front Door, WAF and private DNS are global resources.
@@ -18,6 +20,15 @@ distinguish the current release from earlier public checks.
 
 This document describes the deployed application and the current repository,
 not the larger target architecture in the [original specification](pilot-specification.md).
+The [offline architecture walkthrough](architecture-walkthrough.html) provides
+nine presentation slides using official Microsoft icons, source links and
+the same boundaries. Open the downloaded HTML in a browser; no server or
+network connection is required to present it. References are outbound links,
+not runtime dependencies.
+The deployment slide links to a dedicated
+[Foundry agent/model map](architecture-walkthrough.html#foundry-agents) with
+the recorded binding names and versions, shared `bc-fast` model, and separate
+synthetic-demo and disabled-research scopes.
 The assistant provides official information, preparation plans and handoffs.
 It does not renew licences, book appointments, submit forms, make payments or
 decide a resident's eligibility.
@@ -104,7 +115,7 @@ graph TB
         subgraph SERVICES["Managed data and AI services"]
             REDIS[("Redis Balanced_B0<br/>TLS/Entra; private access")]
             SEARCH[("Search Basic<br/>bc-pilot-public")]
-            FOUNDRY["Foundry account + project<br/>1 general + 5 pathway agents<br/>bc-fast / Global Standard"]
+            FOUNDRY["Foundry account + project<br/>Isolated planner, general and 7 pathways<br/>bc-fast / Global Standard"]
         end
         ACR["ACR Basic<br/>Linux amd64 images"]
         OBS["Application Insights + Log Analytics<br/>30-day pilot logs<br/>Failure-anomaly alert"]
@@ -244,7 +255,7 @@ The producer still owns and closes the native response stream on cancellation.
 Other journeys retain their existing general-agent/tool contract, and
 version-5 incremental validation is unchanged.
 
-### Repository-only context-first increment
+### Version-5 context-first conversation
 
 The subsequent AI-led mode is gated by `AI_CONVERSATION_ENABLED` and request
 version 5. It uses an isolated `FOUNDRY_CONVERSATION_AGENT`, not an edit to the
@@ -344,6 +355,59 @@ the active fixture's purpose fails before its facts reach a model; the person
 can return to anonymous guidance without automatically resending the question.
 Public collection requires privacy and release review. Real sign-in, permanent
 profiles, and government-record integration remain outside this increment.
+
+### Optional per-answer IQ research
+
+Direct Search remains the standard answer path. `/api/research` is a separate,
+owned SSE run triggered only by an explicit action on an eligible completed
+answer. The repository implements both adapters, but the latest recorded
+configuration keeps both disabled. There is no automatic source-gap fallback,
+cross-provider retry or capability-bootstrap provider call.
+
+```mermaid
+flowchart TB
+    ANSWER["Completed eligible standard answer<br/>Original text and task state retained"]
+    OFFER["Server-owned research offer<br/>Owner + page + thread + parent message<br/>Public topics; expires within 10 minutes"]
+    CLICK["Explicit per-answer action<br/>POST /api/research"]
+    GATE{"Scope, expiry, provider approvals<br/>and atomic budget admission"}
+    STOP["Supplement-local limitation<br/>Original answer unchanged"]
+    IQ["Explore across sources - Preview<br/>Read back approved knowledge base/source<br/>Existing Search index; low planning; extractiveData"]
+    WEB["Check current official information<br/>Web IQ public endpoint + AppID + Entra<br/>Reviewed host/path permissions"]
+    EVIDENCE["Validate evidence and source identity<br/>No personal context or transcript in queries"]
+    WRITER["Isolated pinned tool-free answer agent<br/>Validate output and citations"]
+    RESULT["Separate supplement in tab memory<br/>Indexed or public-web provenance"]
+    CANCEL["Stop / disconnect / Start over<br/>Cancel owned run; revoke page offers on reset"]
+
+    ANSWER --> OFFER --> CLICK --> GATE
+    GATE -->|"Not authorized or unavailable"| STOP
+    GATE -->|"corpus-explore only"| IQ
+    GATE -->|"web-check only"| WEB
+    IQ --> EVIDENCE
+    WEB --> EVIDENCE
+    EVIDENCE --> WRITER --> RESULT
+    IQ -.->|"Error; no other-provider fallback"| STOP
+    WEB -.->|"Error; no direct-fetch workaround"| STOP
+    CANCEL -.->|"Owned cancellation and conservative settlement"| GATE
+```
+
+| Boundary | Foundry IQ exploration | Web IQ public-page research |
+|---|---|---|
+| Evidence | Existing approved index only; same evidence-row validation as Direct Search | Distinct, non-reviewed web evidence; reviewed source/host/path permissions |
+| Provider contract | `2026-08-01-preview`, `low`, `extractiveData`, bounded output/runtime | `https://api.microsoft.ai/v3`; Search or separately approved Browse; at most three HTTP attempts |
+| Identity | API reads definitions/retrieves; Search identity needs separately approved model inference | Entra token plus approved AppID binding; public egress and executed terms/privacy/logging decisions |
+| Persistence | Validated supplement stays in tab memory, outside future chat history | Raw passages are request-transient; not cached, logged, saved as fixtures or published |
+| Failure | Supplement-local error; no default-answer replacement | Unknown dates remain unknown; a crawl is not live verification |
+
+Both use one separately pinned research answer agent with `store=False`, an
+independent provider reservation plus normal model allowance, and the shared
+aggregate cost cap. Optional concurrency leaves capacity for normal chat.
+Each provider has its own enable/kill switch; flags alone do not satisfy the
+approval, configuration, metering and source gates. No research output enters
+the maintained corpus, conversation facts or task progress.
+
+See [configuration, limits and release procedure](../apps/api/README.md#optional-per-answer-research)
+and [recorded rollout state](#recorded-iq-rollout-state). The earlier GA
+retrieval-only comparison is not proof of preview answer quality or approval.
 
 ### Existing general and pathway runtime
 
@@ -618,8 +682,10 @@ report records 529 requests, 214,382,267 charged bytes and 4,215 candidates:
 2,775 blocked, 381 candidate, 939 pending, 114 quarantined, two retry-wait and
 seven withdrawn. Six of ten rights-approved seeds remain pending. The run
 stopped incomplete on documented access/route holds and repeated Azure
-management/auth connectivity failures. The live Search index remains 12
-documents and the v2 index remains empty; no candidate is production evidence.
+management/auth connectivity failures. That acquisition record predates the November 6 publication refresh to 20
+active chunks. The private candidates were not published by this programme,
+and the v2 index had no published evidence in the recorded run. Do not treat
+the earlier 12-chunk count as the current active corpus.
 
 ## 5. Identity, state and observability
 
@@ -690,7 +756,10 @@ clinical advice and transactional authority remain outside the pilot.
 
 ## 6. Resource inventory
 
-The management-plane inventory returned the following 34 resources. Logical
+The baseline management-plane inventory returned the following 34 resources
+before the optional IQ onboarding recorded below. This is not a fresh total:
+the later Web IQ account and knowledge definitions are separate additions.
+Logical
 children and configuration attachments follow the table. Names are non-secret
 resource identifiers; secret values and connection strings are deliberately absent.
 
@@ -735,7 +804,7 @@ resource identifiers; secret values and connection strings are deliberately abse
 |---|---|
 | Model deployment `bc-fast` | Pinned `gpt-5.4-mini` Global Standard model, capacity 50, `NoAutoUpgrade` |
 | Pinned prompt-agent bindings | Isolated version-5 planner, general factual agent, seven pathways and the separately scoped synthetic demo; not separate Container Apps |
-| Search index `bc-pilot-public` | Twelve indexed chunks from the initial four approved documents |
+| Search index `bc-pilot-public` | November 6 record: 20 active chunks across four reviewed documents; the 12 original keys are superseded |
 | Blob containers `bc-ingestion-candidates`, `bc-ingestion-rights` | Non-public source control state and separately scoped rights evidence |
 | Blob service/container `default/reviewed-content` | Non-public container for optional reviewed JSON staging |
 | Private DNS zone group `default` on the Blob endpoint | Associates the Blob endpoint with `privatelink.blob.core.windows.net` |
@@ -778,14 +847,14 @@ precede a delayed `404 CONFIG_NOCACHE` during a close/reopen cycle. Observe the
 closed gate and subsequent public recovery, then run outcome checks. Do not
 repeatedly toggle the endpoint or weaken WAF to accelerate propagation.
 
-The November 6 repair is deployed as API revision
+The November 6 repair was recorded as API revision
 `ca-bcassist-xufhsendpx-api--renewal-f7ef408` and web revision
 `ca-bcassist-xufhsendpx-web--renewal-2616376`. Both revisions are ready, with
 their existing user-assigned identities and 1--2 replica limits. The API-only
 follow-up changes only the image and revision suffix; structural comparison
 confirms configuration, identity, tags, environment, resource allocations and
 scale are retained. The four-document source refresh is described above.
-Their immutable image digests are
+Its immutable image digests were
 `sha256:16c9d7b74770c6a3d7ab7a7268101863af389159fa83a1e61e85c4317013f960`
 and
 `sha256:a0c29628b5756939c1a57eda7424538aa3721d43aad589f5fb8daf6f48a86319`.
@@ -814,6 +883,31 @@ versions `[1, 2, 3, 5]`, ready conversation/task assistance, four usable reviewe
 documents, zero expired documents and zero rejected active chunks. Missing
 ICBC detail remains an explicit, specific official handoff, not invented facts
 or a return to the government-homepage dead end.
+
+### Recorded IQ rollout state
+
+The [deployment record](../.azure/deployment-plan.md) contains successive
+checkpoints, not one continuously current status. Its latest checkpoint,
+November 9 at `22:50:09Z`, records the diagnostic API/web candidates deployed
+and ready, with both research options still disabled. The C2 configuration-only
+activation draft passed target-scope validation/what-if for one existing API
+resource; no research settings were applied at that checkpoint.
+
+Earlier that day, a candidate ordinary-chat release check stopped on
+`job-loss starter` with `CONVERSATION_DECISION_INVALID`. An approved rollback
+restored the earlier images and preserved configuration, identity, scale and
+budgets. The later diagnostic candidate supersedes that rollback as the latest
+recorded image state; neither event proves public IQ activation or a complete
+new ordinary-chat acceptance pass.
+
+The approved Web IQ metering account/AppID binding, access grants, research
+agent and IQ definitions were preserved. Provisioning these prerequisites does
+not make the per-answer actions available. Execution still requires a fresh,
+full ordinary-chat pass for the exact candidate, followed by closed-exposure
+research checks and separate public activation approval. Validation-only
+mirrors must not be deployed wholesale. No deployment, resource mutation,
+billable evaluation or live verification was performed for this documentation
+update.
 
 ### Earlier public verification
 
@@ -913,31 +1007,12 @@ mode and reviewed-schema flag must enter one new API revision together.
   the unresolved ICBC, BC Housing, WorkBC and BC Laws acquisition/freshness gates.
 - Enable Web IQ only after actual service access, reviewed transport and its
   distinct privacy, retention and source-use controls exist.
-- Reconsider Foundry IQ only if an expanded approved corpus and a matched
-  answer-quality/cost evaluation justify changing the direct Search baseline;
-  the completed small-corpus retrieval comparison did not justify adoption.
+- Evaluate the separately gated Foundry IQ supplement with matched
+  answer-quality/cost evidence before activation. Replacing Direct Search
+  would be a different decision; the small-corpus comparison did not justify it.
 - Design authenticated transactional workflows only with approved agency
   integrations, consent and authority. Work IQ/Fabric IQ are not part of this
   anonymous public assistant.
-
-### Optional per-answer IQ research
-
-Direct Search remains the standard answer path. `/api/research` is a separate,
-owned SSE run triggered only by an explicit action on an eligible completed
-answer. Its public intent is bound to the original page/thread/run; it does not
-reuse personal conversation state or mutate task progress.
-
-The independently gated adapters are Foundry IQ preview (`low` planning,
-extractive evidence, the existing approved index only) and Web IQ public-page
-research. An isolated pinned, tool-free research answer agent returns a
-validated supplement with distinct provenance. The original answer remains
-unchanged. No optional provider is queried during ordinary chat or capability
-bootstrap, and there is no cross-provider fallback.
-
-Both flags and budgets default closed. The historical GA experiment above is
-not a preview-planning or answer-quality evaluation. Separate live quality,
-cost, privacy and performance approval is still required; no new source
-publication is implied. See [the configuration, limits and release procedure](../apps/api/README.md#optional-per-answer-research).
 
 ## 9. Implementation references
 
@@ -949,6 +1024,7 @@ publication is implied. See [the configuration, limits and release procedure](..
 | Browser transport and service hop | [AG-UI client](../apps/web/src/lib/agent.ts), [proxy](../apps/web/src/lib/proxy.ts), [internal authentication](../apps/web/src/lib/internal-auth.ts) |
 | Agent definitions and routing | [Agents](../apps/api/src/bc_api/agents.py), [policy](../apps/api/src/bc_api/agent_policy.py), [native runtime](../apps/api/src/bc_api/foundry.py) |
 | Evidence and lifecycle controls | [Retrieval](../apps/api/src/bc_api/retrieval.py), [output gate](../apps/api/src/bc_api/output.py), [streaming response](../apps/api/src/bc_api/streaming.py), [shared controls](../apps/api/src/bc_api/controls.py) |
+| Optional per-answer research | [Approval/offer policy](../apps/api/src/bc_api/research.py), [owned runs](../apps/api/src/bc_api/research_runs.py), [Foundry IQ adapter](../apps/api/src/bc_api/foundry_iq.py), [Web IQ adapter](../apps/api/src/bc_api/webiq.py), [output validation](../apps/api/src/bc_api/research_output.py) |
 | Reviewed publication | [Ingestion guide](../ingestion/README.md), [pipeline](../ingestion/bc_ingestion/pipeline.py), [Azure publisher](../ingestion/bc_ingestion/azure_publish.py) |
 | Infrastructure and rollout | [Infrastructure guide](../infra/README.md), [orchestration](../infra/modules/pilot.bicep), [hosting](../infra/modules/hosting.bicep), [AI/data](../infra/modules/ai-services.bicep) |
 | Private networking and edge | [Network](../infra/modules/network.bicep), [Redis](../infra/modules/shared-controls.bicep), [WAF/profile](../infra/modules/edge-profile.bicep), [routes](../infra/modules/edge-routes.bicep), [access logging](../infra/modules/edge-logging.bicep) |
@@ -957,3 +1033,13 @@ publication is implied. See [the configuration, limits and release procedure](..
 Update this page when a deployed boundary, source-publication mode or material
 runtime relationship changes. Keep implementation contracts and operational
 procedures in their linked guides rather than maintaining conflicting copies.
+
+The HTML walkthrough adapts the Azure Daylight template, navigation and icon
+builder from [Azure HTML Storytelling](https://github.com/VeVarunSharma/azure-html-storytelling),
+revision `dfe3bb54c1f01c1f406439625b25c684857e9b91`. That repository requires
+GitHub access; an unauthenticated link checker receives 404. The skill was
+read from the supplied repository, not installed into contributor settings.
+Official icons are embedded without recolouring or distorting them; their
+[Microsoft usage terms](https://learn.microsoft.com/azure/architecture/icons/)
+apply. The slides link implementation claims to repository files and platform
+claims to Microsoft documentation; neither is a fresh live deployment check.

@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<!-- Adapted from VeVarunSharma/azure-html-storytelling, revision dfe3bb54c1f01c1f406439625b25c684857e9b91. Azure Daylight template and navigation retained. Official icons injected by the skill builder. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BC service assistant | Architecture walkthrough</title>
+<meta name="description" content="BC service assistant architecture: protected ingress, reviewed evidence, optional IQ research and release boundaries. Documentation reviewed 10 November 2026.">
+<meta name="color-scheme" content="light dark">
+<script>
+  /* Theme: ?theme=dark|light wins, then the viewer's saved choice for this file, else light. */
+  (() => {
+    let t = new URLSearchParams(location.search).get("theme");
+    if (t !== "dark" && t !== "light") { try { t = localStorage.getItem("deck-theme:" + location.pathname); } catch (e) { t = null; } }
+    document.documentElement.setAttribute("data-theme", t === "dark" ? "dark" : "light");
+  })();
+</script>
+<style>
+/* ==========================================================================
+   AZURE DAYLIGHT · html-storytelling deck system v2 (standalone, offline)
+   1 tokens · 2 legacy aliases · 3 base & type · 4 chrome · 5 stage & motion
+   6 components · 7 diagram primitives · 8 signature visuals · 9 responsive
+   10 reduced motion · 11 print
+   Change tokens, not components. Never hard-code a hex colour inside a slide.
+   ========================================================================== */
+
+/* 1 · TOKENS -------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+  /* Azure ramp (Fluent communication blue) */
+  --azure-50: #eff6fc; --azure-100: #deecf9; --azure-200: #c7e0f4; --azure-300: #71afe5;
+  --azure-400: #2b88d8; --azure-500: #0078d4; --azure-600: #106ebe; --azure-700: #005a9e; --azure-800: #004578;
+  /* Accents: at most one per slide besides Azure */
+  --cyan: #50e6ff;     /* signal glow, decorative only - never text on white */
+  --indigo: #5b5fc7;   /* AI / intelligence emphasis */
+  --teal: #038387;     /* data-movement emphasis */
+  /* Neutrals with a cool blue cast */
+  --paper: #f2f6fa; --surface: #ffffff; --surface-2: #f6f9fc;
+  --ink: #0e1c2f; --ink-2: #43536a; --ink-3: #5f6f84;
+  --line: #dce4ee; --line-2: #b5c3d3;
+  /* Status: text-safe on white */
+  --ok: #107c10; --warn: #8a5300; --warn-mark: #ffb900; --bad: #c50f1f;
+  /* Roles - components use only these */
+  --az: var(--azure-500);
+  --az-deep: var(--azure-700);
+  --az-ink: color-mix(in srgb, var(--az) 34%, var(--ink));
+  --az-mid: color-mix(in srgb, var(--az) 55%, var(--surface));
+  --az-soft: color-mix(in srgb, var(--az) 9%, var(--surface));
+  --az-softer: color-mix(in srgb, var(--az) 4%, var(--surface));
+  --az-line: color-mix(in srgb, var(--az) 26%, var(--line));
+  --grid: color-mix(in srgb, var(--az) 7%, transparent);
+  --on-az: #ffffff;
+  /* Type: distinct, offline, system-installed on Windows 11 with macOS fallbacks */
+  --font-display: "Segoe UI Variable Display", "Segoe UI", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-text: "Segoe UI Variable Text", "Segoe UI", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-label: "Bahnschrift SemiCondensed", Bahnschrift, "DIN Alternate", "DIN Condensed", "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", "SF Mono", Consolas, Menlo, monospace;
+  --font-serif: "Sitka Heading", "Sitka Text", "Iowan Old Style", Charter, Georgia, serif;
+  /* Shape, depth, motion */
+  --r: 10px; --r-card: 16px; --r-slide: 22px;
+  --shadow-card: 0 1px 2px rgba(14, 28, 47, .07), 0 10px 22px -16px rgba(0, 69, 120, .28);
+  --shadow-slide: 0 1px 2px rgba(14, 28, 47, .06), 0 34px 70px -34px rgba(0, 69, 120, .38);
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --stagger: 90ms;
+  /* Stage: PowerPoint 16:9 */
+  --W: 1440px; --H: 810px;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #08121f; --surface: #0f1c2e; --surface-2: #13243a;
+  --ink: #e7eef7; --ink-2: #b0bfd1; --ink-3: #8b9cb1;
+  --line: #233751; --line-2: #3a5574;
+  --ok: #6ccb5f; --warn: #f2c661; --warn-mark: #f2c661; --bad: #ff99a4;
+  --az: #479ef5;
+  --az-deep: color-mix(in srgb, var(--az) 62%, #ffffff);
+  --az-ink: color-mix(in srgb, var(--az) 40%, var(--ink));
+  --on-az: #04111f;
+  --grid: color-mix(in srgb, var(--az) 10%, transparent);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 26px -16px rgba(0, 0, 0, .7);
+  --shadow-slide: 0 1px 2px rgba(0, 0, 0, .45), 0 34px 70px -34px rgba(0, 0, 0, .8);
+}
+
+/* 2 · LEGACY ALIASES - lets slides ported from older decks (--cp-*, --font, --mono) render unchanged */
+:root {
+  --cp-bg: var(--paper); --cp-surface: var(--surface); --cp-surface-soft: var(--surface-2);
+  --cp-border: var(--line); --cp-border-strong: var(--line-2); --cp-text: var(--ink);
+  --cp-text-muted: var(--ink-2); --cp-text-soft: var(--ink-3); --cp-link: var(--az);
+  --cp-success: var(--ok); --cp-warning: var(--warn-mark); --cp-danger: var(--bad);
+  --cp-accent-fg: var(--on-az); --cp-shadow: var(--shadow-slide);
+  --cp-panel: color-mix(in srgb, var(--surface) 84%, transparent);
+  --cp-overlay: color-mix(in srgb, var(--paper) 90%, transparent);
+  --font: var(--font-text); --mono: var(--font-mono);
+}
+
+/* 3 · BASE & TYPE --------------------------------------------------------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--font-text); color: var(--ink); background: var(--paper);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+a { color: var(--az-deep); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+:focus-visible { outline: 2px solid var(--az); outline-offset: 2px; border-radius: 6px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+h1, h2, h3, h4 { margin: 0; font-family: var(--font-display); font-weight: 600; color: var(--ink); text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+.eyebrow {
+  font-family: var(--font-label); font-size: 14px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--az); display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+}
+.eyebrow::before { content: ""; width: 28px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--az), var(--azure-300)); flex: none; }
+.slide h2 { font-size: 40px; line-height: 1.08; font-weight: 300; letter-spacing: -0.022em; }
+.slide h2.compact { font-size: 34px; }
+.slide h1 b, .slide h2 b { font-weight: 600; color: var(--az-ink); }
+.lede { font-size: 19px; line-height: 1.5; color: var(--ink-2); margin-top: 12px; max-width: 1080px; }
+h3 { font-size: 20px; line-height: 1.25; letter-spacing: -0.01em; }
+h4 { font-size: 16.5px; line-height: 1.3; letter-spacing: -0.005em; }
+.label { font-family: var(--font-label); font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--az-deep); }
+.mono, code { font-family: var(--font-mono); font-size: .92em; }
+.muted { color: var(--ink-2); }
+.small { font-size: 14px; line-height: 1.45; }
+.xs { font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
+.tnum { font-variant-numeric: tabular-nums lining-nums; }
+
+/* 4 · CHROME -------------------------------------------------------------- */
+.deck {
+  position: fixed; inset: 0; display: grid; grid-template-rows: 52px minmax(0, 1fr) 60px; overflow: hidden;
+  background:
+    radial-gradient(1100px 560px at 88% -12%, color-mix(in srgb, var(--az) 14%, transparent), transparent 62%),
+    radial-gradient(900px 520px at -6% 110%, color-mix(in srgb, var(--cyan) 16%, transparent), transparent 60%),
+    var(--paper);
+}
+.topbar, .bottombar {
+  background: color-mix(in srgb, var(--surface) 84%, transparent); backdrop-filter: blur(10px); z-index: 5;
+}
+.topbar { display: flex; align-items: center; gap: 16px; padding: 0 20px; border-bottom: 1px solid var(--az-line); }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; font-family: var(--font-display); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.brand svg { width: 22px; height: 22px; flex: none; }
+.brand small { font-weight: 400; font-size: 13px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
+.chapter-tag {
+  font-family: var(--font-label); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--az-deep);
+  padding: 4px 12px; border: 1px solid var(--az-line); border-radius: 999px; background: var(--az-softer);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 36vw;
+}
+.chapter-tag:empty { display: none; }
+.spacer { flex: 1; }
+.iconbtn, .navbtn {
+  font: 500 13px var(--font-text); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--r); height: 34px; padding: 0 12px;
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: border-color .2s, background-color .2s;
+}
+.iconbtn:hover, .navbtn:hover { border-color: var(--az); background: var(--az-softer); }
+.iconbtn svg, .navbtn svg { width: 16px; height: 16px; flex: none; }
+.navbtn.primary { background: var(--az); border-color: var(--az); color: var(--on-az); }
+.navbtn.primary:hover { background: var(--az-deep); border-color: var(--az-deep); }
+.navbtn:disabled { opacity: .45; cursor: default; }
+.bottombar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 0 20px; border-top: 1px solid var(--az-line); }
+.counter { font-family: var(--font-label); font-size: 14px; letter-spacing: .06em; color: var(--ink-3); min-width: 74px; text-align: center; font-variant-numeric: tabular-nums; }
+.counter b { color: var(--ink); font-weight: 600; }
+.progress { display: flex; gap: 6px; align-items: center; height: 100%; min-width: 0; }
+.progress .seg { flex: var(--n, 1) 1 0; min-width: 0; display: flex; flex-direction: column; gap: 5px; cursor: pointer; border: 0; background: none; padding: 8px 0; font: inherit; color: inherit; text-align: left; }
+.progress .seg .bar { height: 4px; border-radius: 4px; background: var(--az-line); position: relative; overflow: hidden; }
+.progress .seg .bar i { position: absolute; inset: 0; border-radius: 4px; background: linear-gradient(90deg, var(--az), var(--azure-300)); transform: scaleX(var(--p, 0)); transform-origin: left center; transition: transform .4s var(--ease); }
+.progress .seg span { font-family: var(--font-label); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.progress .seg.on span { color: var(--az-deep); }
+.navgroup { display: flex; gap: 8px; align-items: center; }
+.menu { position: fixed; inset: 52px 0 60px 0; z-index: 20; display: none; overflow: auto; padding: 28px 36px; background: color-mix(in srgb, var(--paper) 90%, transparent); backdrop-filter: blur(14px); }
+.menu.open { display: block; }
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 24px; max-width: 1400px; margin: 0 auto; }
+.menu h3 { font-family: var(--font-label); font-weight: 400; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--az); margin: 0 0 8px; }
+.menu ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.menu .item { width: 100%; display: flex; gap: 10px; text-align: left; font: 14px var(--font-text); color: var(--ink); background: none; border: 0; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+.menu .item:hover, .menu .item.cur { background: var(--az-soft); }
+.menu .item span { font-family: var(--font-label); color: var(--ink-3); min-width: 24px; padding-top: 1px; font-variant-numeric: tabular-nums; }
+.toast { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 30; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; font-size: 13.5px; box-shadow: var(--shadow-card); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.toast.show { opacity: 1; }
+.iconbtn .fs-out { display: none; }
+.is-fs .iconbtn .fs-in { display: none; }
+.is-fs .iconbtn .fs-out { display: inline; }
+.is-fs .deck { grid-template-rows: 0 minmax(0, 1fr) 52px; }
+.is-fs .topbar { opacity: 0; pointer-events: none; height: 0; overflow: hidden; border: 0; }
+.is-fs .topbar:focus-within { opacity: 1; pointer-events: auto; }
+.is-fs .bottombar { opacity: .35; transition: opacity .3s; }
+.is-fs .bottombar:hover, .is-fs .bottombar:focus-within { opacity: 1; }
+.is-fs .menu { inset: 0 0 52px 0; }
+
+/* 5 · STAGE & MOTION ------------------------------------------------------ */
+.viewport { position: relative; overflow: hidden; min-height: 0; min-width: 0; }
+.stage { position: absolute; left: 50%; top: 50%; width: var(--W); height: var(--H); transform: translate(-50%, -50%) scale(var(--s, 1)); transform-origin: center; }
+.slide {
+  position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
+  padding: 48px 64px 46px; background: var(--surface); border: 1px solid var(--az-line);
+  border-radius: var(--r-slide); box-shadow: var(--shadow-slide);
+  opacity: 0; visibility: hidden; transform: translateX(28px);
+  transition: opacity .45s ease, transform .55s var(--ease), visibility 0s linear .55s;
+}
+.slide.back { transform: translateX(-28px); }
+.slide.active { opacity: 1; visibility: visible; transform: none; transition: opacity .45s ease, transform .55s var(--ease), visibility 0s; }
+.slide::before { /* spectrum rule - signature */
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; pointer-events: none;
+  background: linear-gradient(90deg, var(--az) 0%, var(--azure-300) 34%, color-mix(in srgb, var(--cyan) 60%, transparent) 58%, transparent 86%);
+}
+.slide::after { /* blueprint registration mark - signature */
+  content: ""; position: absolute; top: 22px; right: 22px; width: 14px; height: 14px; pointer-events: none;
+  border-top: 1.5px solid var(--az-line); border-right: 1.5px solid var(--az-line);
+}
+.slide.pb { padding-bottom: 70px; }
+.slide .corner { position: absolute; right: 28px; bottom: 16px; font-family: var(--font-label); font-size: 12px; letter-spacing: .12em; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.slide .src { position: absolute; left: 64px; right: 140px; bottom: 15px; font-size: 11.5px; line-height: 1.4; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slide.pb .src { white-space: normal; }
+.slide .src b { font-family: var(--font-label); font-weight: 400; letter-spacing: .12em; text-transform: uppercase; color: var(--az-deep); margin-right: 6px; }
+.slide .src a { color: var(--ink-3); }
+.rv { opacity: 0; transform: translateY(14px); }
+.slide.active .rv { animation: rv .6s var(--ease) forwards; animation-delay: calc(var(--i, 0) * var(--stagger) + 120ms); }
+@keyframes rv { to { opacity: 1; transform: none; } }
+
+/* 6 · COMPONENTS ---------------------------------------------------------- */
+.head { margin-bottom: 22px; }
+.body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
+.fill { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 8px 0 18px; }
+.stack { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.grid { display: grid; gap: 16px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.g5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.g6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; align-items: stretch; flex: 1; min-height: 0; }
+.split.wide { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); }
+.split.even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.split.narrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+.split > .stack { justify-content: center; }
+.card { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 18px 20px; box-shadow: var(--shadow-card); min-width: 0; }
+.card.tint { background: var(--az-softer); border-color: var(--az-line); box-shadow: none; }
+.card.solid { background: linear-gradient(150deg, var(--az), var(--az-deep)); border-color: transparent; color: var(--on-az); }
+html[data-theme="dark"] .card.solid { background: linear-gradient(150deg, var(--az), color-mix(in srgb, var(--az) 70%, var(--surface))); }
+.card.solid h3, .card.solid h4, .card.solid p { color: inherit; }
+.card h3 + p, .card h4 + p, .card h3 + ul, .card h4 + ul { margin-top: 6px; }
+.card p { font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+.ichead { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.ichead svg { width: 34px; height: 34px; flex: none; color: var(--az); }
+.ichead .tag { margin-left: auto; }
+.ic { width: 40px; height: 40px; display: block; margin-bottom: 12px; color: var(--az); }
+.num { display: block; font-family: var(--font-label); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--az); margin-bottom: 8px; }
+.tag {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; vertical-align: middle; white-space: nowrap;
+  font-family: var(--font-label); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase;
+  border: 1px solid var(--az-line); color: var(--az-deep); background: var(--az-softer);
+}
+.tag.ga { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 38%, var(--line)); background: color-mix(in srgb, var(--ok) 8%, var(--surface)); }
+.tag.pv { color: var(--warn); border-color: color-mix(in srgb, var(--warn-mark) 60%, var(--line)); background: color-mix(in srgb, var(--warn-mark) 14%, var(--surface)); }
+.tag.no { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 35%, var(--line)); background: color-mix(in srgb, var(--bad) 7%, var(--surface)); }
+.tag.ai { color: var(--indigo); border-color: color-mix(in srgb, var(--indigo) 35%, var(--line)); background: color-mix(in srgb, var(--indigo) 7%, var(--surface)); }
+ul.ticks { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+ul.ticks li { position: relative; padding-left: 24px; font-size: 15.5px; line-height: 1.45; color: var(--ink); }
+ul.ticks li::before { content: ""; position: absolute; left: 1px; top: 7px; width: 9px; height: 9px; border-radius: 3px; background: var(--az-soft); border: 2px solid var(--az); }
+ul.ticks.sm { gap: 6px; }
+ul.ticks.sm li { font-size: 14px; }
+ul.ticks.x li::before { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--surface)); border-radius: 50%; }
+.callout { position: relative; background: var(--az-softer); border: 1px solid var(--az-line); border-radius: var(--r); padding: 12px 18px 12px 44px; font-size: 15.5px; line-height: 1.5; color: var(--ink); }
+.callout::before { content: ""; position: absolute; left: 17px; top: 17px; width: 11px; height: 11px; border-radius: 3px; transform: rotate(45deg); background: linear-gradient(135deg, var(--az), var(--azure-300)); }
+.callout b { color: var(--az-ink); }
+.callout.warn { background: color-mix(in srgb, var(--warn-mark) 9%, var(--surface)); border-color: color-mix(in srgb, var(--warn-mark) 45%, var(--line)); }
+.callout.warn::before { background: var(--warn-mark); }
+.callout.ok { background: color-mix(in srgb, var(--ok) 6%, var(--surface)); border-color: color-mix(in srgb, var(--ok) 30%, var(--line)); }
+.callout.ok::before { background: var(--ok); }
+.kpi { font-family: var(--font-display); font-size: 56px; font-weight: 250; letter-spacing: -0.03em; line-height: 1; color: var(--az-ink); font-variant-numeric: tabular-nums lining-nums; }
+.kpi small { font-family: var(--font-label); font-size: 16px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-left: 6px; }
+table.t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14.5px; }
+table.t th, table.t td { padding: 10px 14px; text-align: left; vertical-align: top; line-height: 1.4; border-bottom: 1px solid var(--line); }
+table.t th { font-family: var(--font-label); font-weight: 400; font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--az-deep); background: var(--az-softer); border-bottom-color: var(--az-line); }
+table.t th:first-child { border-top-left-radius: var(--r); }
+table.t thead th { vertical-align: middle; }
+table.t th svg { width: 22px; height: 22px; vertical-align: middle; margin: -3px 8px 0 0; }
+table.t th:last-child { border-top-right-radius: var(--r); }
+table.t td { color: var(--ink-2); }
+table.t td:first-child { font-weight: 600; color: var(--ink); }
+table.t td svg { width: 22px; height: 22px; vertical-align: -6px; margin-right: 8px; }
+table.t tr:hover td { background: var(--az-softer); }
+table.t .yes { color: var(--ok); font-weight: 600; }
+table.t.roomy { font-size: 16.5px; }
+table.t.roomy th, table.t.roomy td { padding: 16px 18px; }
+table.t.roomy th { font-size: 13px; }
+.step { position: relative; padding: 16px 18px; border-radius: var(--r-card); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-card); min-width: 0; }
+.step .n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 12px; background: var(--az); color: var(--on-az); font: 600 14px var(--font-label); }
+.step .ic { width: 36px; height: 36px; position: absolute; top: 14px; right: 16px; margin: 0; }
+.step h4 { margin-bottom: 5px; }
+.step p { font-size: 14px; line-height: 1.45; color: var(--ink-2); }
+.arrowrow { display: grid; gap: 28px; align-items: stretch; }
+.arrowrow > .step:not(:last-child)::after {
+  content: ""; position: absolute; right: -21px; top: 50%; width: 12px; height: 12px;
+  border-top: 2px solid var(--az-mid); border-right: 2px solid var(--az-mid); transform: translateY(-50%) rotate(45deg);
+}
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13.5px; color: var(--ink); }
+.chip svg { width: 20px; height: 20px; flex: none; color: var(--az); }
+.chip.az { border-color: var(--az-line); background: var(--az-softer); }
+.iconrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.quote { position: relative; font-family: var(--font-serif); font-style: italic; font-size: 25px; line-height: 1.42; color: var(--az-ink); padding-left: 34px; }
+.quote::before { content: "\201C"; position: absolute; left: -4px; top: -26px; font-size: 84px; font-style: normal; color: var(--azure-200); line-height: 1; }
+html[data-theme="dark"] .quote::before { color: color-mix(in srgb, var(--az) 45%, var(--surface)); }
+.persona { display: flex; gap: 14px; align-items: center; }
+.persona .av { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--az-soft); border: 1px solid var(--az-line); }
+.persona .av svg { width: 26px; height: 26px; color: var(--az); }
+.persona b { display: block; font-size: 15px; }
+.persona span { font-size: 13px; color: var(--ink-3); }
+.track { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 16px; position: relative; margin-top: 30px; }
+.track::before { content: ""; position: absolute; left: 24px; right: 24px; top: -1px; height: 2px; border-radius: 2px; background: var(--az-line); }
+.track::after { content: ""; position: absolute; left: 24px; right: 24px; top: -2px; height: 4px; border-radius: 4px; pointer-events: none; background: linear-gradient(90deg, transparent, var(--az), transparent) no-repeat; background-size: 160px 100%; background-position: -160px 0; }
+.slide.active .track::after { animation: signal 4.2s var(--ease) infinite 1s; }
+@keyframes signal { to { background-position: calc(100% + 160px) 0; } }
+.track .stop { position: relative; padding: 30px 18px 18px; }
+.track.lg .stop { padding: 38px 22px 24px; }
+.track.lg .stop h4 { font-size: 19px; }
+.track.lg .stop p { font-size: 15.5px; }
+.track.lg .stop .ic { width: 42px; height: 42px; }
+.track .pin { position: absolute; top: -16px; left: 18px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--az); color: var(--on-az); font: 600 14px var(--font-label); box-shadow: 0 0 0 5px var(--surface); }
+.track .stop .ic { position: absolute; top: 14px; right: 16px; width: 34px; height: 34px; margin: 0; }
+.track .stop .when { font-family: var(--font-label); font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--az); margin-bottom: 6px; display: block; }
+.track .stop p { font-size: 14px; line-height: 1.45; color: var(--ink-2); margin-top: 6px; }
+.vs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 18px; align-items: center; align-content: center; }
+.vs .mid { align-self: center; font: 600 13px var(--font-label); letter-spacing: .14em; color: var(--az); width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--az-line); background: var(--surface); }
+.refs { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 16px; }
+.refs .group { background: var(--az-softer); border: 1px solid var(--az-line); border-radius: var(--r-card); padding: 18px 22px 20px; }
+.refs h4 { display: flex; align-items: center; gap: 10px; font-family: var(--font-label); font-weight: 400; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--az); margin-bottom: 10px; }
+.refs h4 svg { width: 22px; height: 22px; flex: none; color: var(--az); }
+.refs ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.refs li { font-size: 16px; line-height: 1.4; }
+.refs li a { color: var(--ink); text-decoration-color: var(--az-line); }
+.refs li span { color: var(--ink-3); font-size: 13px; margin-left: 4px; }
+.stamp { display: inline-flex; gap: 10px; align-items: center; font-family: var(--font-label); font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); border: 1px dashed var(--az-line); border-radius: 999px; padding: 4px 12px; }
+.stamp svg { width: 16px; height: 16px; color: var(--ok); }
+.legend { display: grid; grid-template-columns: repeat(var(--cols, 6), minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.legend div { font-size: 12.5px; line-height: 1.38; color: var(--ink-2); display: flex; gap: 8px; }
+.legend b { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--az); color: var(--on-az); font: 600 11.5px var(--font-label); }
+.slide.brief .card p, .slide.brief ul.ticks li { font-size: 17px; }
+.slide.brief .card h3 { font-size: 22px; }
+.slide.brief .card { padding: 22px 24px; }
+.slide.brief .answer { font-size: 21px; line-height: 1.45; color: var(--az-ink); margin-bottom: 18px; }
+
+/* 7 · DIAGRAM PRIMITIVES (svg.dia) ---------------------------------------- */
+.dia-wrap { flex: 1; min-height: 0; position: relative; }
+svg.dia { width: 100%; height: 100%; display: block; overflow: visible; font-family: var(--font-text); }
+svg.dia.w { height: auto; } /* fit-width: natural height from the viewBox; centre it with .fill */
+svg.dia .box { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.2; }
+svg.dia .box.az { fill: var(--az-softer); stroke: var(--az-line); }
+svg.dia .box.hl { fill: var(--az-soft); stroke: var(--az); stroke-width: 1.6; }
+svg.dia .box.solid { fill: var(--az); stroke: var(--az); }
+svg.dia .box.zone { fill: none; stroke: var(--az-line); stroke-width: 1.4; stroke-dasharray: 6 5; }
+svg.dia .box.zone2 { fill: var(--az-softer); stroke: var(--az-line); stroke-width: 1.2; }
+svg.dia .box.sub { fill: var(--surface); stroke: var(--az-line); stroke-dasharray: 3 4; }
+svg.dia .box.grey { fill: var(--surface-2); stroke: var(--line); }
+svg.dia .box.warnz { fill: color-mix(in srgb, var(--warn-mark) 10%, var(--surface)); stroke: color-mix(in srgb, var(--warn-mark) 60%, var(--line)); stroke-dasharray: 5 4; }
+svg.dia .box.q { fill: var(--az-soft); stroke: var(--az); stroke-width: 1.4; }
+svg.dia text { fill: var(--ink); font-size: 13px; }
+svg.dia text.b { font-weight: 600; }
+svg.dia text.lbl { fill: var(--ink-2); font-size: 11.5px; }
+svg.dia text.t1 { font-size: 15px; font-weight: 600; }
+svg.dia text.t2 { font-family: var(--font-label); font-size: 12px; letter-spacing: .12em; fill: var(--az-deep); }
+svg.dia text.inv { fill: var(--on-az); }
+svg.dia text.c { text-anchor: middle; }
+svg.dia text.r { text-anchor: end; }
+svg.dia .ln { fill: none; stroke: var(--az-mid); stroke-width: 1.8; }
+svg.dia .ln.thin { stroke-width: 1.2; }
+svg.dia .ln.grey { stroke: var(--line-2); }
+svg.dia .flow { fill: none; stroke: var(--az); stroke-width: 2.2; stroke-dasharray: 7 7; }
+svg.dia .flow.warn, svg.dia .ln.warn { stroke: var(--warn-mark); }
+svg.dia .flow.ai { stroke: var(--indigo); }
+.slide.active svg.dia .flow { animation: dash 1.4s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -28; } }
+svg.dia .arrowhead { fill: var(--az-mid); }
+svg.dia .arrowhead.strong { fill: var(--az); }
+svg.dia .arrowhead.warn { fill: var(--warn-mark); }
+svg.dia .dot { fill: var(--az); }
+svg.dia .ring { fill: none; stroke: var(--az); stroke-width: 2; opacity: .35; }
+svg.dia .pin { fill: var(--az); }
+svg.dia .pin-t { fill: var(--on-az); font-family: var(--font-label); font-size: 12.5px; font-weight: 600; text-anchor: middle; }
+svg.dia .pill rect { fill: var(--surface); stroke: var(--az-line); }
+svg.dia .pill.warn rect { fill: color-mix(in srgb, var(--warn-mark) 12%, var(--surface)); stroke: color-mix(in srgb, var(--warn-mark) 60%, var(--line)); }
+svg.dia .pill text { font-size: 11.5px; fill: var(--ink-2); text-anchor: middle; }
+svg.dia .ico { color: var(--az); }
+.g-rv { opacity: 0; }
+.slide.active .g-rv { animation: grv .7s ease forwards; animation-delay: calc(var(--i, 0) * 110ms + 200ms); }
+@keyframes grv { to { opacity: 1; } }
+.pulse { transform-box: fill-box; transform-origin: center; }
+.slide.active .pulse { animation: pulse 2.6s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: .35; } 50% { transform: scale(1.16); opacity: .1; } }
+
+/* 8 · SIGNATURE VISUALS --------------------------------------------------- */
+.slide.title { padding: 0; }
+.title-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 100%; }
+.title-copy { padding: 84px 40px 64px 76px; display: flex; flex-direction: column; justify-content: center; }
+.title-copy h1 { font-size: 66px; font-weight: 300; letter-spacing: -0.035em; line-height: 1.03; }
+.title-copy h1 b { display: block; color: var(--az); }
+.title-copy .lede { font-size: 20px; max-width: 560px; margin-top: 22px; }
+.title-meta { margin-top: 40px; display: flex; gap: 28px; flex-wrap: wrap; }
+.title-meta div { border-left: 2px solid var(--az); padding-left: 12px; }
+.title-meta b { display: block; font-family: var(--font-display); font-size: 19px; font-weight: 600; color: var(--az-ink); }
+.title-meta span { font-family: var(--font-label); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.title-art { position: relative; overflow: hidden; border-left: 1px solid var(--az-line); background: linear-gradient(160deg, var(--az-soft), var(--az-softer) 60%, var(--surface)); }
+.title-art svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.orbit-ring { fill: none; stroke: var(--az-mid); stroke-width: 1.2; stroke-dasharray: 2 7; }
+.orbit { transform-box: view-box; transform-origin: 360px 405px; }
+.slide.active .orbit.o1 { animation: spin 90s linear infinite; }
+.slide.active .orbit.o2 { animation: spin 120s linear infinite reverse; }
+.counter-rot { transform-box: fill-box; transform-origin: center; }
+.slide.active .o1 .counter-rot { animation: spin 90s linear infinite reverse; }
+.slide.active .o2 .counter-rot { animation: spin 120s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.slide.chapter { justify-content: center; background: linear-gradient(135deg, var(--az-soft), var(--surface) 68%); }
+.chapter .big {
+  position: absolute; right: 76px; top: 64px; font-family: var(--font-label); font-size: 240px; font-weight: 300; line-height: .9;
+  letter-spacing: -0.02em; color: transparent; -webkit-text-stroke: 1.5px var(--az-mid); font-variant-numeric: tabular-nums;
+}
+.chapter h2 { font-size: 68px; letter-spacing: -0.03em; max-width: 900px; }
+.chapter .lede { font-size: 22px; max-width: 800px; }
+.chapter .agenda { margin-top: 34px; display: flex; gap: 10px; flex-wrap: wrap; max-width: 860px; }
+.chapter .agenda .chip { font-size: 14.5px; padding: 7px 14px 7px 9px; }
+.chapter .agenda .chip svg { width: 22px; height: 22px; }
+svg.dia.chapter-art { position: absolute; right: 56px; bottom: 44px; width: 440px; height: 300px; }
+/* Animated workflow player: [data-player] wraps buttons, caption and a diagram whose groups carry data-step */
+.player { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+.player .dia-wrap { flex: none; }
+.player-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.player-bar .iconbtn { height: 32px; }
+.player-cap { flex: 1 1 320px; min-width: 0; font-size: 15px; color: var(--az-ink); font-weight: 600; }
+.player-dots { display: flex; gap: 6px; }
+.player-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--az-line); transition: background-color .3s; }
+.player-dots i.on { background: var(--az); }
+.player [data-step] { transition: opacity .35s ease; }
+.player.stepping [data-step]:not(.on) { opacity: .16; }
+.player [data-step].cur .box { stroke: var(--az); stroke-width: 2; }
+
+/* 9 · RESPONSIVE (phones / narrow windows: slides reflow and the page scrolls) */
+@media screen and (max-width: 860px) {
+  .deck { position: static; display: block; min-height: 100%; overflow: visible; }
+  .topbar { position: sticky; top: 0; height: 52px; gap: 8px; padding: 0 10px; }
+  .chapter-tag, .brand small, .fs-label { display: none; }
+  .iconbtn { padding: 0 9px; }
+  .bottombar { position: sticky; bottom: 0; grid-template-columns: 1fr auto; padding: 10px 14px; }
+  .progress { display: none; }
+  .viewport { overflow: visible; padding: 12px; }
+  .stage { position: relative; left: auto; top: auto; width: 100% !important; height: auto; transform: none !important; }
+  .slide { position: relative; inset: auto; display: none; width: 100%; min-height: 70vh; padding: 28px 18px 44px; border-radius: 16px; transform: none; opacity: 1; visibility: visible; }
+  .slide.active { display: flex; }
+  .slide h2, .slide h2.compact { font-size: 28px; }
+  .lede { font-size: 16px; }
+  .g2, .g3, .g4, .g5, .g6, .split, .split.wide, .split.even, .split.narrow, .title-grid, .vs, .arrowrow, .track, .legend { grid-template-columns: minmax(0, 1fr) !important; }
+  .slide [style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .arrowrow > .step:not(:last-child)::after { right: 50%; top: auto; bottom: -21px; transform: translateX(50%) rotate(135deg); }
+  .track { gap: 26px; }
+  .track::before, .track::after, .vs .mid { display: none; }
+  .title-copy { padding: 30px 6px; }
+  .title-copy h1 { font-size: 40px; }
+  .title-art { min-height: 340px; border-left: 0; border-top: 1px solid var(--az-line); }
+  .chapter .big { position: static; font-size: 72px; margin-bottom: 6px; }
+  .chapter h2 { font-size: 38px; }
+  svg.dia.chapter-art { display: none; }
+  .dia-wrap { flex: none; }
+  .dia-wrap svg.dia, .card svg.dia { height: auto !important; }
+  .refs { grid-template-columns: minmax(0, 1fr); }
+  table.t { font-size: 13.5px; }
+  table.t, table.t tbody, table.t tr, table.t td { display: block; width: 100%; }
+  table.t thead { display: none; }
+  table.t tr { padding: 4px 0 10px; border-bottom: 1px solid var(--line); }
+  table.t td, table.t.roomy td { border-bottom: 0; padding: 5px 2px; }
+  table.t td:first-child { padding-top: 12px; font-size: 15px; }
+  table.t td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 2px; font-family: var(--font-label); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--az-deep); }
+  table.t tr:hover td { background: transparent; }
+  .slide .src { position: static; white-space: normal; margin-top: 16px; }
+  .slide .corner { bottom: 12px; }
+  .menu { inset: 52px 0 0 0; }
+}
+
+/* 9b · PAGE MODE: <html data-mode="page"> turns the deck into a one-page explainer.
+   Slides become stacked sections with natural height and one page scrollbar. */
+html[data-mode="page"] .deck { position: static; display: block; min-height: 100%; overflow: visible; }
+html[data-mode="page"] .topbar { position: sticky; top: 0; height: 52px; }
+html[data-mode="page"] .bottombar, html[data-mode="page"] #fsBtn { display: none; }
+html[data-mode="page"] .viewport { overflow: visible; padding: 28px 24px 56px; }
+html[data-mode="page"] .stage { position: relative; left: auto; top: auto; transform: none; width: min(var(--W), 100%); height: auto; margin: 0 auto; }
+html[data-mode="page"] .slide { position: relative; inset: auto; display: flex; height: auto; min-height: 0; margin-bottom: 28px; opacity: 1; visibility: visible; transform: none; transition: none; scroll-margin-top: 72px; }
+html[data-mode="page"] .slide.title { height: 700px; }
+html[data-mode="page"] .slide.chapter { min-height: 660px; }
+html[data-mode="page"] .fill { flex: none; }
+html[data-mode="page"] .menu { inset: 52px 0 0 0; }
+@media screen and (max-width: 860px) {
+  html[data-mode="page"] .slide { display: flex; }
+  html[data-mode="page"] .slide.title { height: auto; }
+}
+
+/* 10 · REDUCED MOTION ----------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .rv, .g-rv { opacity: 1 !important; transform: none !important; }
+}
+
+/* 11 · PRINT: one slide per 16:9 page, no chrome -------------------------- */
+@media print {
+  @page { size: 1440px 810px; margin: 0; }
+  html, body { height: auto; }
+  body { background: var(--surface); }
+  .sr-only { display: none !important; }
+  .deck { position: static; display: block; background: none; overflow: visible; }
+  .topbar, .bottombar, .menu, .toast { display: none !important; }
+  .viewport { overflow: visible; }
+  .stage { position: relative; left: auto; top: auto; transform: none !important; width: 1440px; height: auto; }
+  .slide { position: relative; display: flex !important; width: 1440px; height: 810px; opacity: 1 !important; visibility: visible !important; transform: none !important; box-shadow: none; border-radius: 0; break-after: page; break-inside: avoid; }
+  .slide:last-child { break-after: auto; }
+  .rv, .g-rv { opacity: 1 !important; transform: none !important; animation: none !important; }
+}
+
+</style>
+</head>
+<body>
+<div class="deck">
+  <header class="topbar">
+    <div class="brand"><svg aria-hidden="true"><use href="#az-foundry"/></svg>BC service assistant <small>Architecture walkthrough</small></div>
+    <div class="chapter-tag" id="chapterTag"></div>
+    <div class="spacer"></div>
+    <button class="iconbtn" id="menuBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="menu" title="All slides (M)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9.5" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/></svg>
+      <span>Slides</span>
+    </button>
+    <button class="iconbtn" id="fsBtn" type="button" title="Full screen (F)" aria-label="Enter full screen" aria-pressed="false">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path class="fs-in" d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/><path class="fs-out" d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4"/></svg>
+      <span class="fs-label">Full screen</span>
+    </button>
+    <button class="iconbtn" id="themeBtn" type="button" title="Light or dark" aria-label="Dark theme" aria-pressed="false">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z"/></svg>
+    </button>
+  </header>
+
+  <main class="viewport" id="main">
+    <div class="stage" id="stage">
+<!-- SLIDES:START -->
+<section class="slide title" id="welcome" data-chapter="Overview" data-title="Prepare, explain, hand off">
+  <div class="title-grid">
+    <div class="title-copy">
+      <div class="eyebrow rv" style="--i:0">BC service assistant / architecture</div>
+      <h1 class="rv" style="--i:1">A clearer path to <b>official services</b></h1>
+      <p class="lede rv" style="--i:2">Anonymous conversation, reviewed evidence and practical preparation. Official services retain every transaction and eligibility decision.</p>
+      <div class="title-meta rv" style="--i:3">
+        <div><b>10 Nov 2026</b><span>Documentation review</span></div>
+        <div><b>a719980</b><span>Implementation baseline</span></div>
+      </div>
+      <p class="small muted rv" style="--i:4">Repository walkthrough, not a fresh live-readiness assessment. Optional research remains separately gated.</p>
+    </div>
+    <div class="title-art" aria-hidden="true">
+      <svg viewBox="0 0 720 810" class="dia">
+        <defs><pattern id="intro-grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0V36" fill="none" style="stroke:var(--grid)"/></pattern></defs>
+        <rect width="720" height="810" fill="url(#intro-grid)"/>
+        <circle cx="360" cy="405" r="248" class="orbit-ring"/>
+        <rect x="114" y="146" width="492" height="526" rx="24" class="box zone"/>
+        <text x="360" y="187" class="t2 c">EVIDENCE BEFORE CLAIMS</text>
+        <path d="M360 296V344M360 460V508" class="flow"/>
+        <rect x="202" y="218" width="316" height="78" rx="12" class="box"/>
+        <use href="#az-search" x="226" y="236" width="40" height="40"/>
+        <text x="286" y="250" class="b">Reviewed sources</text>
+        <text x="286" y="274" class="lbl">Provenance / rights / freshness</text>
+        <rect x="176" y="344" width="368" height="116" rx="16" class="box hl"/>
+        <use href="#az-foundry" x="204" y="374" width="54" height="54"/>
+        <text x="280" y="390" class="b">Controlled answer</text>
+        <text x="280" y="416" class="lbl">Validate, cite or withhold</text>
+        <rect x="202" y="508" width="316" height="78" rx="12" class="box"/>
+        <text x="360" y="540" class="b c">Official handoff</text>
+        <text x="360" y="565" class="lbl c">No forms, payments or decisions</text>
+        <text x="360" y="634" class="t2 c">PREPARATION IS NOT A TRANSACTION</text>
+      </svg>
+    </div>
+  </div>
+  <div class="src"><b>Evidence</b><a href="../README.md">Repository overview</a> / <a href="architecture.md">Architecture record</a> / <a href="https://learn.microsoft.com/azure/search/agentic-retrieval-overview">Search platform context</a></div>
+</section>
+
+<section class="slide" id="deployment" data-chapter="Runtime" data-title="Public edge, private application origin">
+  <div class="head">
+    <div class="eyebrow rv" style="--i:0">Resource topology / recorded pilot</div>
+    <h2 class="rv" style="--i:1">A public entry point, <b>not a public application origin</b></h2>
+    <p class="lede rv" style="--i:2">Canada Central hosts the application. Front Door is global; public Search and Foundry endpoints remain Entra-authorized.</p>
+  </div>
+  <div class="dia-wrap rv" style="--i:3">
+    <svg class="dia" viewBox="0 0 1312 480" role="img" aria-label="Anonymous HTTPS enters Front Door and WAF, then Private Link reaches the web Container App. The web managed identity calls the internal API. The API reads Search, calls Foundry and uses a private endpoint for Redis.">
+      <defs><marker id="net-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" class="arrowhead strong"/></marker></defs>
+      <rect x="174" y="4" width="1134" height="472" rx="16" class="box zone2"/>
+      <text x="180" y="28" class="t2">PILOT SUBSCRIPTION / rg-bcassist-xufhsendpx</text>
+      <rect x="378" y="48" width="580" height="410" rx="16" class="box zone"/>
+      <use href="#az-vnet" x="396" y="61" width="24" height="24"/>
+      <text x="430" y="80" class="t2">VNET / 10.240.0.0/16 / NO PEERING</text>
+      <rect x="398" y="102" width="540" height="198" rx="12" class="box sub"/>
+      <text x="418" y="126" class="lbl mono">apps 10.240.0.0/23 / NSG / delegated</text>
+      <text x="418" y="150" class="lbl">Container Apps environment: public networking disabled</text>
+      <rect x="418" y="174" width="214" height="100" rx="10" class="box"/>
+      <use href="#az-aca" x="432" y="189" width="32" height="32"/>
+      <text x="478" y="202" class="b">Web / Next.js</text>
+      <text x="478" y="225" class="lbl">Port 3000 / 1-2 replicas</text>
+      <use href="#az-mi" x="434" y="238" width="22" height="22"/>
+      <text x="478" y="252" class="lbl">Web managed identity</text>
+      <rect x="700" y="174" width="214" height="100" rx="10" class="box hl"/>
+      <use href="#az-aca" x="714" y="189" width="32" height="32"/>
+      <text x="760" y="202" class="b">API / FastAPI</text>
+      <text x="760" y="225" class="lbl">Internal 8000 / 1-2</text>
+      <use href="#az-mi" x="716" y="238" width="22" height="22"/>
+      <text x="760" y="252" class="lbl">API managed identity</text>
+      <rect x="398" y="326" width="540" height="112" rx="12" class="box sub"/>
+      <text x="418" y="350" class="lbl mono">private-endpoints</text>
+      <text x="700" y="350" class="lbl mono">10.240.4.0/24 / NSG</text>
+      <rect x="186" y="326" width="164" height="112" rx="10" class="box"/>
+      <use href="#az-dns" x="202" y="342" width="28" height="28"/>
+      <text x="202" y="392" class="b">Private DNS zones</text>
+      <text x="202" y="414" class="lbl">Redis + Blob / VNet links</text>
+      <rect x="418" y="360" width="214" height="68" rx="10" class="box"/>
+      <use href="#az-pe" x="430" y="378" width="28" height="28"/>
+      <text x="470" y="388" class="b">Redis PE</text>
+      <text x="470" y="410" class="lbl">Encrypted port 10000</text>
+      <rect x="700" y="360" width="214" height="68" rx="10" class="box"/>
+      <use href="#az-pe" x="714" y="378" width="28" height="28"/>
+      <text x="754" y="388" class="b">Blob PE</text>
+      <text x="754" y="410" class="lbl">Source jobs only</text>
+      <rect x="4" y="174" width="130" height="100" rx="10" class="box"/>
+      <text x="69" y="215" class="b c">Browser</text>
+      <text x="69" y="240" class="lbl c">Anonymous</text>
+      <rect x="186" y="174" width="164" height="100" rx="10" class="box"/>
+      <use href="#az-afd" x="200" y="190" width="30" height="30"/>
+      <text x="240" y="210" class="b">Front Door</text>
+      <use href="#az-waf" x="200" y="236" width="22" height="22"/>
+      <text x="240" y="252" class="lbl">Premium / WAF</text>
+      <rect x="998" y="72" width="286" height="82" rx="10" class="box"/>
+      <use href="#az-search" x="1014" y="92" width="34" height="34"/>
+      <text x="1060" y="105" class="b">Azure AI Search / Basic</text>
+      <text x="1060" y="130" class="lbl">bc-pilot-public / approved chunks</text>
+      <rect x="998" y="190" width="286" height="132" rx="10" class="box"/>
+      <use href="#az-foundry" x="1014" y="210" width="34" height="34"/>
+      <text x="1060" y="223" class="b">Microsoft Foundry</text>
+      <text x="1060" y="246" class="lbl">bc-service-pilot</text>
+      <text x="1014" y="270" class="lbl">Planner + general + 7 pathway agents</text>
+      <text x="1014" y="291" class="lbl mono">bc-fast / gpt-5.4-mini</text>
+      <a href="#foundry-agents" aria-label="View Foundry agent names, versions and model"><text x="1014" y="312" class="lbl" style="fill:var(--az-deep);text-decoration:underline">View agent names, versions and model</text></a>
+      <rect x="998" y="356" width="286" height="82" rx="10" class="box"/>
+      <use href="#az-redis" x="1014" y="376" width="34" height="34"/>
+      <text x="1060" y="389" class="b">Azure Managed Redis</text>
+      <text x="1060" y="414" class="lbl">Balanced_B0 / private / Entra TLS</text>
+      <path d="M134 224H183M350 224H415M632 224H697" class="flow" marker-end="url(#net-arr)"/>
+      <path d="M914 194H976V114H995M914 242H995" class="flow" marker-end="url(#net-arr)"/>
+      <path d="M808 274V312H666V397H635M526 428V448H976V397H995" class="flow" marker-end="url(#net-arr)"/>
+      <circle cx="160" cy="224" r="11" class="pin"/><text x="160" y="224" class="pin-t">1</text>
+      <circle cx="384" cy="224" r="11" class="pin"/><text x="384" y="224" class="pin-t">2</text>
+      <circle cx="666" cy="224" r="11" class="pin"/><text x="666" y="224" class="pin-t">3</text>
+      <circle cx="976" cy="170" r="11" class="pin"/><text x="976" y="170" class="pin-t">4</text>
+    </svg>
+  </div>
+  <div class="legend rv" style="--i:4;--cols:4">
+    <div><b>1</b>HTTPS through WAF</div><div><b>2</b>Managed Private Link</div><div><b>3</b>Private HTTPS + MI token</div><div><b>4</b>Public PaaS + Entra authorization</div>
+  </div>
+  <div class="src"><b>Evidence</b><a href="../infra/modules/hosting.bicep">Hosting</a> / <a href="../infra/modules/network.bicep">Network</a> / <a href="architecture.md#6-resource-inventory">Full inventory incl. ACR, Blob and monitoring</a> / <a href="https://learn.microsoft.com/azure/container-apps/how-to-integrate-with-azure-front-door">Private Link</a></div>
+</section>
+
+<section class="slide" id="foundry-agents" data-chapter="Runtime" data-title="Foundry agents and shared model">
+  <div class="head">
+    <div class="eyebrow rv" style="--i:0">Recorded deployment / agent bindings</div>
+    <h2 class="rv" style="--i:1">Specialized agents, <b>one shared model deployment</b></h2>
+    <p class="lede rv" style="--i:2">Microsoft Foundry prompt agents, not separate containers or trained models. Names and versions reflect repository deployment records, not a new live inspection.</p>
+  </div>
+  <div class="dia-wrap rv" style="--i:3">
+    <svg class="dia" viewBox="0 0 1312 480" role="img" aria-label="The bc-service-pilot project uses bc-fast, GPT-5.4-mini version 2026-03-17, Global Standard, with no automatic upgrades. The version-5 planner is bc-local-2017434d-conversation version 4. Factual routing selects bc-service-general version 5 or one of seven listed pathway agents. The synthetic-context demo is a separate opt-in. The research agent is published but optional research remains disabled.">
+      <defs><marker id="agents-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" class="arrowhead strong"/></marker></defs>
+      <rect x="4" y="4" width="1304" height="70" rx="12" class="box zone2"/>
+      <use href="#az-foundry" x="22" y="22" width="34" height="34"/>
+      <text x="72" y="32" class="b">bc-service-pilot / shared model binding</text>
+      <text x="72" y="57" class="lbl mono">bc-fast = gpt-5.4-mini / 2026-03-17 / GlobalStandard / NoAutoUpgrade</text>
+      <rect x="4" y="112" width="354" height="122" rx="12" class="box hl"/>
+      <text x="24" y="140" class="b">Version-5 conversation planner</text>
+      <text x="24" y="166" class="lbl mono">bc-local-2017434d-conversation:4</text>
+      <text x="24" y="192" class="lbl">Structured intent, context and next question</text>
+      <text x="24" y="216" class="lbl">The API validates every proposal</text>
+      <rect x="422" y="112" width="418" height="84" rx="12" class="box"/>
+      <text x="442" y="140" class="b">General factual answer</text>
+      <text x="442" y="168" class="lbl mono">bc-service-general:5</text>
+      <rect x="422" y="234" width="418" height="242" rx="12" class="box"/>
+      <text x="442" y="262" class="b">Seven scoped pathway agents</text>
+      <text x="442" y="292" class="lbl mono">bc-service-licence-renewal:3</text>
+      <text x="442" y="318" class="lbl mono">bc-service-rental-assistance:3</text>
+      <text x="442" y="344" class="lbl mono">bc-service-health-coverage:2</text>
+      <text x="442" y="370" class="lbl mono">bc-service-pharmacare-registration:1</text>
+      <text x="442" y="396" class="lbl mono">bc-service-primary-care:2</text>
+      <text x="442" y="422" class="lbl mono">bc-service-road-test-booking:1</text>
+      <text x="442" y="448" class="lbl mono">bc-service-service-bc:3</text>
+      <rect x="906" y="112" width="402" height="122" rx="12" class="box"/>
+      <text x="926" y="140" class="b">Synthetic demo / separate opt-in</text>
+      <text x="926" y="168" class="lbl mono">bc-service-contextual-demo:1</text>
+      <text x="926" y="196" class="lbl">Fixed fictional personas and consent</text>
+      <text x="926" y="218" class="lbl">No real citizen identity or government records</text>
+      <rect x="906" y="278" width="402" height="122" rx="12" class="box"/>
+      <text x="926" y="306" class="b">Research / published, feature disabled</text>
+      <text x="926" y="334" class="lbl mono">bc-service-research:1</text>
+      <text x="926" y="362" class="lbl">Tool-free supplement writer / same bc-fast</text>
+      <text x="926" y="384" class="lbl">Foundry IQ and Web IQ remain separately gated</text>
+      <rect x="4" y="278" width="354" height="198" rx="12" class="box zone"/>
+      <text x="24" y="308" class="b">Application-owned execution</text>
+      <text x="24" y="338" class="lbl">Select one applicable factual route</text>
+      <text x="24" y="366" class="lbl">Retrieve and validate approved evidence</text>
+      <text x="24" y="394" class="lbl">Execute only allowed API functions</text>
+      <text x="24" y="422" class="lbl">No inference for canonical replies or controls</text>
+      <text x="24" y="450" class="lbl">Version-6 planner/writer: local candidate only</text>
+      <path d="M358 172H390V154H419M390 172V250H419" class="flow" marker-end="url(#agents-arr)"/>
+    </svg>
+  </div>
+  <div class="legend rv" style="--i:4;--cols:3">
+    <div><b>1</b>Nine main-chat bindings; no fan-out to every pathway.</div>
+    <div><b>2</b>All listed agents share bc-fast; agent versions are not model versions.</div>
+    <div><b>3</b>Demo and research are separate scopes, not default chat stages.</div>
+  </div>
+  <div class="src"><b>Evidence</b><a href="architecture.md#current-agent-bindings-one-controlled-execution-layer">Recorded agent versions and model</a> / <a href="../apps/api/src/bc_api/agents.py">Definitions and routing</a> / <a href="../.azure/deployment-plan.md#completed-provider-validation">Research publication</a> / <a href="https://learn.microsoft.com/azure/search/agentic-retrieval-overview">IQ context</a></div>
+</section>
+
+<section class="slide" id="standard-answer" data-chapter="Runtime" data-title="Evidence is a gate, not decoration">
+  <div class="head"><div class="eyebrow rv" style="--i:0">Ordinary Send / no optional IQ</div><h2 class="rv" style="--i:1">Evidence is a gate, <b>not decoration</b></h2><p class="lede rv" style="--i:2">Version 5 may plan the request; factual generation still requires approved, relevant, current evidence.</p></div>
+  <div class="fill rv" style="--i:3">
+    <div class="grid arrowrow" style="grid-template-columns:repeat(5,minmax(0,1fr))">
+      <div class="step"><div class="n">1</div><h4>Send</h4><p>Same-origin POST/SSE. The proxy authenticates the internal API hop.</p></div>
+      <div class="step"><div class="n">2</div><h4>Admit</h4><p>Check ownership, revision, concurrency, deadline and model allowance.</p></div>
+      <div class="step"><div class="n">3</div><h4>Route</h4><p>Canonical replies and controls need no inference. Other turns use the bounded planner.</p></div>
+      <div class="step"><div class="n">4</div><svg class="ic" aria-hidden="true"><use href="#az-search"/></svg><h4>Ground</h4><p>Direct Search validates provenance, source scope, content and freshness.</p></div>
+      <div class="step"><div class="n">5</div><svg class="ic" aria-hidden="true"><use href="#az-foundry"/></svg><h4>Validate</h4><p>Pinned factual agent; validate claims and citations before displaying accepted content.</p></div>
+    </div>
+  </div>
+  <div class="grid g3 rv" style="--i:4">
+    <div class="card tint"><h4>Evidence available</h4><p>Validated content and exact-page citations.</p></div>
+    <div class="card tint"><h4>Source gap</h4><p>Specific official handoff; preserve preparation progress.</p></div>
+    <div class="card tint"><h4>Stop or disconnect</h4><p>Close owned transport and settle once; no automatic resend.</p></div>
+  </div>
+  <div class="src"><b>Implementation</b><a href="../apps/api/src/bc_api/conversation.py">Conversation</a> / <a href="../apps/api/src/bc_api/streaming.py">Streaming</a> / <a href="architecture.md#3-chat-grounding-and-cancellation">Protocol and cleanup</a> / <a href="https://learn.microsoft.com/azure/container-apps/how-to-integrate-with-azure-front-door">Ingress context</a></div>
+</section>
+
+<section class="slide" id="optional-research" data-chapter="Research" data-title="Research adds a supplement, never a fallback">
+  <div class="head"><div class="eyebrow rv" style="--i:0">Explicit action / independently gated <span class="tag pv">Preview</span></div><h2 class="rv" style="--i:1">Research adds a supplement, <b>never a fallback</b></h2><p class="lede rv" style="--i:2">A completed eligible answer can offer two separate actions. Neither runs during ordinary Send or bootstrap.</p></div>
+  <div class="fill rv" style="--i:3">
+    <svg class="dia w" viewBox="0 0 1312 330" role="img" aria-label="An explicit research action is authorized against an expiring page-bound offer and budget. The selected provider is either Foundry IQ over the approved index or Web IQ over approved public paths. A separate answer agent produces a validated supplement without changing the original answer.">
+      <defs><marker id="res-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" class="arrowhead strong"/></marker></defs>
+      <rect x="4" y="118" width="222" height="100" rx="12" class="box"/>
+      <text x="24" y="150" class="b">Explicit answer action</text><text x="24" y="178" class="lbl">POST /api/research</text><text x="24" y="200" class="lbl">Public topic + coarse geography</text>
+      <rect x="270" y="118" width="240" height="100" rx="12" class="box hl"/>
+      <text x="290" y="150" class="b">Authorize + reserve</text><text x="290" y="178" class="lbl">Owner / page / parent / expiry</text><text x="290" y="200" class="lbl">Approvals + independent budgets</text>
+      <rect x="566" y="12" width="326" height="110" rx="12" class="box"/>
+      <use href="#az-search" x="584" y="30" width="32" height="32"/><text x="632" y="52" class="b">Foundry IQ / Preview</text><text x="586" y="82" class="lbl">Existing approved index / low planning</text><text x="586" y="104" class="lbl">Extractive evidence / contract readback</text>
+      <rect x="566" y="218" width="326" height="100" rx="12" class="box"/>
+      <text x="586" y="250" class="b">Web IQ / public-page research</text><text x="586" y="278" class="lbl">Entra + AppID / approved host and path</text><text x="586" y="300" class="lbl">Request-transient passages / unknown dates</text>
+      <rect x="968" y="118" width="338" height="100" rx="12" class="box hl"/>
+      <use href="#az-foundry" x="986" y="140" width="32" height="32"/><text x="1036" y="151" class="b">Separate answer agent</text><text x="988" y="180" class="lbl">Evidence and output validation</text><text x="988" y="202" class="lbl">Distinct supplement / original unchanged</text>
+      <path d="M226 168H267M510 168H538V68H563M538 168V268H563M892 68H930V150H965M892 268H930V188H965" class="flow" marker-end="url(#res-arr)"/>
+    </svg>
+    <div class="legend" style="--cols:3"><div><b>1</b>One selected provider; no cross-provider fallback.</div><div><b>2</b>No transcript or personal context in provider queries.</div><div><b>3</b>No corpus publication, task mutation or later-history reuse.</div></div>
+  </div>
+  <div class="callout rv" style="--i:4">Both options were disabled in the latest recorded configuration. Provider failure stays local to the supplement.</div>
+  <div class="src"><b>Evidence</b><a href="../apps/api/src/bc_api/research_runs.py">Owned runs</a> / <a href="../apps/api/src/bc_api/foundry_iq.py">IQ contract</a> / <a href="../apps/api/src/bc_api/webiq.py">Web adapter</a> / <a href="https://learn.microsoft.com/azure/search/agentic-retrieval-overview">Query planning: preview</a></div>
+</section>
+
+<section class="slide" id="source-lifecycle" data-chapter="Evidence" data-title="Acquisition is not publication">
+  <div class="head"><div class="eyebrow rv" style="--i:0">Reviewed content / separate control plane</div><h2 class="rv" style="--i:1">Acquisition is <b>not publication</b></h2><p class="lede rv" style="--i:2">The runtime reads approved Search evidence. Private candidates and optional web research cannot promote themselves into it.</p></div>
+  <div class="fill rv" style="--i:3">
+    <div class="track lg" style="--cols:4">
+      <div class="card stop"><span class="pin">1</span><span class="when">Acquire</span><h4>Bounded candidates</h4><p>Allowed pages, rights inputs, robots checks and charged resume checkpoints.</p></div>
+      <div class="card stop"><span class="pin">2</span><span class="when">Validate</span><h4>Hold unsafe content</h4><p>Provenance, extraction, freshness, legal and source-quality gates.</p></div>
+      <div class="card stop"><span class="pin">3</span><span class="when">Review</span><h4>Approve exact hashes</h4><p>Human permission and content review. Changed content needs new approval.</p></div>
+      <div class="card stop"><span class="pin">4</span><svg class="ic" aria-hidden="true"><use href="#az-search"/></svg><span class="when">Publish</span><h4>Withdraw, then upload</h4><p>Explicit publisher; verify every acknowledgement before using active evidence.</p></div>
+    </div>
+  </div>
+  <div class="grid g3 rv" style="--i:4">
+    <div class="card tint"><h4>Recorded November 6</h4><p>20 active chunks / four reviewed documents. The original 12 keys were superseded.</p></div>
+    <div class="card tint"><h4>Freshness expires</h4><p>First recorded expiry: November 12. Runtime readiness must be checked again.</p></div>
+    <div class="card tint"><h4>Not runtime evidence</h4><p>Private v2 candidates, withheld sources and Web IQ passages.</p></div>
+  </div>
+  <div class="src"><b>Evidence</b><a href="architecture.md#4-reviewed-content-lifecycle">Dated corpus and source jobs</a> / <a href="../ingestion/README.md">Ingestion contract</a> / <a href="https://learn.microsoft.com/azure/search/agentic-retrieval-overview">Search grounding context</a></div>
+</section>
+
+<section class="slide" id="privacy-controls" data-chapter="Controls" data-title="Anonymous is not unrestricted">
+  <div class="head"><div class="eyebrow rv" style="--i:0">Identity / state / spending</div><h2 class="rv" style="--i:1">Anonymous access, <b>bounded processing</b></h2><p class="lede rv" style="--i:2">Resident sign-in is not required. Workload identities and application controls still constrain every service hop.</p></div>
+  <div class="fill rv" style="--i:3"><div class="grid g3">
+    <div class="card"><div class="ichead"><svg aria-hidden="true"><use href="#az-mi"/></svg><h4>Workload identity</h4></div><p>Web/API managed identities; not BC Services Card or a government-record connection.</p></div>
+    <div class="card"><h4>Page-scoped state</h4><p>Drafts and displayed answers stay in tab memory. Reload or Start over clears the local conversation.</p></div>
+    <div class="card"><h4>Sharing starts off</h4><p>Version-5 personal context is opt-in and minimized. It never becomes a Search query or embedding.</p></div>
+    <div class="card"><div class="ichead"><svg aria-hidden="true"><use href="#az-redis"/></svg><h4>Atomic controls</h4></div><p>Shared ownership, leases, cancellation, daily allowance and conservative failure accounting.</p></div>
+    <div class="card"><div class="ichead"><svg aria-hidden="true"><use href="#az-appi"/></svg><h4>Telemetry boundary</h4></div><p>Operation metadata, not automatic prompt logging. Provider/platform retention is a separate boundary.</p></div>
+    <div class="card"><h4>No residency shortcut</h4><p>Canada Central hosting does not prove Global Standard inference stays in Canada.</p></div>
+  </div></div>
+  <div class="callout rv" style="--i:4">Estimated application budgets are not a hard Azure invoice cap. Cancellation does not erase potentially billable work.</div>
+  <div class="src"><b>Evidence</b><a href="architecture.md#5-identity-state-and-observability">Identity, budgets and logging record</a> / <a href="../apps/api/src/bc_api/controls.py">Shared controls</a> / <a href="https://learn.microsoft.com/azure/container-apps/how-to-integrate-with-azure-front-door">Origin boundary</a></div>
+</section>
+
+<section class="slide" id="release-boundary" data-chapter="Operations" data-title="Validated does not mean activated">
+  <div class="head"><div class="eyebrow rv" style="--i:0">Recorded checkpoints / not live status</div><h2 class="rv" style="--i:1">Validated <b>does not mean activated</b></h2><p class="lede rv" style="--i:2">Read successive deployment checkpoints in order. Provisioned prerequisites are not public feature approval.</p></div>
+  <div class="fill rv" style="--i:3"><div class="grid g3">
+    <div class="card"><span class="label">November 6</span><h3>Conversation repair</h3><p>Public version-5/task checks passed. Four reviewed documents were refreshed.</p></div>
+    <div class="card"><span class="label">November 9 / earlier</span><h3>Candidate rollback</h3><p>Ordinary chat failed its job-loss case. Earlier images restored; budgets and research-off state retained.</p></div>
+    <div class="card"><span class="label">November 9 / 22:50 UTC</span><h3>Latest checkpoint</h3><p>Diagnostic candidates recorded ready. IQ activation draft validated, not applied; both options off.</p></div>
+  </div>
+  <div class="track" style="--cols:4">
+    <div class="card stop"><span class="pin">1</span><h4>Exact candidate</h4><p>Fresh full ordinary-chat proof; not a focused case.</p></div>
+    <div class="card stop"><span class="pin">2</span><h4>Closed exposure</h4><p>Compare before PATCH; preserve rollback inputs.</p></div>
+    <div class="card stop"><span class="pin">3</span><h4>Research checks</h4><p>Real provider flows, scope, cancellation and provenance.</p></div>
+    <div class="card stop"><span class="pin">4</span><h4>Approved activation</h4><p>Independent quality, cost, privacy and latency gates.</p></div>
+  </div></div>
+  <div class="callout rv" style="--i:4">This documentation update performs no deployment, publication, resource mutation or billable live evaluation.</div>
+  <div class="src"><b>Evidence</b><a href="../.azure/deployment-plan.md">Successive deployment records</a> / <a href="../apps/api/README.md#optional-per-answer-research">Release criteria</a> / <a href="https://learn.microsoft.com/azure/container-apps/how-to-integrate-with-azure-front-door">Edge propagation</a></div>
+</section>
+
+<section class="slide" id="references" data-chapter="References" data-title="Sources and maintenance">
+  <div class="head"><div class="eyebrow rv" style="--i:0">Evidence / verified 10 November 2026</div><h2 class="rv" style="--i:1">Implementation facts and <b>platform context</b></h2><p class="lede rv" style="--i:2">Repository records establish this application's behavior. Microsoft documentation establishes platform capabilities, not this deployment's readiness.</p></div>
+  <div class="fill rv" style="--i:3"><div class="refs">
+    <div class="group"><h4>Repository / a719980</h4><ul>
+      <li><a href="architecture.md">Detailed architecture and resource inventory</a></li>
+      <li><a href="../apps/api/README.md#optional-per-answer-research">IQ contracts, privacy and release gates</a></li>
+      <li><a href="../infra/README.md">Infrastructure and rollout procedure</a></li>
+      <li><a href="../ingestion/README.md">Source acquisition and publication</a></li>
+      <li><a href="../.azure/deployment-plan.md">Dated deployment checkpoints</a></li>
+    </ul></div>
+    <div class="group"><h4>Official platform documentation</h4><ul>
+      <li><a href="https://learn.microsoft.com/azure/container-apps/how-to-integrate-with-azure-front-door">Front Door to Container Apps / Private Link</a></li>
+      <li><a href="https://learn.microsoft.com/azure/search/agentic-retrieval-overview">Agentic retrieval / planning marked preview</a></li>
+      <li><a href="https://learn.microsoft.com/azure/architecture/icons/">Official Azure icons and usage terms</a></li>
+      <li><a href="https://github.com/VeVarunSharma/azure-html-storytelling">Azure HTML Storytelling</a><span>dfe3bb5 / GitHub access required</span></li>
+    </ul></div>
+  </div></div>
+  <div class="callout rv" style="--i:4">Offline presentation; links open only on request. Keep the HTML beside this guide for repository-relative evidence links. Update both when a boundary changes.</div>
+  <div class="src"><b>Review date</b>2026-11-10 / <a href="https://learn.microsoft.com/azure/architecture/icons/">Microsoft icon terms</a> / No live Azure status or new service approval inferred.</div>
+</section>
+
+<!-- SLIDES:END -->
+    </div>
+  </main>
+
+  <footer class="bottombar">
+    <div class="counter" id="counter" aria-hidden="true"></div>
+    <nav class="progress" id="progress" aria-label="Chapters"></nav>
+    <div class="navgroup">
+      <button class="navbtn" id="prev" type="button" aria-label="Previous slide"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>Previous</button>
+      <button class="navbtn primary" id="next" type="button" aria-label="Next slide">Next<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
+    </div>
+  </footer>
+
+  <div class="menu" id="menu" role="dialog" aria-label="All slides" aria-modal="false"><div class="menu-grid" id="menuGrid"></div></div>
+  <div class="sr-only" id="live" aria-live="polite"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+<!-- ICON-SPRITE:START -->
+<svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden"><defs>
+<symbol id="az-aca" viewBox="0 0 18 18" data-src="azure:other/02989-icon-service-Container-Apps-Environments.svg"><defs><linearGradient id="az-aca-a3a44093-b157-426e-a8fe-cec9f9c23978" x1="11.729" y1="4.88" x2="11.729" y2="13.099" gradientUnits="userSpaceOnUse"><stop offset="0.001" stop-color="#773adc"/><stop offset="0.528" stop-color="#6635bb"/><stop offset="1" stop-color="#552f99"/></linearGradient><linearGradient id="az-aca-ad838859-03f4-472f-81bc-ebc921d71335" x1="6.35" y1="13.914" x2="6.35" y2="4.198" gradientUnits="userSpaceOnUse"><stop offset="0.001" stop-color="#773adc"/><stop offset="0.307" stop-color="#793ddd"/><stop offset="0.532" stop-color="#8046e1"/><stop offset="0.731" stop-color="#8c56e7"/><stop offset="0.915" stop-color="#9c6def"/><stop offset="1" stop-color="#a67af4"/></linearGradient></defs><g id="az-aca-ae82470d-7a6c-4dfe-8533-59d8ff948629"><g><path d="M8.617,8.644H.639V1.784A1.16,1.16,0,0,1,1.788.624H8.617ZM1.63,7.653h6V1.594H1.788a.158.158,0,0,0-.158.158h0Z" fill="#949494"/><path d="M17.5,8.644H9.523V.624h6.828A1.16,1.16,0,0,1,17.5,1.784Zm-6.987-.991h6V1.784a.157.157,0,0,0-.123-.187.2.2,0,0,0-.035,0H10.513Z" fill="#949494"/><path d="M8.617,17.485H1.788A1.149,1.149,0,0,1,.639,16.347V9.476H8.617ZM1.63,10.467v5.88a.158.158,0,0,0,.158.158H7.626V10.467Z" fill="#949494"/><path d="M16.351,17.485H9.523V9.476H17.5v6.871A1.149,1.149,0,0,1,16.351,17.485Zm-5.838-.991h5.838a.157.157,0,0,0,.158-.158V10.467h-6Z" fill="#949494"/><path d="M14.6,6.294a.294.294,0,0,0-.2-.278L9.044,4.205A.128.128,0,0,0,9,4.2H9a.132.132,0,0,0-.133.133v9.445A.133.133,0,0,0,9,13.911H9a.138.138,0,0,0,.049-.01l5.365-2.145a.292.292,0,0,0,.184-.272Z" fill="url(#az-aca-a3a44093-b157-426e-a8fe-cec9f9c23978)"/><path d="M8.966,4.2l-5.293.966a.161.161,0,0,0-.13.158V12.63a.16.16,0,0,0,.126.157L8.962,13.91a.161.161,0,0,0,.191-.121.22.22,0,0,0,0-.036V4.358A.16.16,0,0,0,9,4.2.163.163,0,0,0,8.966,4.2Z" fill="url(#az-aca-ad838859-03f4-472f-81bc-ebc921d71335)"/><path d="M6.52,5.656v6.8l1.842.3V5.335Zm-2.262.367v5.955l1.6.326V5.754Z" fill="#b796f9" opacity="0.5"/></g></g></symbol>
+<symbol id="az-afd" viewBox="0 0 18 18" data-src="azure:web/10073-icon-service-Front-Door-and-CDN-Profiles.svg"><defs><linearGradient id="az-afd-aa2ee697-e8d1-4da1-a8c5-64c8ebbb74cf" x1="9" y1="13.83" x2="9" y2="1.07" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0078d4"/><stop offset="0.82" stop-color="#5ea0ef"/></linearGradient></defs><path d="M18,9.83A4,4,0,0,0,14.49,6,5.1,5.1,0,0,0,9.24,1.07a5.23,5.23,0,0,0-5,3.41A4.83,4.83,0,0,0,0,9.12a4.9,4.9,0,0,0,5.07,4.71l.44,0h8.21a.78.78,0,0,0,.22,0A4.09,4.09,0,0,0,18,9.83Z" fill="url(#az-afd-aa2ee697-e8d1-4da1-a8c5-64c8ebbb74cf)"/><path id="az-afd-f0276135-0079-4897-a518-21eb63472c16" d="M6.63,6.82h5.06v7H6.63Z" fill="#f2f2f2"/><path id="az-afd-e528878d-2ed7-4392-94e6-99c6fc971bcb" d="M12.61,6.37l-3.49-2a.25.25,0,0,0-.31.15s0,.06,0,.08V16.68a.25.25,0,0,0,.24.25h.08l3.49-2.06a.25.25,0,0,0,.17-.23v-8A.26.26,0,0,0,12.61,6.37Z" fill="#50e6ff"/></symbol>
+<symbol id="az-appi" viewBox="0 0 18 18" data-src="azure:devops/00012-icon-service-Application-Insights.svg"><defs><radialGradient id="az-appi-a7a1c431-6c6d-4a8f-9a69-8da437e5b0c5" cx="9" cy="7.35" r="6.42" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#b77af4"/><stop offset="0.21" stop-color="#b378f2"/><stop offset="0.43" stop-color="#a672ed"/><stop offset="0.65" stop-color="#9267e4"/><stop offset="0.88" stop-color="#7559d8"/><stop offset="1" stop-color="#624fd0"/></radialGradient><linearGradient id="az-appi-ec0c4f0d-5c8e-4882-96a1-89d61808eb49" x1="9.02" y1="3.91" x2="9.08" y2="11.49" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f2f2f2"/><stop offset="0.23" stop-color="#f1f1f2" stop-opacity="0.99"/><stop offset="0.37" stop-color="#ededf1" stop-opacity="0.95"/><stop offset="0.48" stop-color="#e7e5f0" stop-opacity="0.89"/><stop offset="0.58" stop-color="#dedbee" stop-opacity="0.81"/><stop offset="0.67" stop-color="#d3ceeb" stop-opacity="0.7"/><stop offset="0.76" stop-color="#c4bee8" stop-opacity="0.57"/><stop offset="0.84" stop-color="#b4abe5" stop-opacity="0.41"/><stop offset="0.92" stop-color="#a095e1" stop-opacity="0.22"/><stop offset="0.99" stop-color="#8b7ddc" stop-opacity="0.02"/><stop offset="1" stop-color="#897bdc" stop-opacity="0"/></linearGradient></defs><path d="M10.23,17.39l.81-.87V14.2H7v2.32l.81.87A.32.32,0,0,0,8,17.5h2A.32.32,0,0,0,10.23,17.39Z" fill="#cecece"/><path d="M9,.5A5.89,5.89,0,0,0,3.09,7.07c.27,2.47,2.62,3.62,3.29,6.75a.49.49,0,0,0,.47.38h4.3a.49.49,0,0,0,.47-.38c.67-3.13,3-4.28,3.29-6.75A5.89,5.89,0,0,0,9,.5ZM7,14.2" fill="url(#az-appi-a7a1c431-6c6d-4a8f-9a69-8da437e5b0c5)"/><path d="M11.46,3.79a1.4,1.4,0,0,0-1.35,1.44V6H8V5.23A1.41,1.41,0,0,0,6.59,3.79,1.4,1.4,0,0,0,5.24,5.23,1.41,1.41,0,0,0,6.59,6.68h.64v6a.36.36,0,0,0,.72,0v-6h2.16v6a.36.36,0,1,0,.72,0v-6h.63a1.4,1.4,0,0,0,1.35-1.45A1.4,1.4,0,0,0,11.46,3.79ZM7.23,6H6.55a.74.74,0,0,1-.68-.77.74.74,0,0,1,.68-.77.74.74,0,0,1,.68.77Zm4.28,0h-.68V5.19a.68.68,0,1,1,1.35,0A.73.73,0,0,1,11.51,6Z" fill="url(#az-appi-ec0c4f0d-5c8e-4882-96a1-89d61808eb49)"/><polygon points="6.96 15.8 11.04 15.01 11.04 14.56 6.96 15.36 6.96 15.8" fill="#999"/><polygon points="11.04 16.11 11.04 15.67 6.96 16.48 6.96 16.52 7.27 16.86 11.04 16.11" fill="#999"/></symbol>
+<symbol id="az-dns" viewBox="0 0 18 18" data-src="azure:networking/10064-icon-service-DNS-Zones.svg"><defs><radialGradient id="az-dns-e7579f4d-36a3-4693-a726-7a6050ac5671" cx="-6811.4" cy="6729.69" r="17" gradientTransform="matrix(0.5, 0, 0, -0.5, 3414.91, 3374.05)" gradientUnits="userSpaceOnUse"><stop offset="0.18" stop-color="#5ea0ef"/><stop offset="1" stop-color="#0078d4"/></radialGradient></defs><path id="az-dns-f57e105d-6d2d-4ad7-b8c3-c10684c9f9b8" d="M14.21,15.72A8.5,8.5,0,0,1,3.79,2.28l.09-.06a8.5,8.5,0,0,1,10.33,13.5" fill="url(#az-dns-e7579f4d-36a3-4693-a726-7a6050ac5671)"/><path d="M9,1.31A7.69,7.69,0,1,0,16.69,9,7.7,7.7,0,0,0,9,1.31ZM14.15,3.9A7.37,7.37,0,0,1,12,4.7,8.83,8.83,0,0,0,10.75,2,7.2,7.2,0,0,1,14.15,3.9ZM9,1.74a6.59,6.59,0,0,1,1.09.09h0a7.48,7.48,0,0,1,1.53,3,15.12,15.12,0,0,1-5.45,0A7.38,7.38,0,0,1,7.68,1.89l0,0A7.34,7.34,0,0,1,9,1.74ZM7,2A8.72,8.72,0,0,0,5.73,4.68a5.58,5.58,0,0,1-1.9-.77A7.35,7.35,0,0,1,7,2ZM3.72,14a5.27,5.27,0,0,1,1.78-.76,7.08,7.08,0,0,0,1.35,2.72A7.25,7.25,0,0,1,3.72,14Zm6.41,2.2A7.08,7.08,0,0,1,9,16.26a6.83,6.83,0,0,1-1.44-.15l0,0a6,6,0,0,1-1.67-3,14.73,14.73,0,0,1,5.88,0,6,6,0,0,1-1.69,3Zm.73-.16a7.13,7.13,0,0,0,1.38-2.8,6.68,6.68,0,0,1,2,.83A7.13,7.13,0,0,1,10.86,16Zm1.48-3.22c.08-.36.15-.73.2-1.12l-.46.11c-.05.31-.1.62-.17.91a15.23,15.23,0,0,0-6.09,0c-.07-.27-.12-.56-.17-.86a.28.28,0,0,1,0-.09l-.46-.13a2.36,2.36,0,0,0,0,.28c0,.32.11.62.17.91a5.9,5.9,0,0,0-2,.85,7.24,7.24,0,0,1,.11-9.4,6.29,6.29,0,0,0,2.08.86c-.07.24-.13.5-.18.76s0,.25-.08.37l.47-.11,0-.17c.06-.26.12-.51.19-.75A14.89,14.89,0,0,0,9,5.48a15,15,0,0,0,2.78-.26c.07.27.14.56.2.85l.46.11q-.11-.54-.24-1a7.73,7.73,0,0,0,2.3-.91,7.22,7.22,0,0,1,.06,9.49A7.28,7.28,0,0,0,12.34,12.79Z" fill="#5ea0ef"/><path d="M3.69,7a7.92,7.92,0,0,1,1.16-.08,2.44,2.44,0,0,1,1.71.52A2,2,0,0,1,7.15,8.9a2.21,2.21,0,0,1-.61,1.64,2.6,2.6,0,0,1-1.86.61,9.17,9.17,0,0,1-1-.05Zm.55,3.73a4,4,0,0,0,.55,0A1.62,1.62,0,0,0,6.58,8.92,1.5,1.5,0,0,0,4.87,7.3a3.17,3.17,0,0,0-.63,0Z" fill="#fff"/><path d="M7.86,11.11V6.9h.59L9.8,9a12.18,12.18,0,0,1,.76,1.37h0c-.05-.56-.06-1.07-.06-1.73V6.9H11v4.21h-.55L9.13,9c-.29-.47-.57-1-.79-1.4h0c0,.53,0,1,0,1.74v1.8Z" fill="#fff"/><path d="M11.89,10.45a2,2,0,0,0,1,.27c.56,0,.88-.29.88-.72s-.22-.62-.79-.83-1.12-.6-1.12-1.2a1.22,1.22,0,0,1,1.37-1.14,2,2,0,0,1,.93.2L14,7.48a1.63,1.63,0,0,0-.8-.2c-.58,0-.8.34-.8.63s.26.59.84.81,1.08.62,1.08,1.24-.48,1.21-1.48,1.21a2.16,2.16,0,0,1-1.07-.27Z" fill="#fff"/></symbol>
+<symbol id="az-foundry" viewBox="0 0 18 18" data-src="azure:ai + machine learning/035746832-icon-service-AI-Foundry.svg"><defs><linearGradient id="az-foundry-uuid-5a7bd7fa-6937-44bd-a5ba-e23eddbb6d35" x1="10.91" y1="13.66" x2="13.62" y2="13.66" gradientTransform="translate(0 20) scale(1 -1)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#302ec9"/><stop offset=".12" stop-color="#151698"/><stop offset=".25" stop-color="#0a0b7e"/><stop offset=".43" stop-color="#090c7f"/><stop offset=".51" stop-color="#141698"/><stop offset=".61" stop-color="#282ac4"/><stop offset=".77" stop-color="#8e8ff4"/><stop offset=".85" stop-color="#a7a6f7"/><stop offset=".91" stop-color="#cacafb"/><stop offset="1" stop-color="#fff"/></linearGradient><linearGradient id="az-foundry-uuid-a9b2ac78-bff0-475d-89df-2c97f2122f93" x1="12.26" y1="8.32" x2="12.26" y2="18.23" gradientTransform="translate(0 20) scale(1 -1)" gradientUnits="userSpaceOnUse"><stop offset=".02" stop-color="#201ba6"/><stop offset=".64" stop-color="#2d29c7"/><stop offset="1" stop-color="#201ba6"/></linearGradient><linearGradient id="az-foundry-uuid-03b3b70c-1c8d-4b3f-9935-d9da2b20de2f" x1="14.19" y1="8.27" x2="14.19" y2="14.47" gradientTransform="translate(0 20) scale(1 -1)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3530c3"/><stop offset=".5" stop-color="#6d71d1"/><stop offset=".97" stop-color="#c0bff5"/><stop offset="1" stop-color="#e3e4ff"/></linearGradient><linearGradient id="az-foundry-uuid-cabc8ec9-3293-44b8-a33b-70823f583b30" x1="6.51" y1="3" x2="6.51" y2="19.15" gradientTransform="translate(0 20) scale(1 -1)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#302ec9"/><stop offset=".45" stop-color="#302ec9"/><stop offset=".95" stop-color="#cacafb"/><stop offset="1" stop-color="#7f7eaf"/></linearGradient></defs><path d="M11.96,11.68s.07-.1.07-.24v-3.87c0-.85.66-1.76,1.59-2.03-.06-.19-.64-2.11-.81-2.65-.17-.56-.67-1.9-1.29-1.9,0,0,0,0-.01,0h0s-.09.05-.13.13c-.32.58-.46,3.02-.46,4.84v2.26c.27.97.91,3.22.96,3.35,0,0,.05.1.09.1h0Z" fill="url(#az-foundry-uuid-5a7bd7fa-6937-44bd-a5ba-e23eddbb6d35)"/><path d="M11.96,11.68s.07-.1.07-.24v-3.87c0-.85.66-1.76,1.59-2.03-.06-.19-.64-2.11-.81-2.65-.17-.56-.67-1.9-1.29-1.9,0,0,0,0-.01,0h0s-.09.05-.13.13c-.32.58-.46,3.02-.46,4.84v2.26c.27.97.91,3.22.96,3.35,0,0,.05.1.09.1h0Z" fill="url(#az-foundry-uuid-a9b2ac78-bff0-475d-89df-2c97f2122f93)"/><path d="M16.01,5.46h-1.81c-1.21,0-2.17,1.09-2.17,2.11v3.87c0,.14-.04.24-.07.24s-.09-.1-.09-.1c0,0,.07.21.17.21h1.98c.62,0,2.48-.61,2.48-2.52v-3.25c0-.41-.24-.55-.49-.55Z" fill="url(#az-foundry-uuid-03b3b70c-1c8d-4b3f-9935-d9da2b20de2f)"/><path d="M2.34,17h5.38c2.35,0,3.2-2.03,3.2-3.81v-7.23c0-2.08.19-4.97.61-4.97h-3.23c-.77,0-1.43.82-2.18,2.48-.75,1.66-4.36,11.87-4.52,12.36-.26.79-.02,1.16.74,1.16Z" fill="url(#az-foundry-uuid-cabc8ec9-3293-44b8-a33b-70823f583b30)"/></symbol>
+<symbol id="az-mi" viewBox="0 0 18 18" data-src="azure:identity/10227-icon-service-Managed-Identities.svg"><defs><linearGradient id="az-mi-bb67b154-af8f-4a53-a9ce-aa046b9398e9" x1="13.18" y1="13.01" x2="8.63" y2="4.38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#1988d9"/><stop offset="0.9" stop-color="#54aef0"/></linearGradient><linearGradient id="az-mi-a47d7138-084a-471d-8d63-744e75b9e8a3" x1="11.22" y1="10.5" x2="14.37" y2="15.93" gradientUnits="userSpaceOnUse"><stop offset="0.1" stop-color="#54aef0"/><stop offset="0.29" stop-color="#4fabee"/><stop offset="0.51" stop-color="#41a2e9"/><stop offset="0.74" stop-color="#2a93e0"/><stop offset="0.88" stop-color="#1988d9"/></linearGradient></defs><g><polygon points="1.15 10.22 8.93 15.27 16.85 10.21 17.85 11.36 8.93 17.11 0.15 11.37 1.15 10.22" fill="#50e6ff"/><polygon points="1.73 9.58 8.93 1 16.28 9.59 8.93 14.23 1.73 9.58" fill="#fff"/><polygon points="8.93 1 8.93 14.23 1.73 9.58 8.93 1" fill="#50e6ff"/><polygon points="8.93 1 8.93 14.23 16.28 9.59 8.93 1" fill="url(#az-mi-bb67b154-af8f-4a53-a9ce-aa046b9398e9)"/><polygon points="8.93 7.83 16.28 9.59 8.93 14.23 8.93 7.83" fill="#53b1e0"/><polygon points="8.93 14.23 1.73 9.58 8.93 7.83 8.93 14.23" fill="#9cebff"/><polygon points="8.93 17.11 17.85 11.36 16.85 10.21 8.93 15.27 8.93 17.11" fill="url(#az-mi-a47d7138-084a-471d-8d63-744e75b9e8a3)"/><g><path id="az-mi-e189a61f-631a-4122-bb2b-079e86004d96" d="M16.32,11.88a1.16,1.16,0,0,0,0-1.65h0l-2-2a1.16,1.16,0,0,0-1.64,0h0l-2,2a1.18,1.18,0,0,0,0,1.65l1.67,1.67a.32.32,0,0,1,.09.23v3.1a.36.36,0,0,0,.12.28l.76.76a.25.25,0,0,0,.37,0l.73-.73h0l.44-.44a.15.15,0,0,0,0-.21l-.31-.31a.16.16,0,0,1,0-.24l.31-.31a.16.16,0,0,0,0-.22l-.31-.31a.15.15,0,0,1,0-.23l.31-.32a.15.15,0,0,0,0-.21l-.44-.44v-.16ZM13.5,8.71a.66.66,0,1,1-.66.66.66.66,0,0,1,.66-.66Z" fill="#ffca00"/><path id="az-mi-fb7033ee-4650-4886-80c7-eddf62560f85" d="M13,17h0a.14.14,0,0,0,.24-.11V14.33a.16.16,0,0,0-.06-.13h0a.14.14,0,0,0-.22.13v2.51A.15.15,0,0,0,13,17Z" fill="#ff9300" opacity="0.75"/><rect id="az-mi-b166b8c2-b9ee-4c3d-bf7a-77bd5ce0570b" x="11.9" y="10.9" width="3.29" height="0.39" rx="0.18" fill="#ff9300" opacity="0.75"/><rect id="az-mi-baf437fe-3483-4a25-94ba-1e84a64cd2eb" x="11.9" y="11.53" width="3.29" height="0.39" rx="0.18" fill="#ff9300" opacity="0.75"/></g></g></symbol>
+<symbol id="az-pe" viewBox="0 0 18 18" data-src="azure:other/02579-icon-service-Private-Endpoints.svg"><defs><linearGradient id="az-pe-f386bb7a-bcb2-4b67-b5b2-06819618ff51" x1="9.084" y1="790.967" x2="9.084" y2="787.492" gradientTransform="matrix(1, 0, 0, -1, 0, 791.516)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#50e6ff"/><stop offset="1" stop-color="#32bedd"/></linearGradient><linearGradient id="az-pe-a62a9cad-b173-4785-ba81-8ee30d4dc6eb" x1="9.065" y1="13.843" x2="9.065" y2="10.368" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#5e9624"/><stop offset="0.183" stop-color="#629c25"/><stop offset="0.435" stop-color="#6dae2a"/><stop offset="0.726" stop-color="#7fcb30"/><stop offset="0.822" stop-color="#86d633"/></linearGradient></defs><g id="az-pe-bdcd7268-31fc-4163-9544-651d61f1498e"><g><path d="M7.85,13.342a1.738,1.738,0,1,0,2.436-2.479,1.715,1.715,0,0,0-.626-.389V3.009H8.548v7.444a1.729,1.729,0,0,0-.7,2.891Z" fill="#b3b3b3"/><circle cx="9.084" cy="2.209" r="1.738" fill="url(#az-pe-f386bb7a-bcb2-4b67-b5b2-06819618ff51)"/><g><path d="M2.632,10.449h.937a.3.3,0,0,1,.3.3v6.909a.6.6,0,0,1-.6.6H2.332a0,0,0,0,1,0,0V10.749A.3.3,0,0,1,2.632,10.449Z" transform="translate(15.452 22.292) rotate(134.919)" fill="#50e6ff"/><path d="M2.581,6.093h.937a.3.3,0,0,1,.3.3v7.4a0,0,0,0,1,0,0H2.88a.6.6,0,0,1-.6-.6v-6.8A.3.3,0,0,1,2.581,6.093Z" transform="translate(7.91 0.749) rotate(44.919)" fill="#1490df"/><path d="M14.132,10.449h.937a.6.6,0,0,1,.6.6v6.909a.3.3,0,0,1-.3.3h-.937a.3.3,0,0,1-.3-.3V10.449a0,0,0,0,1,0,0Z" transform="translate(14.542 -6.333) rotate(45.081)" fill="#50e6ff"/><path d="M14.782,6.093h.937a0,0,0,0,1,0,0v7.4a.3.3,0,0,1-.3.3h-.937a.3.3,0,0,1-.3-.3v-6.8A.6.6,0,0,1,14.782,6.093Z" transform="translate(32.558 6.424) rotate(135.081)" fill="#1490df"/></g><circle cx="9.065" cy="12.106" r="1.738" fill="url(#az-pe-a62a9cad-b173-4785-ba81-8ee30d4dc6eb)"/></g></g></symbol>
+<symbol id="az-redis" viewBox="0 0 18 18" data-src="azure:databases/03675-icon-service-Azure-Managed-Redis.svg"><defs><linearGradient id="az-redis-uuid-e275200f-8047-483d-9165-335881dc0492" x1=".562" y1="2.684" x2="17.561" y2="19.437" gradientTransform="translate(0 20) scale(1 -1)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#757575"/><stop offset=".915" stop-color="#b0b0b0"/></linearGradient><linearGradient id="az-redis-uuid-a8467988-fb81-47a9-9300-4fac9dcb97a4" x1="13.321" y1="15.339" x2="4.581" y2="6.563" gradientTransform="translate(0 20) scale(1 -1)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0078d4"/><stop offset="1" stop-color="#005ba1"/></linearGradient></defs><path d="M9,.5c.276,0,.5.224.5.5v1h2v-1c0-.276.224-.5.5-.5s.5.224.5.5v1h1.5c1.105,0,2,.895,2,2v1.5h1c.276,0,.5.224.5.5s-.224.5-.5.5h-1v2h1c.276,0,.5.224.5.5s-.224.5-.5.5h-1v2h1c.276,0,.5.224.5.5s-.224.5-.5.5h-1v1.5c0,1.105-.895,2-2,2h-1.5v1c0,.276-.224.5-.5.5s-.5-.224-.5-.5v-1h-2v1c0,.276-.224.5-.5.5s-.5-.224-.5-.5v-1h-2v1c0,.276-.224.5-.5.5s-.5-.224-.5-.5v-1h-1.5c-1.105,0-2-.895-2-2v-1.5h-1c-.276,0-.5-.224-.5-.5s.224-.5.5-.5h1v-2h-1c-.276,0-.5-.224-.5-.5s.224-.5.5-.5h1v-2h-1c-.276,0-.5-.224-.5-.5s.224-.5.5-.5h1v-1.5c0-1.105.895-2,2-2h1.5v-1c0-.276.224-.5.5-.5s.5.224.5.5v1h2v-1c0-.276.224-.5.5-.5ZM8.984,3h-2.968c-.005,0-.01,0-.016,0s-.011,0-.016,0h-1.984c-.552,0-1,.448-1,1v10c0,.552.448,1,1,1h1.984c.005,0,.01,0,.016,0s.011,0,.016,0h2.968c.005,0,.01,0,.016,0s.011,0,.016,0h2.968c.005,0,.01,0,.016,0,.005,0,.01,0,.016,0h1.984c.552,0,1-.448,1-1v-1.978c0-.007,0-.015,0-.022s0-.015,0-.022v-2.955c0-.007,0-.015,0-.022s0-.015,0-.022v-2.955c0-.007,0-.015,0-.022s0-.015,0-.022v-1.978c0-.552-.448-1-1-1h-1.984c-.005,0-.01,0-.016,0-.005,0-.011,0-.016,0h-2.968c-.005,0-.01,0-.016,0s-.011,0-.016,0Z" fill="url(#az-redis-uuid-e275200f-8047-483d-9165-335881dc0492)" fill-rule="evenodd"/><rect x="4" y="4" width="10" height="10" rx=".5" ry=".5" fill="url(#az-redis-uuid-a8467988-fb81-47a9-9300-4fac9dcb97a4)"/><path d="M12.124,9.31c-.484.567-1.007,1.214-2.053,1.214-.934,0-1.282-.765-1.307-1.387.205.402.605.728,1.229.713,1.201-.036,2.024-1.043,2.024-1.961,0-1.097-.881-1.889-2.411-1.889-1.094,0-2.45.387-3.341.998-.01.63.368,1.448.504,1.358.772-.516,1.385-.848,1.979-1.014-.879.911-2.989,3.026-3.248,3.398.029.342.484,1.259.707,1.259.068,0,.126-.036.194-.099.636-.664,1.155-1.259,1.616-1.833.065.841.51,1.869,1.754,1.869,1.114,0,2.218-.747,2.721-2.429.058-.207-.213-.369-.368-.198ZM10.855,7.952c0,.531-.562.792-1.075.792-.274,0-.485-.067-.652-.154.307-.431.61-.874.936-1.347.575.09.79.387.79.709Z" fill="#fff"/></symbol>
+<symbol id="az-search" viewBox="0 0 18 18" data-src="azure:web/10044-icon-service-Cognitive-Search.svg"><defs><linearGradient id="az-search-b198f9ad-224e-4f37-99bb-f1c5a20d3916" x1="9" y1="0.36" x2="9" y2="18.31" gradientUnits="userSpaceOnUse"><stop offset="0.18" stop-color="#5ea0ef"/><stop offset="1" stop-color="#0078d4"/></linearGradient></defs><path d="M18,11.32a4.12,4.12,0,0,0-3.51-4,5.15,5.15,0,0,0-5.25-5,5.25,5.25,0,0,0-5,3.49A4.86,4.86,0,0,0,0,10.59a5,5,0,0,0,5.07,4.82l.44,0h8.21a.78.78,0,0,0,.22,0A4.13,4.13,0,0,0,18,11.32Z" fill="url(#az-search-b198f9ad-224e-4f37-99bb-f1c5a20d3916)"/><path d="M12.33,6.59a3.07,3.07,0,0,0-5.61.85,3.16,3.16,0,0,0,.33,2.27L4.71,12.08a.79.79,0,0,0,0,1.12.78.78,0,0,0,.56.23.76.76,0,0,0,.56-.23l2.33-2.36a3.14,3.14,0,0,0,.81.33,3.08,3.08,0,0,0,3.36-4.58Zm-.54,2.1A2.16,2.16,0,0,1,9.7,10.34a1.79,1.79,0,0,1-.51-.07,1.87,1.87,0,0,1-.7-.32,2.13,2.13,0,0,1-.56-.56,2.17,2.17,0,0,1-.31-1.73A2.14,2.14,0,0,1,9.7,6a2.31,2.31,0,0,1,.52.06,2.18,2.18,0,0,1,1.32,1A2.13,2.13,0,0,1,11.79,8.69Z" fill="#f2f2f2"/><ellipse cx="9.69" cy="8.18" rx="2.15" ry="2.16" fill="#83b9f9"/></symbol>
+<symbol id="az-vnet" viewBox="0 0 18 18" data-src="azure:networking/10061-icon-service-Virtual-Networks.svg"><defs><linearGradient id="az-vnet-f020fb7e-2243-4501-8153-5d69bd3c34f7" x1="9.88" y1="8.59" x2="11.52" y2="10.23" gradientTransform="translate(2.03 -0.4) rotate(-0.08)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#86d633"/><stop offset="1" stop-color="#5e9624"/></linearGradient><linearGradient id="az-vnet-b3c2bc94-8c7c-48a2-9719-6ee899a43a97" x1="6.18" y1="8.59" x2="7.81" y2="10.23" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#86d633"/><stop offset="1" stop-color="#5e9624"/></linearGradient><linearGradient id="az-vnet-e900c35d-0958-4d4f-b28f-302eeaaf52f5" x1="2.48" y1="8.59" x2="4.11" y2="10.23" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#86d633"/><stop offset="1" stop-color="#5e9624"/></linearGradient></defs><circle cx="12.74" cy="8.99" r="1.16" fill="url(#az-vnet-f020fb7e-2243-4501-8153-5d69bd3c34f7)"/><circle cx="9.04" cy="9" r="1.16" fill="url(#az-vnet-b3c2bc94-8c7c-48a2-9719-6ee899a43a97)"/><circle cx="5.34" cy="9" r="1.16" fill="url(#az-vnet-e900c35d-0958-4d4f-b28f-302eeaaf52f5)"/><path d="M2.61,7.28h.94a.3.3,0,0,1,.3.3v6.94a.6.6,0,0,1-.6.6H2.31a0,0,0,0,1,0,0V7.58a.3.3,0,0,1,.3-.3Z" transform="translate(13.18 16.93) rotate(134.92)" fill="#50e6ff"/><path d="M2.56,2.91H3.5a.3.3,0,0,1,.3.3v7.43a0,0,0,0,1,0,0H2.86a.6.6,0,0,1-.6-.6V3.21a.3.3,0,0,1,.3-.3Z" transform="translate(5.66 -0.16) rotate(44.92)" fill="#1490df"/><path d="M14.15,7.28h.94a.6.6,0,0,1,.6.6v6.94a.3.3,0,0,1-.3.3h-.94a.3.3,0,0,1-.3-.3V7.28a0,0,0,0,1,0,0Z" transform="translate(12.32 -7.28) rotate(45.08)" fill="#50e6ff"/><path d="M14.81,2.91h.94a0,0,0,0,1,0,0v7.43a.3.3,0,0,1-.3.3H14.5a.3.3,0,0,1-.3-.3V3.51a.6.6,0,0,1,.6-.6Z" transform="translate(30.36 0.99) rotate(135.08)" fill="#1490df"/></symbol>
+<symbol id="az-waf" viewBox="0 0 18 18" data-src="azure:networking/10362-icon-service-Web-Application-Firewall-Policies(WAF).svg"><defs><radialGradient id="az-waf-bb8edb14-0b70-46fb-997d-f3a277915c9b" cx="15013.284" cy="4584.191" r="56.626" gradientTransform="translate(-2243.333 -678.832) scale(0.15)" gradientUnits="userSpaceOnUse"><stop offset="0.183" stop-color="#5ea0ef"/><stop offset="1" stop-color="#0078d4"/></radialGradient><linearGradient id="az-waf-a6f3c115-b661-478c-8384-79eca0b050eb" x1="4.022" y1="171.297" x2="3.991" y2="167.338" gradientTransform="translate(0 -160)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ccc"/><stop offset="0.123" stop-color="#d7d7d7"/><stop offset="0.421" stop-color="#ebebeb"/><stop offset="0.716" stop-color="#f8f8f8"/><stop offset="1" stop-color="#fcfcfc"/></linearGradient></defs><path id="az-waf-a365ed42-c10c-4d6b-b8da-5311b6818174" d="M13.9,15.5A8.512,8.512,0,0,1,3.4,2.1L3.5,2A8.521,8.521,0,0,1,13.9,15.5" fill="url(#az-waf-bb8edb14-0b70-46fb-997d-f3a277915c9b)"/><path d="M2.1,10.5a25.824,25.824,0,0,0-.8,2.6l.6.9.6.6a14.249,14.249,0,0,1,1.1-3.5A2.529,2.529,0,0,1,2.1,10.5Z" fill="#83b9f9"/><path d="M3.1,5.9A13.655,13.655,0,0,1,2.4,3,7.551,7.551,0,0,0,1.3,4.4a10.548,10.548,0,0,0,.6,2.4A2.73,2.73,0,0,1,3.1,5.9Z" fill="#83b9f9"/><circle cx="4" cy="8.5" r="2.7" fill="url(#az-waf-a6f3c115-b661-478c-8384-79eca0b050eb)"/><path d="M8,13.5a2.106,2.106,0,0,1,.5-1.3A9.2,9.2,0,0,1,6,10.3a2.751,2.751,0,0,1-1.5.8A19.2,19.2,0,0,0,6,12.5a8.175,8.175,0,0,0,2,1.2Z" fill="#83b9f9"/><path d="M14.3,13.7a13.329,13.329,0,0,1-2.8-.3v.1a1.656,1.656,0,0,1-.5,1.2,12.967,12.967,0,0,0,3.4.2c.4-.4.8-.9,1.2-1.3A5.283,5.283,0,0,1,14.3,13.7Z" fill="#83b9f9"/><circle cx="9.8" cy="13.5" r="1.8" fill="none"/><path d="M9.3,4.9a13.468,13.468,0,0,1,5.9-1.4,6.73,6.73,0,0,0-1.5-1.4A15.335,15.335,0,0,0,9,3.2a9.25,9.25,0,0,0-1,.5A18.723,18.723,0,0,1,6,.8a1.9,1.9,0,0,0-.9.3A21.123,21.123,0,0,0,7.2,4.2,9.841,9.841,0,0,0,5,5.9,2.85,2.85,0,0,1,6.3,7,8.961,8.961,0,0,1,8.2,5.5a22.363,22.363,0,0,0,3.7,3.2,2.075,2.075,0,0,1,.6-1A27.892,27.892,0,0,1,9.3,4.9Z" fill="#83b9f9"/><circle cx="13.8" cy="9.1" r="1.9" fill="#f2f2f2"/><path d="M17,10.4c-.1-.1-.2-.1-.3-.2h0c-.1-.1-.2-.1-.3-.2h-.1L16,9.8h-.1l-.3-.2a1.456,1.456,0,0,1-.6.9c.1.1.2.1.4.2h.1c.1.1.2.1.3.2h0c.3.2.6.3.9.5h0c.1-.3.2-.7.3-1Z" fill="#83b9f9"/><circle cx="4" cy="8.5" r="2.7" fill="#f2f2f2"/><circle cx="9.8" cy="13.5" r="1.8" fill="#f2f2f2"/><path d="M5.2,10.5H17.3c.2,0,.5.2.5.4v6.4a.536.536,0,0,1-.5.5H5.2a.458.458,0,0,1-.4-.5V11A.458.458,0,0,1,5.2,10.5Z" fill="#821010"/><rect x="5.3" y="11.3" width="3.6" height="1.6" fill="#e62323"/><rect x="9.5" y="11.3" width="3.6" height="1.6" fill="#ff7381"/><rect x="13.6" y="11.3" width="3.6" height="1.6" fill="#e62323"/><rect x="5.3" y="13.4" width="1.5" height="1.6" fill="#e62323"/><rect x="15.7" y="13.4" width="1.5" height="1.6" fill="#ff7381"/><rect x="7.4" y="13.4" width="3.6" height="1.6" fill="#ff7381"/><rect x="11.5" y="13.4" width="3.6" height="1.6" fill="#e62323"/><rect x="5.3" y="15.5" width="3.6" height="1.6" fill="#e62323"/><rect x="9.5" y="15.5" width="3.6" height="1.6" fill="#ff7381"/><rect x="13.6" y="15.5" width="3.6" height="1.6" fill="#e62323"/></symbol>
+<symbol id="ph" viewBox="0 0 24 24" data-src="placeholder: official icon unavailable"><rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="none" stroke="currentColor" stroke-dasharray="3 2.5"/><path d="M8 12h8" stroke="currentColor"/></symbol>
+</defs></svg>
+<!-- ICON-SPRITE:END -->
+<script>
+/* Deck engine: 16:9 stage scaling, chapters, slide menu, keyboard/touch, hash deep links,
+   full screen, light/dark, print, reduced motion. window.deck is a small API for QA scripts. */
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const stage = $("#stage");
+  const slides = Array.from(document.querySelectorAll(".stage > .slide"));
+  const prevBtn = $("#prev"), nextBtn = $("#next"), counter = $("#counter"), chapterTag = $("#chapterTag");
+  const progress = $("#progress"), menu = $("#menu"), menuGrid = $("#menuGrid"), menuBtn = $("#menuBtn");
+  const themeBtn = $("#themeBtn"), fsBtn = $("#fsBtn"), live = $("#live"), toast = $("#toast");
+  const narrow = window.matchMedia("(max-width: 860px)");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const themeKey = "deck-theme:" + location.pathname;
+  const pad = (n) => String(n).padStart(2, "0");
+  const pageMode = document.documentElement.getAttribute("data-mode") === "page";
+  let cur = 0, toastTimer = null;
+
+  function showToast(msg) {
+    toast.textContent = msg; toast.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove("show"), 3200);
+  }
+
+  slides.forEach((s, i) => {
+    if (!s.id) s.id = "s" + (i + 1);
+    const c = document.createElement("div");
+    c.className = "corner"; c.setAttribute("aria-hidden", "true");
+    c.textContent = pad(i + 1) + " / " + pad(slides.length);
+    s.appendChild(c);
+    s.setAttribute("role", "group");
+    s.setAttribute("aria-roledescription", "slide");
+    s.setAttribute("aria-label", (i + 1) + " of " + slides.length + ": " + (s.dataset.title || ""));
+  });
+
+  const chapters = [];
+  slides.forEach((s, i) => {
+    const name = s.dataset.chapter || "";
+    let ch = chapters[chapters.length - 1];
+    if (!ch || ch.name !== name) { ch = { name, start: i, items: [] }; chapters.push(ch); }
+    ch.items.push(i);
+  });
+  chapters.forEach((ch, ci) => {
+    const b = document.createElement("button");
+    b.className = "seg"; b.type = "button"; b.title = ch.name;
+    b.style.setProperty("--n", ch.items.length);
+    const bar = document.createElement("div"); bar.className = "bar"; bar.appendChild(document.createElement("i"));
+    const lbl = document.createElement("span"); lbl.textContent = ch.name;
+    b.append(bar, lbl);
+    b.addEventListener("click", () => go(ch.start));
+    progress.appendChild(b); ch.el = b;
+    const col = document.createElement("div");
+    const h = document.createElement("h3"); h.textContent = pad(ci + 1) + " · " + ch.name;
+    const ol = document.createElement("ol");
+    ch.items.forEach((i) => {
+      const li = document.createElement("li"), it = document.createElement("button"), n = document.createElement("span");
+      it.className = "item"; it.type = "button"; it.dataset.idx = i;
+      n.textContent = pad(i + 1);
+      it.append(n, document.createTextNode(slides[i].dataset.title || "Slide " + (i + 1)));
+      it.addEventListener("click", () => { go(i); toggleMenu(false); });
+      li.appendChild(it); ol.appendChild(li);
+    });
+    col.append(h, ol); menuGrid.appendChild(col);
+  });
+
+  function setSvgAnim(slide, run) {
+    slide.querySelectorAll("svg").forEach((svg) => {
+      if (typeof svg.pauseAnimations !== "function") return;
+      try { (run && !reduce.matches) ? svg.unpauseAnimations() : svg.pauseAnimations(); } catch (e) { /* not an outer svg */ }
+    });
+  }
+
+  function go(n, fromHash) {
+    n = Math.max(0, Math.min(slides.length - 1, n | 0));
+    if (pageMode) {
+      cur = n;
+      if (!fromHash || location.hash) slides[n].scrollIntoView({ behavior: reduce.matches ? "auto" : "smooth", block: "start" });
+      if (!fromHash) history.replaceState(null, "", "#" + slides[n].id);
+      menuGrid.querySelectorAll(".item").forEach((it) => it.classList.toggle("cur", +it.dataset.idx === n));
+      return;
+    }
+    slides.forEach((s, i) => {
+      const on = i === n;
+      s.classList.toggle("active", on);
+      s.classList.toggle("back", i < n);
+      s.setAttribute("aria-hidden", on ? "false" : "true");
+      if (on) s.removeAttribute("inert"); else s.setAttribute("inert", "");
+      setSvgAnim(s, on);
+    });
+    cur = n;
+    const s = slides[n];
+    counter.innerHTML = "<b>" + pad(n + 1) + "</b> / " + pad(slides.length);
+    prevBtn.disabled = n === 0;
+    nextBtn.disabled = n === slides.length - 1;
+    chapterTag.textContent = s.dataset.chapter || "";
+    chapters.forEach((ch) => {
+      const first = ch.start, last = ch.start + ch.items.length - 1, inCh = n >= first && n <= last;
+      const p = n > last ? 1 : n < first ? 0 : (n - first + 1) / ch.items.length;
+      ch.el.style.setProperty("--p", p.toFixed(3));
+      ch.el.classList.toggle("on", inCh);
+      if (inCh) ch.el.setAttribute("aria-current", "step"); else ch.el.removeAttribute("aria-current");
+    });
+    menuGrid.querySelectorAll(".item").forEach((it) => it.classList.toggle("cur", +it.dataset.idx === n));
+    if (!fromHash && location.hash !== "#" + s.id) history.replaceState(null, "", "#" + s.id);
+    live.textContent = "Slide " + (n + 1) + " of " + slides.length + ": " + (s.dataset.title || "");
+    if (narrow.matches) window.scrollTo(0, 0);
+    document.dispatchEvent(new CustomEvent("deck:slide", { detail: { index: n, id: s.id } }));
+  }
+
+  function fit() {
+    if (narrow.matches || pageMode) { stage.style.removeProperty("--s"); return; }
+    const vp = stage.parentElement.getBoundingClientRect();
+    const s = Math.min((vp.width - 40) / 1440, (vp.height - 28) / 810);
+    stage.style.setProperty("--s", Math.max(0.2, s).toFixed(4));
+  }
+
+  function toggleMenu(force) {
+    const open = typeof force === "boolean" ? force : !menu.classList.contains("open");
+    menu.classList.toggle("open", open);
+    menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) (menuGrid.querySelector(".item.cur") || menuGrid.querySelector(".item")).focus();
+    else menuBtn.focus();
+  }
+
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function syncFs() {
+    const on = !!fsEl();
+    document.documentElement.classList.toggle("is-fs", on);
+    fsBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    fsBtn.setAttribute("aria-label", on ? "Exit full screen" : "Enter full screen");
+    fsBtn.querySelector(".fs-label").textContent = on ? "Exit full screen" : "Full screen";
+    setTimeout(fit, 60);
+  }
+  function toggleFs() {
+    const root = document.documentElement;
+    try {
+      if (fsEl()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+      const req = root.requestFullscreen || root.webkitRequestFullscreen;
+      if (!req) { showToast("Full screen isn't available here. Press F11 in your browser."); return; }
+      const p = req.call(root);
+      if (p && p.catch) p.catch(() => showToast("Full screen was blocked. Press F11 in your browser."));
+    } catch (e) { showToast("Full screen was blocked. Press F11 in your browser."); }
+  }
+
+  function syncThemeBtn() {
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.setAttribute("aria-pressed", dark ? "true" : "false");
+  }
+  themeBtn.addEventListener("click", () => {
+    const t = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", t);
+    try { localStorage.setItem(themeKey, t); } catch (e) { /* storage blocked: theme still switches for this view */ }
+    syncThemeBtn();
+  });
+
+  prevBtn.addEventListener("click", () => go(cur - 1));
+  nextBtn.addEventListener("click", () => go(cur + 1));
+  menuBtn.addEventListener("click", () => toggleMenu());
+  fsBtn.addEventListener("click", toggleFs);
+  document.addEventListener("fullscreenchange", syncFs);
+  document.addEventListener("webkitfullscreenchange", syncFs);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const t = e.target, tag = (t.tagName || "").toLowerCase();
+    if (e.key === "Escape" && menu.classList.contains("open")) { toggleMenu(false); return; }
+    if (menu.classList.contains("open")) return;
+    if (tag === "input" || tag === "textarea" || tag === "select" || t.isContentEditable) return;
+    if (pageMode) { if (e.key === "m" || e.key === "M") toggleMenu(); return; }
+    if (["ArrowRight", "PageDown", " ", "Spacebar"].includes(e.key)) {
+      if (tag === "button" && e.key === " ") return;
+      e.preventDefault(); go(cur + 1);
+    } else if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(cur - 1); }
+    else if (e.key === "Home") { e.preventDefault(); go(0); }
+    else if (e.key === "End") { e.preventDefault(); go(slides.length - 1); }
+    else if (e.key === "m" || e.key === "M") toggleMenu();
+    else if (e.key === "f" || e.key === "F") toggleFs();
+  });
+
+  let tx = null;
+  stage.addEventListener("touchstart", (e) => { tx = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener("touchend", (e) => {
+    if (tx === null || pageMode) return;
+    const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 60) go(cur + (dx < 0 ? 1 : -1));
+    tx = null;
+  }, { passive: true });
+
+  function fromHash() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const i = slides.findIndex((s) => s.id === id);
+    return i >= 0 ? i : 0;
+  }
+  window.addEventListener("hashchange", () => go(fromHash(), true));
+  window.addEventListener("resize", fit);
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(stage.parentElement);
+  if (reduce.addEventListener) reduce.addEventListener("change", () => setSvgAnim(slides[cur], true));
+  if (narrow.addEventListener) narrow.addEventListener("change", fit);
+  window.addEventListener("beforeprint", () => slides.forEach((s) => s.removeAttribute("inert")));
+  window.addEventListener("afterprint", () => go(cur, true));
+
+  if (pageMode && window.IntersectionObserver) {
+    const io = new IntersectionObserver((entries) => entries.forEach((en) => {
+      en.target.classList.toggle("active", en.isIntersecting);
+      setSvgAnim(en.target, en.isIntersecting);
+      if (en.isIntersecting && en.intersectionRatio >= 0.3) chapterTag.textContent = en.target.dataset.chapter || "";
+    }), { threshold: [0, 0.3] });
+    slides.forEach((s) => io.observe(s));
+  } else if (pageMode) {
+    slides.forEach((s) => s.classList.add("active"));
+  }
+
+  /* Animated workflow player: Play/Pause, Replay, synced caption; complete static view by default. */
+  document.querySelectorAll("[data-player]").forEach((pl) => {
+    const steps = Array.from(pl.querySelectorAll("[data-step]")).sort((a, b) => (+a.dataset.step) - (+b.dataset.step));
+    const toggle = pl.querySelector('[data-act="toggle"]'), replay = pl.querySelector('[data-act="replay"]');
+    const cap = pl.querySelector(".player-cap"), dots = pl.querySelector(".player-dots");
+    const ms = +pl.dataset.interval || 1800;
+    let k = steps.length, timer = null;
+    if (dots) steps.forEach(() => dots.appendChild(document.createElement("i")));
+    const render = () => {
+      const stepping = timer !== null || k < steps.length;
+      pl.classList.toggle("stepping", stepping);
+      steps.forEach((s, i) => { s.classList.toggle("on", i < k); s.classList.toggle("cur", stepping && i === k - 1); });
+      if (dots) Array.from(dots.children).forEach((d, i) => d.classList.toggle("on", i < k));
+      cap.textContent = stepping ? (k ? (pad(k) + " · " + (steps[k - 1].dataset.cap || "")) : "") : (pl.dataset.done || "Complete flow. Press Play to walk through it step by step.");
+      toggle.querySelector("span").textContent = timer ? "Pause" : "Play";
+      toggle.setAttribute("aria-pressed", timer ? "true" : "false");
+    };
+    const stop = () => { clearInterval(timer); timer = null; };
+    const tick = () => { k += 1; if (k >= steps.length) { k = steps.length; stop(); } render(); };
+    const play = () => { stop(); if (k >= steps.length) k = 0; timer = setInterval(tick, ms); tick(); };
+    toggle.addEventListener("click", () => { if (timer) { stop(); render(); } else play(); });
+    if (replay) replay.addEventListener("click", () => { k = 0; play(); });
+    document.addEventListener("deck:slide", () => { if (!pl.closest(".slide.active")) { stop(); k = steps.length; render(); } });
+    render();
+  });
+
+  window.deck = {
+    go: (i) => go(i), next: () => go(cur + 1), prev: () => go(cur - 1),
+    index: () => cur, count: () => slides.length, ids: () => slides.map((s) => s.id),
+    mode: () => (pageMode ? "page" : "deck")
+  };
+
+  syncThemeBtn();
+  fit();
+  go(fromHash(), true);
+})();
+</script>
+</body>
+</html>
