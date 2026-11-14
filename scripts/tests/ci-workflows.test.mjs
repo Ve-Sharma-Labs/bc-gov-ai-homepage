@@ -17,6 +17,7 @@ const ci = {
 };
 const operations = {
   "azure-pilot.yml": "BC Gov App - Azure Deployment",
+  "foundry-evals.yml": "BC Gov App - Foundry Evals (Relevance & Task Outcomes)",
   "official-source-collection.yml": "BC Gov Sources - Collection",
 };
 const agents = {
@@ -224,6 +225,61 @@ test("deployment remains manual with separate provision, deploy and reviewed ver
   assert.ok(deploy.includes('if [ "$AZURE_LIVE_EVALUATION_APPROVED" != "1" ]; then'));
   assert.equal([...deploy.matchAll(/^    environment: pilot$/gm)].length, 2);
   assert.ok(deploy.includes("name: deployment-marker"));
+});
+
+test("Foundry Evals is a protected, independent manual workflow with complete scoring", () => {
+  const foundry = source("foundry-evals.yml");
+  assert.equal(section(foundry, "on"), "on:\n  workflow_dispatch:");
+  assert.equal(section(foundry, "permissions"), "permissions:\n  contents: read\n  id-token: write");
+  assert.equal(section(foundry, "concurrency"),
+    "concurrency:\n  group: foundry-evals\n  cancel-in-progress: false");
+  assert.ok(foundry.includes("environment: pilot"));
+  assert.ok(foundry.includes("timeout-minutes: 40"));
+  for (const value of [
+    'node-version: "24"',
+    'python-version: "3.14"',
+    "python -m pip install -r apps/api/requirements.lock -e apps/api",
+    '[ "$AZURE_LIVE_EVALUATION_APPROVED" != "1" ]',
+    '[ "$AZURE_FOUNDRY_EVALUATION_APPROVED" != "1" ]',
+    'for key in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_ENV_NAME AZURE_LOCATION FOUNDRY_EVALUATION_MODEL_DEPLOYMENT;',
+    '[ -z "${!key}" ]',
+    "uses: azure/login@v2",
+    "--federated-credential-provider github",
+    "azd env refresh --no-prompt",
+    'azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"',
+    'azd env set AZURE_LOCATION "$AZURE_LOCATION"',
+    '--candidate-sha "$GITHUB_SHA"',
+    '--resource-group "$(azd env get-value AZURE_RESOURCE_GROUP)"',
+    '--app-name "$(azd env get-value AZURE_API_APP_NAME)"',
+    "--execute --approved --storage-approved",
+  ]) assert.ok(foundry.includes(value), value);
+  const approval = foundry.indexOf('[ "$AZURE_LIVE_EVALUATION_APPROVED" != "1" ]');
+  const login = foundry.indexOf("uses: azure/login@v2");
+  const evaluation = foundry.indexOf("python -m bc_api.foundry_evaluation");
+  assert.ok(approval < login && login < evaluation);
+  assert.equal(foundry.split("python -m bc_api.foundry_evaluation").length - 1, 1);
+  assert.ok(foundry.includes("if: always() && (steps.foundry_evaluation.outcome == 'success' || steps.foundry_evaluation.outcome == 'failure')"));
+  assert.match(foundry, /name: foundry-evaluation\n          path: \$\{\{ runner\.temp \}\}\/foundry-evaluation\.json/);
+  assert.ok(foundry.includes("if-no-files-found: error"));
+  assert.ok(foundry.includes("retention-days: 7"));
+  assert.doesNotMatch(foundry,
+    /azd (?:provision|deploy|up)\b|azure-preflight|deployment-marker|AZURE_(?:PROVISIONING_APPROVED|DEPLOYMENT_REVIEWED)|continue-on-error|--case/);
+  assert.doesNotMatch(foundry, /path:.*synthetic|workflow_call|workflow_run|needs:|azure-pilot\.yml|gh workflow run/);
+});
+
+test("app deployment keeps exposure safeguards without depending on Foundry Evals", () => {
+  const deploy = source("azure-pilot.yml");
+  const closedEdge = deploy.indexOf("name: Refuse image replacement while traffic is enabled");
+  const images = deploy.indexOf("name: Deploy candidate images");
+  assert.ok(closedEdge > 0 && images > closedEdge);
+  assert.match(deploy.slice(images), /name: Deploy candidate images\n        if: inputs.operation == 'deploy'\n        run: azd deploy --no-prompt/);
+  assert.ok(deploy.includes("run: node scripts/azure-preflight.mjs"));
+  assert.ok(deploy.includes("run: azd provision --no-prompt"));
+  assert.doesNotMatch(deploy,
+    /foundry_evaluation|foundry-evals\.yml|foundry-evaluation\.json|FOUNDRY_EVALUATION_MODEL_DEPLOYMENT|AZURE_FOUNDRY_EVALUATION_APPROVED|setup-python|pip install|inputs\.operation == 'evaluate'/);
+  assert.doesNotMatch(deploy, /workflow_call|workflow_run|needs:|gh workflow run/);
+  assert.equal(section(deploy, "concurrency"),
+    "concurrency:\n  group: azure-pilot\n  cancel-in-progress: false");
 });
 
 test("post-deploy live QA still rejects provision-only and verification-only runs", () => {

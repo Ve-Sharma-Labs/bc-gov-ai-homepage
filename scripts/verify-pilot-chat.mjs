@@ -6,7 +6,7 @@ const journeyIds = [
   "licence-renewal", "road-test-booking", "rental-assistance", "health-coverage",
   "pharmacare-registration", "primary-care", "service-bc",
 ];
-const releaseCases = {
+export const releaseCases = {
   renewal: "reported renewal and continuation",
   guardianship: "guardianship starter",
   disability: "disability starter",
@@ -127,9 +127,11 @@ export function decodeReleaseEvents(events, threadId, previousRevision) {
 
 export async function verifyPilotChat({
   baseUrl, liveApproved = false, researchApproved = false, fetchImpl = fetch,
-  caseIds = [],
+  caseIds = [], observeTurn,
   pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 }) {
+  assert.ok(observeTurn === undefined || (liveApproved && typeof observeTurn === "function"),
+    "Observing synthetic turns requires explicit live approval.");
   assert.ok(Array.isArray(caseIds) && caseIds.every((id) => Object.hasOwn(releaseCases, id))
     && new Set(caseIds).size === caseIds.length, "Select unique, supported release case IDs.");
   assert.ok(!caseIds.length || liveApproved, "Focused cases require explicit live approval.");
@@ -198,6 +200,12 @@ export async function verifyPilotChat({
       assert.equal(response.status, 200, `The ${name} request failed; no limits will be reset or bypassed.`);
       const result = decodeReleaseTurn(await response.text(), threadId, summary?.revision ?? 0);
       summary = result.summary;
+      if (observeTurn) {
+        await observeTurn({
+          caseId: Object.keys(releaseCases).find((id) => releaseCases[id] === name),
+          turn: report.turns - before, query: text, response: result.text,
+        });
+      }
       return result;
     };
     try {

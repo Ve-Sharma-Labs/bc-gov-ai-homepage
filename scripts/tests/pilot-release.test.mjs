@@ -284,6 +284,7 @@ for (const scenario of [
   const { directJobLoss = false, spoofedHandoff = false } = scenario;
   const states = new Map();
   const calls = [];
+  const observed = [];
   let cleaned = 0;
   const fetchImpl = async (url, options) => {
     if (url.pathname === "/api/capabilities") return Response.json(capabilities);
@@ -364,6 +365,7 @@ for (const scenario of [
   };
   const verification = verifyPilotChat({
     baseUrl: "https://pilot.example/", liveApproved: true, fetchImpl, pause: async () => {},
+    observeTurn: (turn) => observed.push(turn),
   });
   if (spoofedHandoff) {
     await assert.rejects(verification, (failure) => {
@@ -381,6 +383,11 @@ for (const scenario of [
   assert.equal(report.turns, 16);
   assert.equal(calls.length, 16);
   assert.equal(report.cases.length, 6);
+  assert.equal(observed.length, 16);
+  assert.deepEqual(observed[1], {
+    caseId: "renewal", turn: 2, query: "Yes",
+    response: "Open [ICBC's accepted ID](https://www.icbc.com/driver-licensing/visit-dl-office/Accepted-ID)",
+  });
   assert.equal(cleaned, 6);
   assert.equal(states.size, 0);
 });
