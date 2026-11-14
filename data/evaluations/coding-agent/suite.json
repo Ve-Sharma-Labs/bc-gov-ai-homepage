@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "coding-agent-regressions-v1",
+  "minimumPassRate": 1,
+  "image": "node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54",
+  "cases": [
+    {
+      "id": "strict-ports",
+      "title": "Reject partially parsed and invalid local ports",
+      "function": "portFrom",
+      "source": "scripts/runtime.mjs",
+      "referenceTests": "scripts/tests/runtime.test.mjs",
+      "prompt": "Repair portFrom(value, fallback, name). Only undefined and the empty string use the fallback. Other values must be digit-only port strings, with an integer value between 1024 and 65535 inclusive. Reject signs, whitespace, fractions, suffixes and out-of-range values by throwing. Preserve valid custom ports and leading zeroes. Do not silently substitute defaults for invalid input.",
+      "smoke": [
+        { "args": ["43000", 3000, "WEB_PORT"], "value": 43000 },
+        { "args": ["3000oops", 3000, "WEB_PORT"], "throws": true }
+      ]
+    },
+    {
+      "id": "loopback-settings",
+      "title": "Preserve loopback-only local origins and reject port collisions",
+      "function": "localSettings",
+      "source": "scripts/runtime.mjs",
+      "referenceTests": "scripts/tests/runtime.test.mjs",
+      "prompt": "Repair localSettings(env). Use WEB_PORT and API_PORT with defaults 3000 and 8000, preserving strict port validation. Both returned URLs must use http://127.0.0.1, never a public bind address or an environment-supplied host. Throw when the two resolved ports are equal. Keep the existing webPort, apiPort, webUrl and apiUrl return shape.",
+      "smoke": [
+        { "args": [{}], "value": { "webPort": 3000, "apiPort": 8000, "webUrl": "http://127.0.0.1:3000", "apiUrl": "http://127.0.0.1:8000" } },
+        { "args": [{ "WEB_PORT": "8000" }], "throws": true }
+      ]
+    },
+    {
+      "id": "checkpoint-continuity",
+      "title": "Restore the newest charged collection attempt, not an older success",
+      "function": "previousCollection",
+      "source": "scripts/agentic-workflows.mjs",
+      "referenceTests": "scripts/tests/agentic-workflows.test.mjs",
+      "prompt": "Repair previousCollection(runs, currentId, repository, branch). Select the highest-ID eligible run other than currentId, including failed, cancelled and in-progress attempts; restoring an older success would reset charged budgets. Ignore queued, waiting, pending and requested runs. Preserve the exact repository, branch, collector path and event checks. Historical lookup accepts both the current collector name and 'Official source collection'; the standalone trustedCollection check must still reject that legacy name by default. Return undefined when no eligible attempt exists.",
+      "smoke": [
+        {
+          "args": [[
+            { "id": 1, "name": "BC Gov Sources - Collection", "path": ".github/workflows/official-source-collection.yml", "head_branch": "main", "head_repository": { "full_name": "fixture/repo" }, "event": "schedule", "status": "completed", "conclusion": "success" },
+            { "id": 2, "name": "BC Gov Sources - Collection", "path": ".github/workflows/official-source-collection.yml", "head_branch": "main", "head_repository": { "full_name": "fixture/repo" }, "event": "schedule", "status": "completed", "conclusion": "failure" }
+          ], 3, "fixture/repo", "main"],
+          "value": { "id": 2, "name": "BC Gov Sources - Collection", "path": ".github/workflows/official-source-collection.yml", "head_branch": "main", "head_repository": { "full_name": "fixture/repo" }, "event": "schedule", "status": "completed", "conclusion": "failure" }
+        }
+      ]
+    },
+    {
+      "id": "bug-deduplication",
+      "title": "Prevent repeated repairs after a previous fix PR closes",
+      "function": "eligibleBug",
+      "source": "scripts/agentic-workflows.mjs",
+      "referenceTests": "scripts/tests/agentic-workflows.test.mjs",
+      "prompt": "Repair eligibleBug(issue, event, existingPulls). Any bot-authored PR with the exact <!-- bc-bug-fix:NUMBER --> marker prevents another repair, even if closed or merged. A human PR or another issue's marker does not suppress the report. Preserve the existing requirements: an open non-bot issue with a positive safe integer number, a bug label or the bug-report form, and an eligible opened/labeled event matching the issue. Unrelated labels, edited events and pull requests are ineligible.",
+      "smoke": [
+        {
+          "args": [
+            { "number": 7, "id": 700, "state": "open", "title": "Synthetic bug", "user": { "type": "User" }, "labels": ["bug"] },
+            { "action": "opened" },
+            [{ "state": "closed", "user": { "type": "Bot" }, "body": "<!-- bc-bug-fix:7 -->" }]
+          ],
+          "value": false
+        },
+        {
+          "args": [{ "number": 7, "id": 700, "state": "open", "title": "Synthetic bug", "user": { "type": "User" }, "labels": ["bug"] }, {}, []],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "repair-evidence",
+      "title": "Require real failure-before and matching-commit repair evidence",
+      "function": "validateRepairEvidence",
+      "source": "scripts/agentic-workflows.mjs",
+      "referenceTests": "scripts/tests/agentic-workflows.test.mjs",
+      "prompt": "Repair validateRepairEvidence(evidence, context, changedFiles). Evidence must match the issue and exact base commit; beforeExitCode must be a positive integer from an assertion failure, and afterExitCode must be zero. Preserve the existing command allowlist, bounded nonempty arguments and summaries, and the requirement for at least one changed regression file under an approved test directory without '..'. Throw for invalid evidence and return undefined for valid evidence. A successful command before a fix or evidence from another commit cannot prove a regression was repaired.",
+      "smoke": [
+        {
+          "args": [
+            { "issueNumber": 7, "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "command": ["node", "--test", "scripts/tests/example.test.mjs"], "beforeExitCode": 0, "afterExitCode": 0, "failureKind": "assertion", "regressionFiles": ["scripts/tests/example.test.mjs"], "beforeSummary": "Synthetic failure", "afterSummary": "Synthetic success" },
+            { "number": 7, "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+            ["scripts/tests/example.test.mjs"]
+          ],
+          "throws": true
+        }
+      ]
+    },
+    {
+      "id": "current-fingerprint",
+      "title": "Do not confuse historical source findings with the current finding",
+      "function": "sourceUpdates",
+      "source": "scripts/agentic-workflows.mjs",
+      "referenceTests": "scripts/tests/agentic-workflows.test.mjs",
+      "prompt": "Repair sourceUpdates(groups, issues). Only the first valid bc-source-fingerprint marker in the matching bot-owned issue is current; a matching fingerprint in the history must not suppress a new update. Preserve duplicate detection, the '[Source freshness] ' title policy, exact source markers, exclusion of human issues and PRs, and no new issue for a non-actionable group. Retain the issue's state, including closed, without reopening it. Return the existing result shape.",
+      "smoke": [
+        {
+          "args": [
+            [{ "sourceId": "health", "marker": "<!-- bc-source-watchdog:health -->", "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "actionable": true }],
+            [{ "number": 3, "state": "closed", "user": { "type": "Bot" }, "title": "[Source freshness] health", "body": "<!-- bc-source-watchdog:health -->\n<!-- bc-source-fingerprint:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb -->\nHistory:\n<!-- bc-source-fingerprint:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->" }]
+          ],
+          "value": [{ "sourceId": "health", "marker": "<!-- bc-source-watchdog:health -->", "fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "actionable": true, "issueNumber": 3, "issueState": "closed", "fingerprintMarker": "<!-- bc-source-fingerprint:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->" }]
+        }
+      ]
+    }
+  ]
+}
