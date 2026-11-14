@@ -228,6 +228,11 @@ session; grading executes each solution separately.
    checks are absent. It can repair only the prepared candidate modules. GitHub
    tools and external network access are disabled; no package installation,
    app services, Foundry calls or production credentials are needed.
+   Shell permissions use Copilot's command-prefix syntax (`node --test:*` and
+   `node --check:*`), not filename globs in permission rules. This authorizes
+   the public smoke command and individual test/syntax checks without granting
+   arbitrary Node execution or unrestricted shell access. File-change boundaries
+   remain enforced by the protected-input collector and independent grader.
 3. Before inference, Actions fingerprints the protected inputs. Afterward a
    hash-checked collector rejects missing, oversized or linked files and
    records any changes to protected instructions, fixtures or public tests.

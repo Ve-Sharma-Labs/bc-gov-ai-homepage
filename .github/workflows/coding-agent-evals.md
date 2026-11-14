@@ -54,8 +54,8 @@ checkout: false
 tools:
   github: false
   bash:
-    - "node --test test-results/coding-agent-evals/work/*.test.mjs"
-    - "node --check test-results/coding-agent-evals/work/*.mjs"
+    - "node --test:*"
+    - "node --check:*"
 safe-outputs:
   staged: true
   noop:

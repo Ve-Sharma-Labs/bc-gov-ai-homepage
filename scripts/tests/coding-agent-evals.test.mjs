@@ -278,3 +278,47 @@ test("compiled activation references real outputs and safe outputs cannot publis
   const manifest = JSON.parse(compiled.match(/^# gh-aw-manifest: (.+)$/m)[1]);
   assert.ok(!manifest.mcp_servers.some((server) => server.name === "github"));
 });
+
+test("compiled permissions cover smoke and syntax checks without authorizing arbitrary Node execution", () => {
+  const source = readFileSync(path.join(root, ".github/workflows/coding-agent-evals.md"), "utf8");
+  const compiled = readFileSync(path.join(root, ".github/workflows/coding-agent-evals.lock.yml"), "utf8");
+  const invocation = compiled.split(/\r?\n/).find((line) =>
+    !line.trimStart().startsWith("#") && line.includes("--allow-tool") && line.includes("shell("));
+  assert.ok(invocation, "Missing compiled agent invocation");
+  const rules = [...invocation.matchAll(/shell\(([^)]+)\)/g)].map((match) => match[1]);
+  // Copilot command prefixes are not shell filename globs.
+  const permits = (command) => rules.some((rule) => {
+    const prefix = rule.endsWith(":*") ? rule.slice(0, -2) : rule;
+    return command === prefix || command.startsWith(`${prefix} `);
+  });
+  const smoke = source.match(/`(node --test [^`]+)`/)[1];
+  assert.ok(permits(smoke), smoke);
+  for (const item of suite.cases) {
+    for (const command of [
+      `node --test test-results/coding-agent-evals/work/${item.id}.test.mjs`,
+      `node --check test-results/coding-agent-evals/work/${item.id}.mjs`,
+    ]) assert.ok(permits(command), command);
+  }
+  for (const command of [
+    "node --eval 'process.exit(0)'", "node scripts/coding-agent-evals.mjs grade",
+    "node --test-other file.mjs", "npm install", "curl https://example.com",
+  ]) assert.equal(permits(command), false, command);
+  assert.ok(!invocation.includes("--allow-all-tools"));
+  assert.doesNotMatch(invocation, /--allow-tool shell(?:\s|$)/);
+});
+
+test("the documented public smoke command reproduces assertions in the task-only workspace", (t) => {
+  const directory = fixture(t);
+  const kit = path.join(directory, "kit");
+  prepareKit(directory, kit, { revision, model: "auto" });
+  const source = readFileSync(path.join(root, ".github/workflows/coding-agent-evals.md"), "utf8");
+  const command = source.match(/`(node --test [^`]+)`/)[1].split(" ");
+  const result = spawnSync(process.execPath, command.slice(1), {
+    cwd: kit, env: { ...process.env, NODE_TEST_CONTEXT: undefined },
+    encoding: "utf8", timeout: 15_000, maxBuffer: 128 * 1024,
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /ERR_ASSERTION/);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /MODULE_NOT_FOUND|ENOENT|Could not find/);
+  for (const item of suite.cases) assert.ok(result.stdout.includes(`${item.id}.test.mjs`), item.id);
+});
