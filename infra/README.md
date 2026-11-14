@@ -147,8 +147,10 @@ review flag solely to satisfy preflight.
    identity and publication permissions. Complete Azure validation and review
    the real provision preview before authorizing resource creation.
 2. Provision with `closed` stage: Front Door is disabled. Bootstrap placeholder
-   images are allowed only while closed. Deploy the real application images,
-   publish reviewed agent versions/content, and apply their actual bindings.
+   images are allowed only while closed. Publish reviewed agent versions/content
+   and apply their actual bindings and conversation flags to the closed app.
+   Run Foundry Evals separately to review candidate response quality. Its result
+   does not automatically block image deployment.
 3. Resolve the approved application image digests in ACR. Set both image inputs
    before any subsequent exposure/configuration provision operation. This keeps
    an IaC update from resetting a deployed application to AVM's hello-world image.
@@ -170,7 +172,20 @@ Do not delete source or shared-control resources as an automatic rollback.
 deploy, or verify operation. It needs an explicitly
 configured/protected `pilot` GitHub environment, OIDC deployment identity and
 the reviewed variables above. Provision and image deployment are separate
-operations. The separate `verify` operation requires an exact `public_url`;
+operations. This workflow does not run Foundry Evals or depend on its results.
+
+[BC Gov App - Foundry Evals (Relevance & Task Outcomes)](../.github/workflows/foundry-evals.yml)
+is a separate, manual workflow. It evaluates the checked-out candidate using the
+existing API Container App's bindings and publishes content-free scores and report
+metadata. It reuses the protected `pilot` environment and OIDC identity, with its
+own concurrency group. It requires `AZURE_LIVE_EVALUATION_APPROVED=1`,
+`AZURE_FOUNDRY_EVALUATION_APPROVED=1`, and an explicit
+`FOUNDRY_EVALUATION_MODEL_DEPLOYMENT`. Evaluation failures fail that run without
+blocking or triggering deployment. It does not provision resources, replace
+images, or emit a deployment marker. See the
+[Foundry evaluation guide](../docs/foundry-evaluations.md) for setup and scoring.
+
+The separate `verify` operation requires an exact `public_url`;
 it checks version-5/task readiness, current baseline evidence, and all seven
 preparation guides without a model call by default. `live_checks=true` also
 requires `AZURE_LIVE_EVALUATION_APPROVED=1` and performs at most 18 synthetic

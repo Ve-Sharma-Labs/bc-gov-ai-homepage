@@ -9,6 +9,11 @@ chat/cancellation flow, reviewed-content lifecycle and current release boundarie
 The [agentic workflows guide](docs/agentic-workflows.md) covers coding-agent
 evaluations, the official-source freshness watchdog, and automatic bug-report
 regression tests and draft fixes.
+The [Foundry evaluation walkthrough](docs/foundry-evaluations.md) explains the
+synthetic application suite and cloud judge results. Run the separate
+[BC Gov App - Foundry Evals (Relevance & Task Outcomes)](.github/workflows/foundry-evals.yml)
+workflow from Actions. App deployment remains independent and does not wait for
+evaluation results.
 
 The reference-led interface includes locally hosted Unsplash BC photography,
 editorial serif/BC Sans typography, a compact adaptive composer, a persistent
