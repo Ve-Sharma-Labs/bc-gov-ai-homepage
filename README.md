@@ -6,8 +6,9 @@ backend. This is not a live government transaction service.
 
 See the [as-built architecture](docs/architecture.md) for the Azure topology,
 chat/cancellation flow, reviewed-content lifecycle and current release boundaries.
-The [agentic workflows guide](docs/agentic-workflows.md) covers the official-source
-freshness watchdog and automatic bug-report regression tests and draft fixes.
+The [agentic workflows guide](docs/agentic-workflows.md) covers coding-agent
+evaluations, the official-source freshness watchdog, and automatic bug-report
+regression tests and draft fixes.
 The [Foundry evaluation walkthrough](docs/foundry-evaluations.md) explains the
 synthetic application suite and cloud judge results. Run the separate
 [BC Gov App - Foundry Evals (Relevance & Task Outcomes)](.github/workflows/foundry-evals.yml)
@@ -418,7 +419,8 @@ identify the failing component without exposing matrix commands or file paths.
 | [BC Gov Web - Build](.github/workflows/ci-web-build.yml) | TypeScript checking and the Next.js production build | PRs and pushes to `main` |
 | [BC Gov App - E2E Tests](.github/workflows/ci-e2e.yml) | Offline Playwright profiles: baseline, context discovery, AI conversation, and task assistance, on desktop/mobile | PRs and pushes to `main` |
 | [BC Gov App - Container Build & Smoke Tests](.github/workflows/ci-containers.yml) | API, web, and ingestion `linux/amd64` builds and disconnected runtime checks; no publication or deployment | PRs and pushes to `main` |
-| [BC Gov Automation - Tooling & Workflow Validation](.github/workflows/automation-validation.yml) | Tooling tests and pinned GH-AW compilation/drift checks for all six generated workflows, in independent jobs | PRs and pushes to `main` |
+| [BC Gov Automation - Tooling & Workflow Validation](.github/workflows/automation-validation.yml) | Tooling tests and pinned GH-AW compilation/drift checks for all seven generated workflows, in independent jobs | PRs and pushes to `main` |
+| [BC Gov Agents - Coding Agent Evals](.github/workflows/coding-agent-evals.md) | Coding agent repairs six frozen tasks; an independent isolated grader fails CI below 100% | Relevant trusted PRs, daily or manual; unrelated PRs skip inference |
 | [BC Gov App - Azure Deployment](.github/workflows/azure-pilot.yml) | Reviewed `provision`, `deploy`, or `verify` operations; live verification requires separate approval | Manual only |
 | [BC Gov Sources - Collection](.github/workflows/official-source-collection.yml) | Source metadata, authorized bounded refreshes, and durable charged checkpoints | Daily or manual, default branch only |
 
@@ -427,10 +429,11 @@ Tests**, not a generic `python` check. Container jobs identify **API Container**
 **Web Container**, and **Ingestion Container**. Build and container checks do not
 deploy; the Azure workflow retains its manual approval and exposure controls.
 
-The six **BC Gov Agents** workflows are listed in the
+The seven **BC Gov Agents** workflows are listed in the
 [agentic workflows guide](docs/agentic-workflows.md#workflows). They explore PRs,
-check the approved live app, assess sources, or propose draft bug fixes; they
-do not replace deterministic CI.
+check the approved live app, assess sources, propose draft bug fixes, or evaluate
+the coding agent itself. The coding-agent eval has a blocking deterministic
+grade; none of these replaces the application's ordinary CI.
 
 GitHub-managed **CodeQL**, **CodeQL - Code Quality**, **Security Risk Assessment**,
 **GitHub Advanced Security**, **Dependabot Updates**, and **Dependency Graph**
@@ -460,9 +463,11 @@ and task-assistance profiles as separate named steps.
 
 Agentic browser regression discovery, deployed synthetic QA, source-impact
 triage, and maintainer-gated draft fixes are documented in
-[GitHub Agentic Workflows](docs/agentic-workflows.md). These agents remain
-advisory around the repository's deterministic tests and reviewed deployment
-controls.
+[GitHub Agentic Workflows](docs/agentic-workflows.md). Those agents remain
+advisory around deterministic application tests and reviewed deployment controls.
+The separate [coding-agent eval gate](docs/agentic-workflows.md#coding-agent-evaluations-in-ci)
+fails when the coding agent misses its task threshold; merge rules must explicitly
+require that check to prevent merging.
 
 The seven ordinary CI workflows run on PRs and pushes to `main`, not every
 feature-branch push. Open a PR to get branch CI; updating that PR does not

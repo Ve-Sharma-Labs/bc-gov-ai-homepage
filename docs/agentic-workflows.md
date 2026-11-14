@@ -5,8 +5,9 @@ exploration around existing deterministic controls. The authored Markdown files 
 `.github/workflows` are the source of truth; their generated `.lock.yml` files are
 checked in and must not be edited manually.
 
-This guide covers both conversation QA and the source-watchdog/automatic-repair
-workflows. Their triggers and authentication differ: the QA workflows use
+This guide covers coding-agent evaluations, conversation QA and the
+source-watchdog/automatic-repair workflows. Their triggers and authentication
+differ: the QA and coding-evaluation workflows use
 `copilot-requests: write`; the watchdog and automatic repair use
 `COPILOT_GITHUB_TOKEN`. See each setup section before activation.
 
@@ -20,6 +21,7 @@ workflows. Their triggers and authentication differ: the QA workflows use
 | BC Gov Agents - Conversation Bug Fix (Opt-in) | Maintainer applies `agentic-fix` to an issue | One draft conversation/browser fix PR or one issue comment |
 | BC Gov Agents - Source Freshness Triage | Successful default-branch source collection | Up to twelve source issues created or updated from the trusted report; no publisher fetches |
 | BC Gov Agents - Bug Fix (Automatic) | New bug report, `bug` label, or manual dispatch | One draft regression/fix PR and one issue comment |
+| BC Gov Agents - Coding Agent Evals | Relevant trusted PRs, daily, or manual | Blocking deterministic check, sanitized results and bounded synthetic code artifacts; no issues or PRs |
 
 These are workflow display names, not new workflow IDs. Existing Markdown
 filenames and CLI entry points remain stable. Explicit `run-name` metadata
@@ -27,6 +29,8 @@ identifies the relevant event, PR, issue, ref, or collection run. Compiler-owned
 jobs retain their standard stages: activation checks eligibility, agent performs
 the bounded work, detection checks the output, safe outputs applies permitted
 writes, and conclusion reports the result. Those stages are not app test suites.
+The coding-evaluation workflow additionally runs an independent
+**BC Gov Agents - Coding Agent Eval Gate** job.
 
 The separate **BC Gov Automation - Tooling & Workflow Validation** workflow runs
 repository tooling tests and validates definitions in independent jobs; it does
@@ -181,6 +185,125 @@ days.
 
 Do not enable a later step until the previous workflow's output, deduplication, budget,
 and redaction behavior have been reviewed.
+
+## Coding-agent evaluations in CI
+
+`coding-agent-evals.md` evaluates the **software-building agent**, not the
+application's answers. It uses Copilot and imports
+`shared/coding-agent-policy.md`, also imported by the automatic bug-repair
+workflow. Both use the existing `GH_AW_MODEL_AGENT_COPILOT` /
+`GH_AW_DEFAULT_MODEL_COPILOT` model selection, with `auto` as the fallback.
+Workflow-specific issue handling, GitHub writes and the entire repair workflow
+are not simulated by this starter suite.
+
+The versioned catalog is `data/evaluations/coding-agent/suite.json`. Its six
+frozen, deliberately broken module extracts come from existing repository
+behavior and regression tests:
+
+| Task | Required outcome |
+|---|---|
+| Strict ports | Reject partial parses, malformed inputs and out-of-range ports without replacing them with defaults |
+| Loopback settings | Keep local URLs on loopback and reject port collisions |
+| Checkpoint continuity | Preserve the newest eligible charged attempt, including failures, cancellations and in-progress runs |
+| Bug deduplication | Do not create another repair after a matching bot PR closes or merges |
+| Repair evidence | Require assertion failure before, success after, matching issue/commit and a changed regression |
+| Current fingerprint | Distinguish the current source finding from historical fingerprints without weakening ownership checks |
+
+These are synthetic coding tasks, not live incidents or resident data. The
+initial coverage is intentionally small, not a claim to benchmark every
+language, browser task or SDLC stage. Tasks share one bounded coding-agent
+session; grading executes each solution separately.
+
+### Execution and the gate
+
+1. A cheap pre-activation check examines changed filenames, including previous
+   names on renames. Changes to `.github/**`, root `AGENTS.md`/`CLAUDE.md`, the
+   evaluation harness, catalog or checks activate inference. All PRs create a
+   workflow run, so unrelated PRs skip the gate as not applicable rather than
+   leaving a path-filtered required check pending. Failed scope discovery is
+   not treated as an irrelevant change.
+2. A deterministic preparation job packages only instructions, frozen tasks
+   and public smoke checks. The agent receives that task-only workspace, not a
+   checkout: production implementations, Git objects/history and private grading
+   checks are absent. It can repair only the prepared candidate modules. GitHub
+   tools and external network access are disabled; no package installation,
+   app services, Foundry calls or production credentials are needed.
+   Shell permissions use Copilot's command-prefix syntax (`node --test:*` and
+   `node --check:*`), not filename globs in permission rules. This authorizes
+   the public smoke command and individual test/syntax checks without granting
+   arbitrary Node execution or unrestricted shell access. File-change boundaries
+   remain enforced by the protected-input collector and independent grader.
+3. Before inference, Actions fingerprints the protected inputs. Afterward a
+   hash-checked collector rejects missing, oversized or linked files and
+   records any changes to protected instructions, fixtures or public tests.
+   The agent does not supply the score or the collector's metadata.
+4. A separate job checks out the same immutable commit and downloads only
+   this run's bounded candidate artifact. Each candidate executes inside a
+   digest-pinned Node 24 container with no network, credentials, Docker socket
+   or repository mount. It runs non-root with read-only files, a 15-second
+   deadline and CPU, memory and process limits. Expected results remain
+   outside the container; an exit code of zero or an agent's success claim
+   cannot substitute for correct returned outcomes.
+5. The initial threshold is **100%: all six tasks must pass all their normal,
+   boundary and negative checks**. Missing submissions, altered protected
+   files, failed/skipped inference, unavailable grading infrastructure or
+   cleanup failures produce a blocked/incomplete result and a failing gate.
+   There is no automatic retry or success-shaped fallback.
+
+The gate compares against fixed acceptance criteria, not an automatically
+changing historical average. `coding-agent-eval-report` contains sanitized
+JSON and Markdown with per-task results, pass rate, threshold, tested commit,
+requested model, suite/configuration fingerprints and grading-image digest.
+The job summary shows the same results. Reports and bounded synthetic candidate
+files are retained for seven days; they do not contain raw model transcripts,
+request bodies or credentials. GH-AW retains its own framework diagnostics.
+With `auto`, the report records that requested selector rather than inventing
+the resolved model; consult the native run diagnostics for engine details.
+
+### Activation, cost and extension
+
+Use the existing Copilot inference permission setup. Same-repository,
+authorized PRs are supported; fork PRs do not get a billable trial. The daily
+schedule detects model/default drift even without a configuration commit, and
+`workflow_dispatch` permits a deliberate rerun. Repository-variable changes do
+not emit a PR event: dispatch an eval when changing model selection rather than
+waiting for the next daily run.
+
+The agent is bounded to 60 turns, 300 AI Credits/run, 900/day and 20 minutes.
+The independent grading job has a ten-minute limit. Framework detection and
+Actions compute remain separate costs. Budget exhaustion is not a pass. No
+automatic issues, comments, draft PRs, merge, deployment or application-model
+evaluations are configured.
+The pinned compiler automatically supplies an issue safe-output even for
+noop-only workflows. Safe outputs are therefore explicitly **staged**, and
+failure/incomplete tracking is disabled where supported, so those framework
+tools cannot publish an issue. Staging does not soften the independent CI gate
+or prevent its deterministic artifact uploads.
+
+After the workflow is merged and a live trial is reviewed, require
+**BC Gov Agents - Coding Agent Eval Gate** in the repository's merge rules if
+merges must be prevented on failure. Committing these files does not modify
+branch protection. A skipped unrelated/fork run is not evidence that the agent
+was evaluated. This gate must not be used as evidence for untrusted fork
+configuration changes.
+
+Add a permanent case after a relevant incident: include a synthetic frozen
+starter, a clear contract with public smoke examples, and independent positive,
+boundary and counterexample checks in `tests/agent-evals/checks.mjs`. Review
+changes to expected outcomes and thresholds like production controls. The
+tooling suite proves every starter fails and the repository's accepted
+implementation passes; it also exercises tampering and incomplete-run failures.
+It does not invoke a model.
+
+```powershell
+node --test scripts\tests\coding-agent-evals.test.mjs scripts\tests\ci-workflows.test.mjs
+gh aw compile --strict --validate --no-check-update
+```
+
+Compilation and local harness checks do not prove a live agent run or hosted
+container grading succeeded. Do not dispatch billable trials as part of ordinary
+authoring validation.
+
 ## Source watchdog and automatic bug repair
 
 These workflows propose reviewable work. They never merge, deploy, publish
@@ -395,7 +518,7 @@ framework budgets; these limits are not an application Foundry or Azure invoice
 cap. Configure organization/repository billing protections separately.
 
 The pinned compiler version is **v0.89.21**. Edit Markdown, then regenerate
-all six committed lock files; never hand-edit generated YAML:
+all seven committed lock files; never hand-edit generated YAML:
 
 ```powershell
 gh extension install github/gh-aw --pin v0.89.21
@@ -409,7 +532,7 @@ $env:PYTHONPATH = (Join-Path $PWD 'ingestion')
 The last command is offline. Use the ingestion environment's locked dependencies
 from `ingestion\requirements.lock`, not an unrelated global Azure SDK.
 **BC Gov Automation - Tooling & Workflow Validation** runs helper and
-workflow-contract tests and checks compilation drift across all six lock files
+workflow-contract tests and checks compilation drift across all seven lock files
 and the action lock. Separate **BC Gov Web**, **BC Gov API**, and **BC Gov
 Ingestion** test workflows run their component suites. No live publisher or
 billable agent run is required to validate authoring.

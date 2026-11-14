@@ -27,6 +27,7 @@ const agents = {
   "official-source-watchdog.md": "BC Gov Agents - Source Freshness Triage",
   "bug-regression-fix.md": "BC Gov Agents - Bug Fix (Automatic)",
   "bug-to-regression-fix.md": "BC Gov Agents - Conversation Bug Fix (Opt-in)",
+  "coding-agent-evals.md": "BC Gov Agents - Coding Agent Evals",
 };
 
 const source = (file) => readFileSync(path.join(directory, file), "utf8").replaceAll("\r\n", "\n");
