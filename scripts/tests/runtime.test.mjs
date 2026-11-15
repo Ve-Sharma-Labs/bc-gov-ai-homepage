@@ -66,6 +66,92 @@ test("Azure approval flags are necessary, not proof of deployment validation", (
   }
 });
 
+test("shared Front Door requires isolated staging and an explicit sharing review", () => {
+  const staging = {
+    ...reviewedEnvironment,
+    AZURE_DEPLOYMENT_KIND: "staging",
+    AZURE_PRODUCTION_ENV_NAME: "production",
+    AZURE_SHARED_FRONT_DOOR_PROFILE_NAME: "reviewed-profile",
+    AZURE_SHARED_FRONT_DOOR_RESOURCE_GROUP: "reviewed-edge-group",
+    AZURE_SHARED_FRONT_DOOR_APPROVED: "1",
+    AZURE_PILOT_CONTROLS: JSON.stringify({
+      ...JSON.parse(reviewedEnvironment.AZURE_PILOT_CONTROLS),
+      apiMaxReplicas: 1, webMaxReplicas: 1,
+    }),
+  };
+  assert.deepEqual(deploymentBlockers(staging), []);
+  for (const change of [
+    { AZURE_DEPLOYMENT_KIND: "pilot" },
+    { AZURE_SHARED_FRONT_DOOR_PROFILE_NAME: "" },
+    { AZURE_SHARED_FRONT_DOOR_RESOURCE_GROUP: "" },
+    { AZURE_SHARED_FRONT_DOOR_APPROVED: "0" },
+    { AZURE_PRODUCTION_ENV_NAME: "" },
+    { AZURE_ENV_NAME: "PRODUCTION" },
+    { AZURE_DEPLOYMENT_STAGE: "public" },
+    { AZURE_PILOT_CONTROLS: reviewedEnvironment.AZURE_PILOT_CONTROLS },
+  ]) assert.ok(deploymentBlockers({ ...staging, ...change }).length, JSON.stringify(change));
+});
+
+test("staging activation requires release identity and a narrow operator allowlist", () => {
+  const staging = {
+    ...reviewedEnvironment,
+    AZURE_DEPLOYMENT_KIND: "staging",
+    AZURE_PRODUCTION_ENV_NAME: "production",
+    AZURE_DEPLOYMENT_STAGE: "validation",
+    AZURE_VALIDATION_CIDRS: '["192.0.2.10/32"]',
+    AZURE_PRIVATE_ORIGIN_APPROVED: "1",
+    RELEASE_COMMIT: "a".repeat(40),
+    RELEASE_ID: "staging-reviewed",
+    AZURE_API_IMAGE_NAME: `fixture.azurecr.io/api@sha256:${"a".repeat(64)}`,
+    AZURE_WEB_IMAGE_NAME: `fixture.azurecr.io/web@sha256:${"b".repeat(64)}`,
+    FOUNDRY_GENERAL_AGENT: JSON.stringify({ name: "fixture-general", version: "1", modelDeployment: "fixture" }),
+    AZURE_PILOT_CONTROLS: JSON.stringify({
+      ...JSON.parse(reviewedEnvironment.AZURE_PILOT_CONTROLS),
+      apiMaxReplicas: 1, webMaxReplicas: 1,
+    }),
+  };
+  assert.deepEqual(deploymentBlockers(staging), []);
+  for (const change of [
+    { RELEASE_COMMIT: "" },
+    { RELEASE_COMMIT: "main" },
+    { RELEASE_ID: "" },
+    { RELEASE_ID: "production" },
+    { AZURE_VALIDATION_CIDRS: '["192.0.0.0/16"]' },
+  ]) assert.ok(deploymentBlockers({ ...staging, ...change }).length, JSON.stringify(change));
+});
+
+test("bootstrapped staging identity metadata cannot select production or shared principals", () => {
+  const group = "rg-bcassist-1234567890";
+  const identities = Object.fromEntries(["api", "web", "publisher"].map((role, index) => [
+    role,
+    {
+      id: `/subscriptions/${reviewedEnvironment.AZURE_SUBSCRIPTION_ID}/resourceGroups/${group}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-bcassist-1234567890-${role}`,
+      principalId: `${index + 1}1111111-1111-4111-8111-111111111111`,
+      clientId: `${index + 4}1111111-1111-4111-8111-111111111111`,
+    },
+  ]));
+  const env = {
+    ...reviewedEnvironment,
+    AZURE_DEPLOYMENT_KIND: "staging",
+    AZURE_PRODUCTION_ENV_NAME: "production",
+    AZURE_RESOURCE_GROUP: group,
+    AZURE_STAGING_IDENTITIES_JSON: JSON.stringify(identities),
+    AZURE_PILOT_CONTROLS: JSON.stringify({
+      ...JSON.parse(reviewedEnvironment.AZURE_PILOT_CONTROLS),
+      apiMaxReplicas: 1, webMaxReplicas: 1,
+    }),
+  };
+  assert.deepEqual(deploymentBlockers(env), []);
+  for (const change of [
+    { AZURE_DEPLOYMENT_KIND: "pilot" },
+    { AZURE_RESOURCE_GROUP: "rg-production" },
+    { AZURE_STAGING_IDENTITIES_JSON: "null" },
+    { AZURE_STAGING_IDENTITIES_JSON: JSON.stringify({ ...identities, api: identities.web }) },
+    { AZURE_STAGING_IDENTITIES_JSON: JSON.stringify({ ...identities, api: { ...identities.api, principalId: identities.web.principalId } }) },
+    { AZURE_STAGING_IDENTITIES_JSON: JSON.stringify({ ...identities, api: { ...identities.api, clientId: {} } }) },
+  ]) assert.ok(deploymentBlockers({ ...env, ...change }).length);
+});
+
 test("malformed budgets, overlapping networks and moving model defaults fail closed", () => {
   for (const change of [
     { AZURE_MODEL_DEPLOYMENTS: "null" },

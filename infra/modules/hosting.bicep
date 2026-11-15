@@ -3,6 +3,8 @@ targetScope = 'resourceGroup'
 param name string
 param location string
 param tags object
+param releaseCommit string = ''
+param releaseId string = ''
 param foundryProjectEndpoint string
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
@@ -138,6 +140,8 @@ module api 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
     enableTelemetry: false
     env: [
       { name: 'APP_ENV', value: 'production' }
+      { name: 'RELEASE_COMMIT', value: releaseCommit }
+      { name: 'RELEASE_ID', value: releaseId }
       { name: 'CONTENT_CATALOG_PATH', value: '/app/data/pilot-catalog.json' }
       { name: 'API_ALLOWED_ORIGINS', value: publicOrigin }
       { name: 'API_ALLOWED_HOSTS', value: 'localhost,127.0.0.1,api,${apiName},${apiName}.internal.${stack.outputs.defaultDomain}' }
@@ -233,6 +237,8 @@ module web 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
     secrets: [{ name: 'client-hash-key', value: clientHashKey }]
     env: [
       { name: 'NODE_ENV', value: 'production' }
+      { name: 'RELEASE_COMMIT', value: releaseCommit }
+      { name: 'RELEASE_ID', value: releaseId }
       { name: 'NEXT_TELEMETRY_DISABLED', value: '1' }
       { name: 'AI_CONVERSATION_ENABLED', value: aiConversationEnabled }
       { name: 'TASK_ASSISTANCE_ENABLED', value: taskAssistanceEnabled }

@@ -137,6 +137,52 @@ not inherit the generated publisher identity's roles.
 
 ## Rollout and rollback
 
+### Manual PyRIT staging
+
+The [current preparation plan](../.azure/deployment-plan.md) describes a separate
+staging environment that shares only the existing Front Door Premium profile.
+Take the actual staging URL from verified deployment outputs, not the template.
+`staging.env.example` records the reviewed context and proposed address space;
+its empty identity/budget/image inputs and disabled approval flags intentionally
+prevent deployment until the outstanding decisions are supplied.
+
+Set `AZURE_DEPLOYMENT_KIND=staging`, a distinct `AZURE_ENV_NAME`, the actual
+`AZURE_PRODUCTION_ENV_NAME`, and the reviewed
+`AZURE_SHARED_FRONT_DOOR_PROFILE_NAME` / `AZURE_SHARED_FRONT_DOOR_RESOURCE_GROUP`.
+`AZURE_SHARED_FRONT_DOOR_APPROVED=1` records the separate sharing review.
+Staging allows only `closed` or `validation`, one web/API replica each, and
+operator IPv4 ranges no broader than `/24`.
+
+For a new staging group, validate and deploy `staging-identities.bicep` first.
+It creates only that group and its three unprivileged managed identities.
+Compare the returned IDs with fresh Azure reads, then set `AZURE_RESOURCE_GROUP`
+and `AZURE_STAGING_IDENTITIES_JSON`. The JSON has `api`, `web`, and `publisher`
+objects, each with exactly `id`, `principalId`, and `clientId`. Main provisioning
+reuses those identities instead of rewriting them, and its role-assignment IDs
+become concrete in what-if.
+
+The shared-profile path creates uniquely named staging endpoints, routing, and
+security-policy associations. It does not recreate the shared profile or alter
+its existing diagnostics. Shared edge access metadata keeps its existing logging
+destination; staging application telemetry has its own workspace.
+
+Before activation, set the exact `RELEASE_COMMIT` and a `staging-` prefixed
+`RELEASE_ID` on both apps. Save the actual ARM what-if JSON and check its boundary:
+
+```powershell
+node scripts\verify-staging-plan.mjs .azure\staging-what-if.json <PROFILE-RESOURCE-ID> <STAGING-GROUP> <STAGING-ENDPOINT-NAME>
+```
+
+This initial-provisioning check rejects production mutations, unrecognized
+changes, and resources outside the new staging group and named shared-edge
+children. It does not deploy anything or replace policy/permission/cost review.
+An Ignore entry is allowed only for an existing protected production resource
+or one of the three bootstrapped identities with identical before/after values.
+Follow the [manual CoPyRIT setup](../evaluations/pyrit/README.md) only after the
+staging endpoint and live-use allowance are actually approved.
+
+### Existing pilot
+
 For the conversation release, set all four conversation inputs explicitly,
 retain the existing general/pathway bindings, and verify the isolated planner's
 actual returned version. The template keeps version 6 and local evidence

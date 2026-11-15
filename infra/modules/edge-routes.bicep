@@ -2,6 +2,7 @@ targetScope = 'resourceGroup'
 
 param profileName string
 param endpointName string
+param originGroupName string = 'web'
 param webUrl string
 param environmentId string
 param privateLinkLocation string
@@ -13,7 +14,7 @@ resource endpoint 'Microsoft.Cdn/profiles/afdEndpoints@2025-06-01' existing = {
 }
 resource group 'Microsoft.Cdn/profiles/originGroups@2025-06-01' = {
   parent: profile
-  name: 'web'
+  name: originGroupName
   properties: {
     loadBalancingSettings: {
       sampleSize: 4

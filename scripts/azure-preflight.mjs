@@ -87,6 +87,56 @@ export function deploymentBlockers(env) {
   }
   const stage = env.AZURE_DEPLOYMENT_STAGE || "closed";
   if (!["closed", "validation", "public"].includes(stage)) blockers.push("Choose closed, validation or public deployment stage.");
+  const kind = env.AZURE_DEPLOYMENT_KIND || "pilot";
+  if (!["pilot", "staging"].includes(kind)) blockers.push("AZURE_DEPLOYMENT_KIND must be pilot or staging.");
+  if (env.AZURE_STAGING_IDENTITIES_JSON && env.AZURE_STAGING_IDENTITIES_JSON !== "{}") {
+    const identities = jsonValue(env, "AZURE_STAGING_IDENTITIES_JSON", blockers);
+    const roles = ["api", "web", "publisher"];
+    const group = env.AZURE_RESOURCE_GROUP || "";
+    if (kind !== "staging" || !/^rg-bcassist-[a-z0-9]{10}$/u.test(group)
+      || !identities || typeof identities !== "object" || Array.isArray(identities)
+      || Object.keys(identities).length !== roles.length
+      || roles.some((role) => {
+        const identity = identities[role];
+        const expectedId = `/subscriptions/${env.AZURE_SUBSCRIPTION_ID}/resourceGroups/${group}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-${group.slice(3)}-${role}`;
+        return !identity || typeof identity !== "object" || Array.isArray(identity)
+          || Object.keys(identity).sort().join(",") !== "clientId,id,principalId"
+          || typeof identity.id !== "string" || identity.id.toLowerCase() !== expectedId.toLowerCase()
+          || typeof identity.clientId !== "string" || typeof identity.principalId !== "string"
+          || !uuid.test(identity.clientId || "") || !uuid.test(identity.principalId || "");
+      })
+      || new Set(roles.map((role) => identities[role].principalId.toLowerCase())).size !== roles.length
+      || new Set(roles.map((role) => identities[role].clientId.toLowerCase())).size !== roles.length) {
+      blockers.push("Staging identity metadata must contain three distinct verified identities from the exact staging resource group.");
+    }
+  }
+  const sharedProfile = env.AZURE_SHARED_FRONT_DOOR_PROFILE_NAME || "";
+  const sharedGroup = env.AZURE_SHARED_FRONT_DOOR_RESOURCE_GROUP || "";
+  if (sharedProfile || sharedGroup) {
+    if (kind !== "staging" || !/^[A-Za-z0-9][A-Za-z0-9-]{0,99}$/u.test(sharedProfile)
+      || !/^[A-Za-z0-9][A-Za-z0-9._()-]{0,89}$/u.test(sharedGroup)
+      || env.AZURE_SHARED_FRONT_DOOR_APPROVED !== "1") {
+      blockers.push("Shared Front Door requires staging, an exact profile/resource group, and AZURE_SHARED_FRONT_DOOR_APPROVED=1.");
+    }
+  }
+  if (kind === "staging") {
+    if (!env.AZURE_PRODUCTION_ENV_NAME?.trim()
+      || env.AZURE_ENV_NAME?.toLowerCase() === env.AZURE_PRODUCTION_ENV_NAME.toLowerCase()) {
+      blockers.push("Staging requires a different AZURE_ENV_NAME from the explicitly identified AZURE_PRODUCTION_ENV_NAME.");
+    }
+    if (stage === "public") blockers.push("Staging must remain closed or validation-only, never public.");
+    if (controls?.apiMaxReplicas !== 1 || controls?.webMaxReplicas !== 1) {
+      blockers.push("The reviewed manual staging budget permits only one API replica and one web replica.");
+    }
+    if (stage !== "closed" && (!/^[a-f0-9]{40}$/u.test(env.RELEASE_COMMIT || "")
+      || !/^staging-[a-z0-9][a-z0-9-]{0,55}$/u.test(env.RELEASE_ID || ""))) {
+      blockers.push("Staging activation requires a pinned RELEASE_COMMIT and a staging-prefixed RELEASE_ID.");
+    }
+  }
+  if ((env.RELEASE_COMMIT && !/^[a-f0-9]{40}$/u.test(env.RELEASE_COMMIT))
+    || (env.RELEASE_ID && !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(env.RELEASE_ID))) {
+    blockers.push("Release identity must be a full lowercase commit and a bounded deployment label.");
+  }
   for (const key of ["AI_CONVERSATION_ENABLED", "TASK_ASSISTANCE_ENABLED", "AI_CONVERSATION_PRIVACY_REVIEWED"]) {
     if (!["", "true", "false"].includes(env[key] || "")) {
       blockers.push(`${key} must be explicitly true or false.`);
@@ -161,7 +211,10 @@ export function deploymentBlockers(env) {
   }
   if (stage === "validation") {
     const ranges = jsonValue(env, "AZURE_VALIDATION_CIDRS", blockers);
-    if (!Array.isArray(ranges) || !ranges.length || ranges.some((range) => !cidr(range))) {
+    if (!Array.isArray(ranges) || !ranges.length || ranges.some((range) => {
+      const parsed = cidr(range);
+      return !parsed || (kind === "staging" && parsed.last - parsed.first > 255n);
+    })) {
       blockers.push("Validation exposure requires an explicit, nonempty IPv4 CIDR allowlist.");
     }
   }

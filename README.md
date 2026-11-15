@@ -25,6 +25,11 @@ only an explicit Send or retry starts another run.
 
 ## Run locally
 
+For manual red-team testing, see the
+[CoPyRIT staging target](evaluations/pyrit/README.md). Its Python environment is
+separate from the app. Installing the UI does not connect a target or authorize
+a live scan.
+
 Prerequisites: Node.js 24, Python 3.14 with `venv`, and npm. Development
 dependencies are isolated in each Python component's `.venv`.
 

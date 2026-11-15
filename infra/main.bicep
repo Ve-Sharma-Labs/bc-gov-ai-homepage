@@ -8,6 +8,17 @@ param environmentName string
 @description('User-confirmed Azure location. No region is selected automatically.')
 @minLength(1)
 param location string
+@allowed(['pilot', 'staging'])
+param deploymentKind string = 'pilot'
+@description('Existing same-subscription Front Door profile. Staging creates only new child resources.')
+param sharedFrontDoorProfileName string = ''
+param sharedFrontDoorResourceGroup string = ''
+@description('Verified metadata for the three staging identities created by staging-identities.bicep. Empty preserves standalone creation.')
+param stagingIdentities object = {}
+@maxLength(40)
+param releaseCommit string = ''
+@maxLength(64)
+param releaseId string = ''
 
 @description('Explicitly selected model names, versions, SKUs and capacity; no moving defaults.')
 param modelDeploymentsJson string
@@ -62,7 +73,7 @@ var suffix = take(uniqueString(subscription().id, environmentName, location), 10
 var tags = {
   'azd-env-name': environmentName
   project: 'bc-government-assistant'
-  classification: 'pilot'
+  classification: deploymentKind
 }
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
@@ -78,6 +89,12 @@ module pilot './modules/pilot.bicep' = {
     name: 'bcassist-${suffix}'
     location: location
     tags: tags
+    deploymentKind: deploymentKind
+    sharedFrontDoorProfileName: sharedFrontDoorProfileName
+    sharedFrontDoorResourceGroup: sharedFrontDoorResourceGroup
+    stagingIdentities: stagingIdentities
+    releaseCommit: releaseCommit
+    releaseId: releaseId
     modelDeployments: json(modelDeploymentsJson)
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
@@ -124,3 +141,4 @@ output PUBLISHER_IDENTITY_CLIENT_ID string = pilot.outputs.publisherClientId
 output WEB_URL string = pilot.outputs.webUrl
 output AZURE_FRONT_DOOR_PROFILE_NAME string = pilot.outputs.frontDoorProfileName
 output AZURE_FRONT_DOOR_ENDPOINT_NAME string = pilot.outputs.frontDoorEndpointName
+output AZURE_FRONT_DOOR_RESOURCE_GROUP string = empty(sharedFrontDoorProfileName) ? resourceGroup.name : sharedFrontDoorResourceGroup

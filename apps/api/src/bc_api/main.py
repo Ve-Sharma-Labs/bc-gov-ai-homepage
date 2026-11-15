@@ -267,7 +267,11 @@ def create_app(
         return catalog.locations(service, municipality)
 
     @app.get("/api/capabilities", response_model=Capabilities)
-    async def get_capabilities(request: Request) -> Capabilities:
+    async def get_capabilities(request: Request, response: Response) -> Capabilities:
+        if settings.release_commit:
+            response.headers["X-BC-API-Release"] = settings.release_commit
+        if settings.release_id:
+            response.headers["X-BC-API-Deployment"] = settings.release_id
         catalog.get()
         grounded_client = (
             request.headers.get("x-bc-client-version") == "6"
@@ -602,7 +606,7 @@ def create_app(
                         "Admission cleanup failed: %s", exc.code
                     )
             raise
-        return RunStreamingResponse(
+        response = RunStreamingResponse(
             stream_run(
                 data,
                 run,
@@ -632,6 +636,12 @@ def create_app(
                 else None
             ),
         )
+
+        if settings.release_commit:
+            response.headers["X-BC-API-Release"] = settings.release_commit
+        if settings.release_id:
+            response.headers["X-BC-API-Deployment"] = settings.release_id
+        return response
 
     @app.post("/api/runs/{run_id}/cancel")
     async def cancel_run(run_id: str, request: Request):

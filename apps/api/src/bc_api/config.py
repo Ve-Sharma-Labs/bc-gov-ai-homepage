@@ -41,6 +41,8 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
     )
     app_env: Literal["development", "production"] = "development"
+    release_commit: str = Field(default="", pattern=r"^(?:|[a-f0-9]{40})$")
+    release_id: str = Field(default="", pattern=r"^(?:|[a-z0-9][a-z0-9-]{0,63})$")
     content_catalog_path: Path | None = Field(
         default=None,
         validation_alias=AliasChoices("CONTENT_CATALOG_PATH", "SOURCE_CATALOG_PATH"),

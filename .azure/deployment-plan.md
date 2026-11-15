@@ -1,4 +1,400 @@
-# Optional IQ rollout
+# Isolated PyRIT staging
+
+Status: Validated
+
+Prepared: November 14, 2026.
+
+Completed checkpoint: **identity bootstrap only** using
+`infra\staging-identities.bicep` and the ignored `identity-parameters.json`.
+It creates the new staging resource group and three managed identities, with
+no role assignments, compute, model deployments, data services, or public access.
+The complete platform must be revalidated afterwards. This lets what-if resolve
+the real principal IDs instead of accepting 11 unresolved role-assignment IDs.
+It is now deployed successfully. Current validation/execution selection is the
+**closed full staging platform** in `rg-bcassist-jrxx4g4iwu`, Canada East, using
+`infra\main.bicep`. No public exposure or production modification is selected.
+Recipe for the completed checkpoint: Bicep via Azure CLI. The application phase retains
+the AZD/Bicep package and deployment flow.
+
+### Identity bootstrap validation proof
+
+The standard `azure-validate` deployment script passed CLI/auth, Bicep compile,
+target-scope ARM validation, and what-if for `infra\staging-identities.bicep`
+in Canada East. No platform services or production resources are in that file.
+The new resource group was confirmed absent before the checkpoint.
+The exact structured resource list and template/parameter hashes must be saved
+before execution. No roles or credentials are granted in this phase.
+Structured preview: exactly four creates, zero Modify/Delete/Unsupported.
+Static role review: the bootstrap contains no role assignments, secrets, or
+service access. The intentionally unprivileged identities receive only the
+separately verified role assignments in the later platform phase.
+Proof and exact template/parameter SHA-256 values are recorded in the ignored
+`.azure\bc-pyrit-staging\identity-validation-proof.json`.
+
+### Section 7: Validation Proof - current identity checkpoint
+
+| Check | Command/review performed | Result | Date |
+|---|---|---|---|
+| Compile, authentication, ARM/provider validation and preview | `validate-deployment.ps1 -Scope sub -Location canadaeast -Template infra\staging-identities.bicep -Parameters .azure\bc-pyrit-staging\identity-parameters.json -Subscription ad92e163-a85e-40cc-bb50-054b0b8197a8` | PASS | 2026-11-15 UTC |
+| Exact preview | `az deployment sub what-if` with those inputs, `--result-format FullResourcePayloads --no-pretty-print` | Succeeded; four creates only | 2026-11-15 UTC |
+| Resource boundary | `node scripts\verify-staging-plan.mjs` against `identity-what-if.json`, the reviewed profile, `rg-bcassist-jrxx4g4iwu`, and `bcassist-jrxx4g4iwu` | PASS | 2026-11-15 UTC |
+| Static identity/role review | Read both bootstrap Bicep files and the complete four-resource preview | Three new unprivileged identities; no role or secret creation | 2026-11-15 UTC |
+
+## 1. Goal and current state
+
+Add a staging environment for manual testing through the local CoPyRIT UI.
+This is an addition to the existing application, not a replacement deployment.
+
+Azure currently has one BC assistant web/API pair in
+`rg-bcassist-xufhsendpx`. The web app uses Single revision mode with 100% of
+traffic assigned to its latest revision. Its Front Door hostname is the public
+pilot, not staging. No staging endpoint was found in the subscription inventory.
+
+CoPyRIT 1.2.0 is running at `http://127.0.0.1:18765`; no target is registered.
+The `PyRIT integration` session has an uncommitted, offline-tested adapter and
+staging infrastructure draft. It has not deployed that work. Reuse its relevant
+parts after review; do not import its broader CI/CD or production-promotion work
+as part of this task.
+
+The focused transport primitives, manual target/initializer, release-identity
+headers, and shared-edge Bicep path are now implemented in this worktree.
+Offline checks passed. Cloud deployment and live activation remain unapproved.
+
+## 2. Confirmed requirements
+
+| Decision | Selection |
+|---|---|
+| Classification and scale | Small development staging for manual CoPyRIT use; synthetic test data only |
+| Subscription | `ME-MngEnvMCAP744360-sharmave-1` (`ad92e163-a85e-40cc-bb50-054b0b8197a8`), confirmed by the user |
+| Region | `canadaeast`, selected under the user's alternate-region permission after actual Redis B0 capacity checks failed in Canada Central and East US 2 |
+| Total staging budget | US$500/month for additional staging infrastructure and model usage, clarified by the user on November 14 |
+| Shared component | Existing Front Door Premium profile only, explicitly selected to avoid another US$330/month base fee |
+| Isolation | Separate URL, routing, WAF policy, apps, identities, mutable state, data services, and registry |
+| Production | Preserve its endpoint, routes, WAF policy, apps, identities, source index, budgets, and traffic |
+| Execution boundary | Staging deployment and required identity/permissions are approved after validation; only the approved current-connection IPv4 /32 may access it. No production promotion or automated attack campaign |
+
+## 3. Components and deployment method
+
+| Component | Technology and location |
+|---|---|
+| Web and same-origin API proxy | Next.js, `apps\web`; existing Linux amd64 Dockerfile |
+| Application API | Python 3.14/FastAPI/AG-UI, `apps\api`; existing Linux amd64 Dockerfile |
+| Chat transport | `POST /api/agent`, cookie ownership, page/thread IDs, server-owned question/revision state, SSE |
+| PyRIT transport | Existing `evaluations\pyrit` draft in the integration worktree; separate Python environment |
+| Local UI | CoPyRIT 1.2.0 under `.cache\copyrit`; loopback only |
+
+Use **AZD with Bicep**, consistent with `azure.yaml` and `infra`.
+Proposed AZD environment: `bc-pyrit-staging`. Resource names come from the
+template's subscription/environment/region suffix, not a guessed hostname.
+Never initialize over this repository or select the existing production AZD
+environment for staging.
+
+## 4. Architecture and isolation
+
+Local CoPyRIT -> staging HTTPS endpoint on the shared Front Door profile ->
+staging private web origin -> staging internal API -> staging data/model services.
+
+| Resource | Proposed configuration |
+|---|---|
+| Resource group | One new staging group; no replacement of the pilot group |
+| Front Door | Reference `afd-bcassist-xufhsendpx` as existing; add one uniquely named endpoint, origin group/origin, route, and security policy |
+| WAF | Separate staging Premium policy in Prevention mode; keep managed/bot/rate rules and `ValidationOnly` socket-IP restriction |
+| Hosting | New private workload-profile Container Apps environment; Consumption profile; separate web/API apps |
+| App sizing | Each app: 0.5 vCPU, 1 GiB, one minimum and maximum replica initially; no dedicated profile or GPU |
+| Network | New VNet and two subnets; no production peering; private Redis and Blob endpoints/DNS; Front Door-managed private origin |
+| Identity | Separate web, API, and publisher identities; a separate internal-API Entra registration/audience |
+| Foundry | Separate S0 account/project; propose the same pinned `gpt-5.4-mini`, version `2026-03-17`, GlobalStandard, capacity 50, NoAutoUpgrade |
+| Search | Separate Basic service, one replica/partition; independently published approved source snapshot |
+| State | Separate Managed Redis Balanced_B0 with HA, TLS, Entra, NoEviction, and persistence disabled |
+| Registry and storage | Separate Basic ACR and Standard_LRS Blob account; no registry admin credentials or Blob shared keys/public containers |
+| Observability | Separate Log Analytics/Application Insights, metadata-only application logging, bounded retention |
+
+Sharing Front Door means sharing a control-plane and service-failure boundary;
+this is not complete infrastructure isolation. The existing profile object,
+production endpoint, routes, security-policy association, WAF, and traffic must
+not be rewritten. Add staging-only child resources through a separate module
+scoped to the profile's group. A what-if containing production Modify/Delete
+operations stops deployment.
+
+The shared path uses `shared-edge-endpoint.bicep` and references the existing
+profile. `edge-profile.bicep` remains the default for standalone pilot deployments.
+The existing shared-profile access diagnostics remain unchanged and can include
+staging access metadata; only application telemetry gets a separate workspace.
+
+App ingress and mutable state remain private. As in the pilot, Foundry/Search
+can use Entra-protected service endpoints and Basic ACR cannot use Private Link.
+This is not an all-PaaS-private design. GlobalStandard inference is not a promise
+of Canada-only processing; only synthetic prompts are in scope.
+
+Use managed identities and the application's Container App secret mechanism.
+Do not introduce API keys or copy production secrets. A new Key Vault service
+is not needed for the existing keyless design.
+
+### Policy and access prerequisites
+
+The subscription-level policy query returned three Defender initiatives; it is
+not proof that every inherited restriction permits this deployment. Existing
+pilot records include inherited governance diagnostics. Run actual scoped ARM
+validation and review its effects before any write.
+
+Before opening staging, review the operator's exact egress IPv4 CIDR, the new
+internal API registration, scoped deployment/publication rights, and the
+Front Door private-origin connection. No broad IP allowlist, forged Front Door
+headers, API-auth bypass, or production credential reuse is permitted.
+
+## 5. Monthly total budget
+
+USD retail planning figures checked November 14, 2026; assume 730 hours/month,
+no subscription free grant, no reservation/discount, and no tax. This is an
+incremental staging estimate, not a quote or hard billing cap.
+
+| Item | Calculation or allowance | Monthly USD |
+|---|---|---:|
+| Additional Front Door base fee | Reuse the existing profile | 0.00 |
+| Search Basic | 0.101/hour x 730, one search unit | 73.73 |
+| Redis Balanced_B0 HA | 0.017/node-hour x two nodes x 730 | 24.82 |
+| ACR Basic | 0.1666/day x 730/24 | 5.07 |
+| Web/API compute | Both replicas active all month: 0.000034/vCPU-second and 0.000004/GiB-second | 110.38 |
+| Container Apps private-environment charges | Conservative allowance for two 0.10/hour meter components; reconcile current management/private-endpoint billing before deployment | 146.00 |
+| Other infrastructure | Reserve for networking, private endpoints, DNS, storage, logs, edge traffic and image operations; not a measured usage quote | 50.00 |
+| Planning allocation | Rounded total | 410.00 |
+| Model allowance | At most US$1.90/day in conservative application accounting; 31 days | 58.90 |
+| Remaining buffer | Against the US$500 total ceiling | 31.10 |
+
+Private Link has charges even on Consumption environments. The price catalog
+now lists environment-specific meters while the billing documentation describes
+Dedicated Plan Management; the US$146 allowance is conservative, not a claim
+that two fees always apply.
+
+The infrastructure allowance uses 730 hours; even 744 hours leaves headroom in
+the buffer. Model calls are constrained by separate daily run/token/cost limits,
+one web/API replica each, and the existing admission controls. No helper model
+or automated campaign is configured. The model allowance can admit only a small
+number of conservatively reserved model-backed turns each day.
+
+Semantic-query overages, unexpected egress/log volume, taxes and
+agreement-specific charges can change the bill. Confirm a final priced payload
+before deployment. Track both the staging resource group and incremental shared
+Front Door usage; a resource-group-only budget misses shared-profile charges.
+Budget alerts are notifications, not a spending cutoff. Do not widen scaling or
+raise limits to make a test pass.
+
+Pricing sources:
+[retail pricing API](https://prices.azure.com/api/retail/prices),
+[Container Apps billing](https://learn.microsoft.com/azure/container-apps/billing),
+[private endpoint billing](https://learn.microsoft.com/azure/container-apps/private-endpoints-with-dns),
+[Redis node pricing](https://azure.microsoft.com/pricing/details/managed-redis/).
+
+## 6. Resource inventory and capacity evidence
+
+Read-only snapshot from November 14, 2026. Quota availability is not a capacity
+reservation or a successful deployment.
+
+| Resource or quota | Existing | Add | After | Limit/evidence |
+|---|---:|---:|---:|---|
+| Container Apps environments, Canada Central | 4 | 1 | 5 | 50, `az quota show` and `usage show` |
+| VNet, Canada Central | 2 | 1 | 3 | 1,000, quota CLI |
+| Storage accounts, Canada Central | 2 | 1 | 3 | 250, quota CLI |
+| Regional private endpoints | 5 | 2 | 7 | 65,536, quota CLI; Front Door-managed resources are separate |
+| Model GlobalStandard allocation | 60 | 50 | 110 | 2,000 capacity units, Cognitive Services usage API; not invoice tokens |
+| Shared-profile endpoints | 1 | 1 | 2 | 25, `az afd profile usage` |
+| Shared-profile origin groups/origins/security policies, each | 1 | 1 | 2 | 200 each, profile usage API |
+| Search Basic services, Canada Central | 1 | 1 | 2 | 16 documented per tier/region; quota CLI returned an empty list, not unlimited capacity |
+| Container Apps, Canada Central | 7 | 2 | 9 | Resource Graph count; new-environment CPU allocation must be checked after closed provisioning |
+| Foundry accounts, Canada Central | 3 | 1 | 4 | Resource Graph count; account provisioning remains subject to ARM validation |
+| Managed Redis, Canada Central | 1 | 1 | 2 | Resource Graph count; quota CLI returned BadRequest, so no numeric quota is asserted |
+| ACR, Canada Central | 4 | 1 | 5 | Resource Graph count; quota CLI returned BadRequest, so no numeric quota is asserted |
+| Log Analytics / Application Insights, Canada Central | 4 / 3 | 1 / 1 | 5 / 4 | Resource Graph counts; validate the concrete resources and policy |
+| User-assigned identities, Canada Central | 15 | 3 | 18 | Resource Graph count; scoped role and registration permissions remain to be validated |
+| Private DNS zones / WAF policies, global | 15 / 1 | 2 / 1 | 17 / 2 | Resource Graph counts; validate the concrete resources and policy |
+
+The Canada Central quota snapshot above did not guarantee physical capacity.
+Actual Redis preflight subsequently returned `CacheCapacityUnavailable` in Canada
+Central and East US 2. Canada East passed that same provider check, has 1,940
+available GlobalStandard model capacity units, and retains the quoted Search,
+Redis, and Container Apps rates. The selected region is now Canada East.
+
+The complete Canada East preview succeeded with 35 creates, 37 unchanged
+production resources classified as Ignore, and 11 unresolved role-assignment
+IDs. No production Modify/Delete was proposed. Only verified identical
+before/after Ignore entries outside the staging write set may pass the boundary
+guard. Unresolved role assignments remain blocked pending identity bootstrap.
+
+After bootstrap, the platform now takes the three verified identity records as
+explicit staging inputs and does not rewrite those resources. Their resource,
+principal, and client IDs were compared with fresh ARM reads. The final full
+provider preview has **42 creates, 1 NoChange, and 40 verified unchanged Ignore
+entries**, with zero Modify, Delete, or Unsupported entries. The boundary guard
+passes; production is unchanged.
+
+The numeric hosting, model, network, storage, and shared-edge checks pass for
+planning. Redis/registry allocation and the final policy payload are still
+deployment-validation gates, not confirmed capacity. Do not fill missing quota
+data with zero usage or an invented unlimited value.
+
+The inventory includes two network subnets, Redis database/access configuration,
+one Foundry project/model deployment, one Blob container, and resource-scoped
+role assignments beneath the services above. The compiled what-if must enumerate
+all of these and any platform-managed resources before execution.
+
+[Search limits](https://learn.microsoft.com/azure/search/search-limits-quotas-capacity)
+distinguish subscription quota from regional capacity.
+
+## 7. Implementation and verification sequence
+
+1. Review and bring across only the existing adapter, response-identity headers,
+   and staging prerequisites from the integration worktree. Record a source
+   commit before building candidates. Its current uncommitted state is not a
+   reproducible release.
+2. Add shared-profile Bicep support with uniquely named staging children.
+   Preserve existing production defaults and add focused checks that reject
+   production endpoint/routing changes. Create separate staging AZD settings.
+3. Add a manual CoPyRIT target around `AppClient/AppSession`: one app session
+   per PyRIT conversation, isolated cookies/page/thread IDs, question/revision
+   tracking, bounded requests, cancellation, and cleanup. Do not reuse the
+   one-case `AppTarget` as a shared multi-conversation target.
+4. Disable scripted sharing probes for manual chat. Reject unsupported message
+   types, edited histories, and partial/error SSE responses explicitly. Never
+   reset server budgets, silently retry a failed turn, or substitute production.
+5. Persist a staging-only registry initializer under the ignored local
+   configuration. Keep CoPyRIT on loopback; do not enable network access or
+   general unauthenticated administrator actions.
+6. Verify multiple independent conversations, question/revision changes, errors,
+   cancellation, cleanup, and registry restart persistence against local
+   fixtures. Make no paid call.
+7. After implementation and offline checks, mark the plan `Ready for Validation`.
+   Invoke `azure-validate`: build/type checks, Bicep compilation, permission and
+   policy checks, image provenance, and scoped what-if. Record actual results.
+   Reconcile pricing and any unreported resource limits. Stop on unresolved gates.
+8. Present the exact create/update list, immutable images, model/source bindings,
+   access rules, and final cost estimate for **deployment approval**.
+9. Only after that approval, use `azure-deploy` to provision with staging disabled.
+   Establish the new identities/private origin; publish only separately approved
+   agents and source snapshots. Never refresh source-review dates by copying.
+10. Open only the staging validation endpoint after access approval. Check
+    capabilities, source readiness, API/web release and deployment headers, and
+    normal BFF ownership without model calls. Register `BC Gov staging` only when
+    these match the selected deployment. Confirm its UI and restart persistence.
+
+The user approved a US$500/month total envelope; the model allocation is now
+US$1.90/day within it. The approved operator IPv4 /32 is stored only in the
+ignored local environment, not in this document.
+No attacker model, automated judge, adaptive campaign, GH-AW schedule, production
+release gate, or load test is activated by this plan.
+
+### Rollback
+
+Keep staging disabled if provisioning or checks fail. For a later bad staging
+revision, restore only its last verified image pair and stop admitting new
+staging requests. Never disable the shared profile or change production traffic.
+Remove or change only the staging registry entry when its origin is invalid.
+Resource deletion and history cleanup require separate approval.
+
+## 8. Files and validation status
+
+| Artifact | Action after plan approval |
+|---|---|
+| `.azure\deployment-plan.md` | This plan; preserve the historical pilot record below |
+| `infra\main.bicep`, `infra\modules\pilot.bicep`, edge modules | Reuse staging inputs; add a narrow shared-profile path |
+| `infra\staging.env.example` | Confirmed subscription/region and separate environment; approval flags off, missing identity/budget/image inputs left empty |
+| `evaluations\pyrit` and focused tests | Reuse transport; add a manual conversation manager and initializer |
+| API/proxy identity-header changes | Reuse the existing draft so the target can verify the actual release |
+| `.cache\copyrit` | Local target configuration only; dependencies, credentials and attack history stay out of Git |
+
+### Validation proof recorded November 14, 2026
+
+| Check | Actual result |
+|---|---|
+| Manual target and native PyRIT normalizer/registry | 15 passed; fixtures only, including session isolation, release drift, errors/cancellation, history rejection, and persisted budgets |
+| API ownership and release identity | 43 passed; no model calls |
+| Web proxy | 43 passed on Node 24 |
+| Repository tooling | 99 passed on Node 24, including staging scope and preflight guards |
+| Web type generation/type checking | Passed |
+| Web production build | Passed on Node 24 |
+| Bicep | `az bicep build --file infra\main.bicep` succeeded |
+| Changed Python | Ruff passed |
+| AZD project schema | Valid against the official stable `azure.yaml` schema |
+| AZD local environment | `bc-pyrit-staging` created locally with the confirmed subscription/region; no remote environment or Azure resources |
+| Docker build context | Both Dockerfiles use existing locked manifests; `.dockerignore` excludes local environments, `.azure`, caches and logs |
+| Container packaging | API/web Linux amd64 images built and `azd package --no-prompt` passed after Docker became available; both runtime imports/non-root settings checked offline |
+| Azure context and quota | Read-only inventory, usage, model availability and retail-price checks recorded above |
+| ARM target-scope validation / what-if | Full Canada East provider validation and AZD preview passed with concrete identities; final scoped preview has 42 creates and no Modify/Delete/Unsupported |
+| Identity prerequisite | Dedicated single-tenant staging API application/service principal created and verified for v2 tokens; no client secrets or Graph API permissions added |
+| Image publication and application provisioning | Approved after completed validation; not yet performed |
+
+`infra\staging.env.example` deliberately does not invent the missing API client
+ID, application allowance, image digests, release identity, agent bindings, or
+operator egress CIDR. These remain gates to cloud validation/activation.
+No staging URL exists, and the running local CoPyRIT registry remains unconfigured.
+The saved local AZD environment now has the verified API identity, bounded model
+allowance, and approved operator /32. Execution remains gated on real validation.
+The existing public pilot's source-health read on November 15 UTC found its four
+indexed documents expired; fresh staging snapshots need a new exact-snapshot
+review rather than rewritten source dates.
+That review is now complete: the user approved the exact refreshed four-snapshot
+bundle for staging only. Its publication dry run has 20 uploads, no deletions,
+and no withheld documents. It has not been uploaded to any index yet.
+
+### Section 7: Validation Proof - full closed platform
+
+| Check | Actual execution | Result |
+|---|---|---|
+| Full ARM/provider validation and preview | Standard `validate-deployment.ps1`, `infra\main.bicep`, actual Canada East parameters, confirmed subscription | PASS |
+| Scoped structured preview | `what-if-platform.json` plus `verify-staging-plan.mjs` | 42 creates; zero Modify/Delete/Unsupported; existing identities and production remain unchanged |
+| AZD recipe preview | `azd provision --preview --no-prompt` in the selected local environment | PASS; no cloud changes |
+| Packaging/build | `azd package --no-prompt`, Linux amd64 runtime checks, web/API/evaluator tests | PASS |
+| Static roles | API: project/OpenAI use, Search read, Redis access, AcrPull and metrics. Web: AcrPull and internal-API caller. Publisher: scoped project/model, Search publication and staging-container write. | All 11 role assignments use the three verified staging principals and staging-only resource scopes |
+
+The identity bootstrap and full-platform records are separate. Only this full
+record can qualify the next application-platform provisioning step.
+Full-platform source and parameter fingerprints are saved in the ignored
+`.azure\bc-pyrit-staging\platform-validation-proof.json`.
+
+## 9. Approval gates
+
+- [x] Subscription, Canada Central first, US$500 infrastructure budget, and
+  sharing only Front Door selected by the user.
+- [x] Approve this implementation/preparation plan. The user approved repository
+  implementation, offline checks, and read-only deployment validation only.
+- [x] Complete focused offline checks and mark `Ready for Validation`.
+- [x] Invoke `azure-validate` and record the blocked checks. The workflow remains
+  at `RunValidation`; it has not qualified the plan as `Validated`.
+- [x] Approve staging deployment and its required identity/permissions, conditional
+  on completed validation and the reviewed resource boundary.
+- [x] Approve the current-connection IPv4 /32 and the US$500 total monthly envelope.
+- [ ] Verify private-origin identity and approved agent/source publication before activation.
+- [ ] Deploy, verify the real staging path, and register the CoPyRIT target.
+
+Approval of preparation alone does not authorize deployment, permissions,
+public access, model spending, or scans.
+
+## All validation checks pass
+
+Not complete. This is the AZD recipe checklist used by `azure-validate`;
+unchecked cloud checks remain blockers, not waived requirements.
+
+- [x] 1. AZD installation: 1.37.3 available.
+- [x] 2. Schema validation against the official `azure.yaml` schema.
+- [x] 3. Closed-stage environment setup: verified identity, subscription/region,
+  model capacity, app budget, and narrow access selection are recorded locally.
+- [x] 4. Authentication check: AZD reports an existing authenticated session.
+- [x] 5. Subscription/location selected and checked without changing global defaults.
+- [x] 6. Aspire pre-provisioning: not applicable to this containerized app.
+- [x] 7. Full provider preview after verified identity bootstrap/reuse: 42 creates,
+  zero Modify/Delete/Unsupported; boundary guard passed.
+- [x] 8. Build verification: API tests, web build/type checks, evaluator and tooling checks.
+- [x] 9. Docker build context validation.
+- [x] 10. Package validation: both services packaged; no registry publication yet.
+- [x] 11. Full platform ARM/provider validation and `azd provision --preview`
+  passed in Canada East.
+- [x] 12. Aspire post-provisioning: not applicable.
+
+---
+
+## Historical optional IQ rollout
+
+The record below concerns the existing pilot. Its earlier validation and
+approvals do not authorize the proposed staging deployment.
 
 Status: Validated
 

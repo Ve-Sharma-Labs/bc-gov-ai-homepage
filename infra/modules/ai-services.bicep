@@ -7,6 +7,7 @@ param deployments array
 param searchSku string
 param apiPrincipalId string
 param publisherPrincipalId string
+param privateStorage bool = false
 @description('Separate approval to let the Search identity invoke the existing planning deployment. Does not enable retrieval billing or the optional UI.')
 param foundryIqInferenceApproved bool = false
 @description('Separate approval for the API identity to read Search configuration. Does not grant document writes or administrator access.')
@@ -84,6 +85,10 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     allowBlobPublicAccess: false
     allowSharedKeyAccess: false
     defaultToOAuthAuthentication: true
+    ...(privateStorage ? {
+      publicNetworkAccess: 'Disabled'
+      networkAcls: { defaultAction: 'Deny', bypass: 'None' }
+    } : {})
   }
 }
 resource blobs 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
@@ -170,4 +175,5 @@ output projectId string = project.id
 output modelEndpoint string = 'https://${foundry.name}.openai.azure.com'
 output searchEndpoint string = 'https://${search.name}.search.windows.net'
 output storageEndpoint string = storage.properties.primaryEndpoints.blob
+output storageName string = storage.name
 output storageContainer string = staged.name

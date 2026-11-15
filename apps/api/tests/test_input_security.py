@@ -117,6 +117,39 @@ def test_cors_and_cookie(client, run_input):
     assert "Path=/api" in response.headers["set-cookie"]
 
 
+def test_release_identity_comes_from_server_settings(settings, run_input):
+    configured = settings.model_copy(update={
+        "release_commit": "a" * 40,
+        "release_id": "staging-reviewed",
+    })
+    with TestClient(create_app(configured), headers={
+        "Origin": "http://localhost:3000",
+        "X-BC-API-Release": "b" * 40,
+        "X-BC-API-Deployment": "caller-selected",
+    }) as client:
+        response = client.get("/api/capabilities")
+        assert response.headers["x-bc-api-release"] == "a" * 40
+        assert response.headers["x-bc-api-deployment"] == "staging-reviewed"
+        assert "set-cookie" not in response.headers
+        run_input["messages"][-1]["content"] = "Hi"
+        run_input["forwardedProps"] = {"bc": {"version": 2, "mode": "general"}}
+        response = client.post("/api/agent", json=run_input)
+        assert response.status_code == 200
+        assert response.headers["x-bc-api-release"] == "a" * 40
+        assert response.headers["x-bc-api-deployment"] == "staging-reviewed"
+        assert "RUN_FINISHED" in response.text
+
+
+@pytest.mark.parametrize("values", [
+    {"release_commit": "main"},
+    {"release_commit": "a" * 39},
+    {"release_id": "staging/test"},
+])
+def test_release_identity_rejects_unbounded_or_unpinned_values(values):
+    with pytest.raises(ValueError):
+        Settings(**values)
+
+
 def test_malformed_json_content_type_and_size(client):
     result = client.post("/api/agent", content="{", headers={"Content-Type": "application/json"})
     assert result.status_code == 422

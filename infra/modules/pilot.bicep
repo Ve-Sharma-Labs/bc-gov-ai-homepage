@@ -3,6 +3,12 @@ targetScope = 'resourceGroup'
 param name string
 param location string
 param tags object
+param deploymentKind string = 'pilot'
+param sharedFrontDoorProfileName string = ''
+param sharedFrontDoorResourceGroup string = ''
+param stagingIdentities object = {}
+param releaseCommit string = ''
+param releaseId string = ''
 param modelDeployments array
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
@@ -32,17 +38,27 @@ param privateSubnetPrefix string
 @secure()
 param clientHashKey string
 
-resource apiIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+var sharedEdge = !empty(sharedFrontDoorProfileName)
+var edgeResourceGroup = sharedEdge ? sharedFrontDoorResourceGroup : resourceGroup().name
+var existingIdentities = deploymentKind == 'staging' && !empty(stagingIdentities)
+var apiPrincipalId = existingIdentities ? stagingIdentities.api.principalId : apiIdentity!.properties.principalId
+var apiClientId = existingIdentities ? stagingIdentities.api.clientId : apiIdentity!.properties.clientId
+var webPrincipalId = existingIdentities ? stagingIdentities.web.principalId : webIdentity!.properties.principalId
+var webClientId = existingIdentities ? stagingIdentities.web.clientId : webIdentity!.properties.clientId
+var publisherPrincipalId = existingIdentities ? stagingIdentities.publisher.principalId : publisherIdentity!.properties.principalId
+var publisherClientId = existingIdentities ? stagingIdentities.publisher.clientId : publisherIdentity!.properties.clientId
+
+resource apiIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = if (!existingIdentities) {
   name: 'id-${name}-api'
   location: location
   tags: tags
 }
-resource webIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+resource webIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = if (!existingIdentities) {
   name: 'id-${name}-web'
   location: location
   tags: tags
 }
-resource publisherIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+resource publisherIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = if (!existingIdentities) {
   name: 'id-${name}-publisher'
   location: location
   tags: tags
@@ -66,8 +82,9 @@ module ai './ai-services.bicep' = {
     tags: tags
     deployments: modelDeployments
     searchSku: searchSku
-    apiPrincipalId: apiIdentity.properties.principalId
-    publisherPrincipalId: publisherIdentity.properties.principalId
+    apiPrincipalId: apiPrincipalId
+    publisherPrincipalId: publisherPrincipalId
+    privateStorage: deploymentKind == 'staging'
     foundryIqInferenceApproved: researchConfig.?foundryIqInferenceApproved ?? false
     foundryIqMetadataReadApproved: researchConfig.?foundryIqMetadataReadApproved ?? false
   }
@@ -79,12 +96,12 @@ module state './shared-controls.bicep' = {
     location: location
     tags: tags
     sku: redisSku
-    apiPrincipalId: apiIdentity.properties.principalId
+    apiPrincipalId: apiPrincipalId
     networkId: network.outputs.networkId
     subnetId: network.outputs.privateSubnetId
   }
 }
-module edge './edge-profile.bicep' = {
+module edge './edge-profile.bicep' = if (!sharedEdge) {
   name: 'edge-profile'
   params: {
     name: name
@@ -93,12 +110,49 @@ module edge './edge-profile.bicep' = {
     validationCidrs: validationCidrs
   }
 }
+module stagingPolicy './edge-policy.bicep' = if (sharedEdge) {
+  name: 'staging-edge-policy'
+  params: {
+    name: name
+    tags: tags
+    stage: stage
+    validationCidrs: validationCidrs
+  }
+}
+module sharedEndpoint './shared-edge-endpoint.bicep' = if (sharedEdge) {
+  name: 'staging-endpoint-${name}'
+  scope: resourceGroup(edgeResourceGroup)
+  params: {
+    profileName: sharedFrontDoorProfileName
+    endpointName: name
+    stage: stage
+    policyId: stagingPolicy!.outputs.policyId
+  }
+}
+var publicOrigin = sharedEdge ? sharedEndpoint!.outputs.origin : edge!.outputs.origin
+var profileName = sharedEdge ? sharedFrontDoorProfileName : edge!.outputs.profileName
+var endpointName = sharedEdge ? sharedEndpoint!.outputs.endpointName : edge!.outputs.endpointName
+var frontDoorId = sharedEdge ? sharedEndpoint!.outputs.frontDoorId : edge!.outputs.frontDoorId
+
+module storageNetwork './storage-private-endpoint.bicep' = if (deploymentKind == 'staging') {
+  name: 'staging-storage-network'
+  params: {
+    name: name
+    location: location
+    tags: tags
+    storageName: ai.outputs.storageName
+    networkId: network.outputs.networkId
+    subnetId: network.outputs.privateSubnetId
+  }
+}
 module hosting './hosting.bicep' = {
   name: 'hosting'
   params: {
     name: name
     location: location
     tags: tags
+    releaseCommit: releaseCommit
+    releaseId: releaseId
     foundryProjectEndpoint: ai.outputs.projectEndpoint
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
@@ -120,35 +174,37 @@ module hosting './hosting.bicep' = {
     apiApplicationClientId: apiApplicationClientId
     apiImageName: apiImageName
     webImageName: webImageName
-    apiIdentityName: apiIdentity.name
-    apiIdentityId: apiIdentity.id
-    apiPrincipalId: apiIdentity.properties.principalId
-    apiClientId: apiIdentity.properties.clientId
-    webIdentityName: webIdentity.name
-    webIdentityId: webIdentity.id
-    webPrincipalId: webIdentity.properties.principalId
-    webClientId: webIdentity.properties.clientId
+    apiIdentityName: apiIdentity!.name
+    apiIdentityId: apiIdentity!.id
+    apiPrincipalId: apiPrincipalId
+    apiClientId: apiClientId
+    webIdentityName: webIdentity!.name
+    webIdentityId: webIdentity!.id
+    webPrincipalId: webPrincipalId
+    webClientId: webClientId
     infrastructureSubnetId: network.outputs.appsSubnetId
-    publicOrigin: edge.outputs.origin
-    frontDoorId: edge.outputs.frontDoorId
+    publicOrigin: publicOrigin
+    frontDoorId: frontDoorId
     controls: controls
     clientHashKey: clientHashKey
   }
 }
 module routes './edge-routes.bicep' = {
-  name: 'edge-routes'
+  name: sharedEdge ? 'staging-routes-${name}' : 'edge-routes'
+  scope: resourceGroup(edgeResourceGroup)
   params: {
-    profileName: edge.outputs.profileName
-    endpointName: edge.outputs.endpointName
+    profileName: profileName
+    endpointName: endpointName
+    originGroupName: sharedEdge ? '${name}-web' : 'web'
     webUrl: hosting.outputs.webUrl
     environmentId: hosting.outputs.environmentResourceId
     privateLinkLocation: location
   }
 }
-module edgeLogs './edge-logging.bicep' = {
+module edgeLogs './edge-logging.bicep' = if (!sharedEdge) {
   name: 'edge-logging'
   params: {
-    profileName: edge.outputs.profileName
+    profileName: profileName
     workspaceResourceId: hosting.outputs.logsResourceId
   }
 }
@@ -163,8 +219,8 @@ output foundryProjectId string = ai.outputs.projectId
 output searchEndpoint string = ai.outputs.searchEndpoint
 output storageEndpoint string = ai.outputs.storageEndpoint
 output storageContainer string = ai.outputs.storageContainer
-output publisherIdentityId string = publisherIdentity.id
-output publisherClientId string = publisherIdentity.properties.clientId
-output webUrl string = edge.outputs.origin
-output frontDoorProfileName string = edge.outputs.profileName
-output frontDoorEndpointName string = edge.outputs.endpointName
+output publisherIdentityId string = publisherIdentity!.id
+output publisherClientId string = publisherClientId
+output webUrl string = publicOrigin
+output frontDoorProfileName string = profileName
+output frontDoorEndpointName string = endpointName

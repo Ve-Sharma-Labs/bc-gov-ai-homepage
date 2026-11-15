@@ -4,6 +4,43 @@ import { allowedApiRequest, proxyRequest } from "@/lib/proxy";
 afterEach(() => vi.unstubAllEnvs());
 
 describe("closed same-origin proxy boundary", () => {
+  it("stamps web identity and forwards validated API identity, not caller claims", async () => {
+    vi.stubEnv("RELEASE_COMMIT", "a".repeat(40));
+    vi.stubEnv("RELEASE_ID", "staging-reviewed");
+    let headers = new Headers();
+    vi.stubGlobal("fetch", vi.fn(async (_url, init: RequestInit) => {
+      headers = new Headers(init.headers);
+      return Response.json({ ok: true }, { headers: {
+        "X-BC-API-Release": "b".repeat(40),
+        "X-BC-API-Deployment": "staging-api",
+      } });
+    }));
+    const response = await proxyRequest(new Request("http://localhost:3000/api/capabilities", {
+      headers: { "X-BC-Web-Release": "c".repeat(40), "X-BC-API-Release": "c".repeat(40) },
+    }));
+    expect(response.headers.get("x-bc-web-release")).toBe("a".repeat(40));
+    expect(response.headers.get("x-bc-web-deployment")).toBe("staging-reviewed");
+    expect(response.headers.get("x-bc-api-release")).toBe("b".repeat(40));
+    expect(response.headers.get("x-bc-api-deployment")).toBe("staging-api");
+    expect(headers.has("x-bc-api-release")).toBe(false);
+    expect(headers.has("x-bc-web-release")).toBe(false);
+    await response.json();
+  });
+
+  it("rejects invalid release identities before exposing upstream content", async () => {
+    const fetcher = vi.fn(async () => new Response("must not be forwarded", {
+      headers: { "X-BC-API-Release": "unversioned" },
+    }));
+    vi.stubGlobal("fetch", fetcher);
+    vi.stubEnv("RELEASE_COMMIT", "main");
+    expect((await proxyRequest(new Request("http://localhost:3000/api/capabilities"))).status).toBe(503);
+    expect(fetcher).not.toHaveBeenCalled();
+    vi.stubEnv("RELEASE_COMMIT", "a".repeat(40));
+    const response = await proxyRequest(new Request("http://localhost:3000/api/capabilities"));
+    expect(response.status).toBe(502);
+    expect((await response.json()).error.code).toBe("INVALID_RELEASE_IDENTITY");
+  });
+
   it.each([
     ["http://public.example/api/catalog", "127.0.0.1", {}],
     ["http://127.0.0.1:3000/api/catalog", "0.0.0.0", {}],
