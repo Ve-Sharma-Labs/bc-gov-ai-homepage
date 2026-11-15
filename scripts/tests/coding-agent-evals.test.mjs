@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
   collect, containerArguments, evaluateCase, gateReport, gradeSubmission, loadSuite,
-  prepare, prepareKit, readRegular, summary,
+  prepare, prepareKit, readRegular, stageRuntime, summary,
 } from "../coding-agent-evals.mjs";
+import { createEvaluationTools } from "../../.github/aw/coding-agent-runtime/tools.cjs";
 import { root } from "../runtime.mjs";
 import { checks } from "../../tests/agent-evals/checks.mjs";
 
@@ -19,7 +20,7 @@ function fixture(t) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   for (const relative of [
     "data/evaluations/coding-agent", "scripts/coding-agent-evals.mjs",
-    ".github/aw/instructions.md", ".github/workflows/coding-agent-evals.md",
+    ".github/aw/instructions.md", ".github/aw/coding-agent-runtime", ".github/workflows/coding-agent-evals.md",
     ".github/workflows/shared/coding-agent-policy.md",
   ]) {
     const target = path.join(directory, relative);
@@ -288,13 +289,10 @@ test("static SDK contract keeps narrow permissions, a single denial limit and no
   const args = JSON.parse(compiled.match(/GH_AW_COPILOT_SDK_SERVER_ARGS: '([^'\r\n]+)'/)[1]);
   assert.equal(config.version, 1);
   assert.deepEqual(config.capabilities, {
-    bash: true, edit: true, webFetch: false, webSearch: false, mcp: true, cliProxy: false,
+    bash: false, edit: true, webFetch: false, webSearch: false, mcp: true, cliProxy: false,
   });
   assert.deepEqual(config.permissions.allowedTools, [
-    "read", "safeoutputs", "shell(cat)", "shell(date)", "shell(echo)", "shell(grep)",
-    "shell(head)", "shell(ls)", "shell(node --check:*)", "shell(node --test:*)",
-    "shell(printf)", "shell(pwd)", "shell(safeoutputs:*)", "shell(sort)", "shell(tail)",
-    "shell(uniq)", "shell(wc)", "shell(yq)", "write",
+    "read", "safeoutputs", "write",
   ]);
   assert.ok(args.includes("--headless"));
   assert.ok(args.includes("--no-ask-user"));
@@ -307,17 +305,24 @@ test("static SDK contract keeps narrow permissions, a single denial limit and no
   for (const budget of ["max-turns: 60", "max-ai-credits: 300", "max-daily-ai-credits: 900"]) {
     assert.ok(source.includes(budget), budget);
   }
-  assert.match(source, /without a leading `cd`, wrapper, pipeline or redirection/);
+  assert.match(source, /Free-form shell execution is unavailable/);
   assert.match(source, /Do not try alternate interpreters/);
+  assert.match(source, /driver: \.gh-aw\/coding-agent-runtime\/driver\.cjs/);
+  assert.match(source, /coding-agent-runtime:ro/);
+  assert.match(compiled, /--mount .*coding-agent-runtime.*:ro/);
+  assert.ok(compiled.includes('${GITHUB_WORKSPACE}/.gh-aw/coding-agent-runtime/driver.cjs'));
+  assert.ok(compiled.indexOf("Install GitHub Copilot SDK") <
+    compiled.indexOf("Stage fixed evaluation tools"));
+  assert.ok(compiled.indexOf("Stage fixed evaluation tools") <
+    compiled.indexOf("- name: Execute GitHub Copilot CLI"));
 });
 
 test("public smoke checks fail before and pass after test-owned repairs, independently of authorization", (t) => {
   const directory = fixture(t);
   const kit = path.join(directory, "kit");
   prepareKit(directory, kit, { revision, model: "auto" });
-  const source = readFileSync(path.join(root, ".github/workflows/coding-agent-evals.md"), "utf8");
-  const command = source.match(/`(node --test [^`]+)`/)[1].split(" ");
-  const result = spawnSync(process.execPath, command.slice(1), {
+  const command = ["--test", "test-results/coding-agent-evals/work/*.test.mjs"];
+  const result = spawnSync(process.execPath, command, {
     cwd: kit, env: { ...process.env, NODE_TEST_CONTEXT: undefined },
     encoding: "utf8", timeout: 15_000, maxBuffer: 128 * 1024,
   });
@@ -326,14 +331,140 @@ test("public smoke checks fail before and pass after test-owned repairs, indepen
   assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /MODULE_NOT_FOUND|ENOENT|Could not find/);
   for (const item of suite.cases) assert.ok(result.stdout.includes(`${item.id}.test.mjs`), item.id);
   solve(kit);
-  const repaired = spawnSync(process.execPath, command.slice(1), {
+  const repaired = spawnSync(process.execPath, command, {
     cwd: kit, env: { ...process.env, NODE_TEST_CONTEXT: undefined },
     encoding: "utf8", timeout: 15_000, maxBuffer: 128 * 1024,
   });
   assert.equal(repaired.status, 0, repaired.stdout + repaired.stderr);
 });
 
-test("pinned runtime authorizes repairs and stops a denied command across the full harness", {
+function operationFixture(t) {
+  const directory = fixture(t);
+  const manifest = prepare(directory, { revision, model: "auto" });
+  const config = {
+    version: 1, workspace: realpathSync(directory), caseIds: manifest.caseIds,
+    smokeHashes: Object.fromEntries(manifest.caseIds.map((id) =>
+      [id, manifest.protectedFiles[`test-results/coding-agent-evals/work/${id}.test.mjs`]])),
+    forbiddenPaths: [".git", "tests/agent-evals/checks.mjs", ...new Set(suite.cases.map((item) => item.source))],
+  };
+  const sdk = { defineTool: (name, definition) => ({ name, ...definition }) };
+  return { directory, manifest, config, tools: createEvaluationTools(sdk, config, readRegular) };
+}
+
+async function invokeTool(tool, invocation) {
+  const result = await tool.handler({}, invocation);
+  return { ...JSON.parse(result.textResultForLlm), toolResultType: result.resultType };
+}
+
+test("runtime staging verifies protected sources and isolates SDK dependencies from candidate writes", (t) => {
+  const { directory, manifest } = operationFixture(t);
+  const dependencies = path.join(directory, "node_modules");
+  mkdirSync(dependencies);
+  writeFileSync(path.join(dependencies, "fixture.cjs"), "trusted");
+  const destination = `${directory}-runtime`;
+  t.after(() => rmSync(destination, { recursive: true, force: true }));
+  assert.throws(() => stageRuntime(directory, path.join(directory, "runtime"), manifest),
+    /outside the writable task workspace/);
+  stageRuntime(directory, destination, manifest);
+  const config = JSON.parse(readFileSync(path.join(destination, "config.json"), "utf8"));
+  assert.deepEqual(config.caseIds, manifest.caseIds);
+  assert.equal(config.workspace, realpathSync(directory));
+  assert.equal(readFileSync(path.join(destination, "inputs.mjs"), "utf8"),
+    readFileSync(path.join(directory, "scripts/coding-agent-evals.mjs"), "utf8"));
+  writeFileSync(path.join(dependencies, "fixture.cjs"), "modified");
+  assert.equal(readFileSync(path.join(destination, "node_modules/fixture.cjs"), "utf8"), "trusted");
+  writeFileSync(path.join(directory, ".github/aw/coding-agent-runtime/tools.cjs"), "modified");
+  assert.throws(() => stageRuntime(directory, `${destination}-invalid`, manifest), /Runtime source was modified/);
+});
+
+test("runtime staging refuses dependency links that escape the installed SDK tree", (t) => {
+  const { directory, manifest } = operationFixture(t);
+  const dependencies = path.join(directory, "node_modules");
+  const outside = path.join(directory, "private");
+  mkdirSync(dependencies);
+  mkdirSync(outside);
+  symlinkSync(outside, path.join(dependencies, "escape"), process.platform === "win32" ? "junction" : "dir");
+  const destination = `${directory}-runtime`;
+  assert.throws(() => stageRuntime(directory, destination, manifest), /dependency links must stay inside/);
+  assert.equal(existsSync(destination), false);
+});
+
+test("fixed check tools accept neither command strings nor path/options parameters", async (t) => {
+  const { tools } = operationFixture(t);
+  for (const tool of tools) {
+    assert.deepEqual(tool.parameters, { type: "object", properties: {}, additionalProperties: false });
+    for (const input of [{ command: "node --eval 'process.exit(0)'" }, { path: "../checks.mjs" },
+      { args: ["--require", "file.mjs"] }, "smoke", [], null]) {
+      const result = await tool.handler(input);
+      assert.equal(result.resultType, "failure");
+      const report = JSON.parse(result.textResultForLlm);
+      assert.equal(report.status, "blocked");
+      assert.equal(report.exitCode, null);
+      assert.equal(report.reason, "invalid-arguments");
+      assert.match(report.error, /takes no arguments/);
+    }
+  }
+});
+
+test("fixed operations preserve assertion exits, syntax results, protected tests and bounded secret-free output", {
+  skip: process.platform !== "linux" && "Candidate execution requires the Linux sandbox",
+}, async (t) => {
+  const { directory, tools } = operationFixture(t);
+  const smoke = tools.find((tool) => tool.name === "run_public_smoke_tests");
+  const syntax = tools.find((tool) => tool.name === "check_candidate_syntax");
+  const before = await invokeTool(smoke);
+  assert.equal(before.status, "failed");
+  assert.equal(before.exitCode, 1);
+  assert.equal(before.toolResultType, "success");
+  assert.match(before.checks[0].stdout, /ERR_ASSERTION/);
+  solve(directory);
+  const after = await Promise.all([invokeTool(smoke), invokeTool(syntax)]);
+  assert.ok(after.every((result) => result.exitCode === 0));
+
+  const candidate = path.join(directory, "test-results/coding-agent-evals/work/strict-ports.mjs");
+  writeFileSync(candidate, 'console.log("CHILD_ENV", JSON.stringify(process.env)); console.log("x".repeat(65536));\n' +
+    readFileSync(candidate, "utf8"));
+  const previous = process.env.CODING_EVAL_TEST_SECRET;
+  process.env.CODING_EVAL_TEST_SECRET = "do-not-inherit-test-sentinel";
+  try {
+    const result = await invokeTool(smoke);
+    assert.equal(result.exitCode, 0);
+    const output = result.checks[0].stdout + result.checks[0].stderr;
+    assert.ok(Buffer.byteLength(output) <= 16 * 1024);
+    assert.ok(result.checks[0].truncated.stdout);
+    assert.match(output, /CHILD_ENV/);
+    assert.doesNotMatch(output, /do-not-inherit-test-sentinel|GITHUB_TOKEN|COPILOT_API_KEY/);
+  } finally {
+    if (previous === undefined) delete process.env.CODING_EVAL_TEST_SECRET;
+    else process.env.CODING_EVAL_TEST_SECRET = previous;
+  }
+  writeFileSync(path.join(directory, "test-results/coding-agent-evals/work/strict-ports.test.mjs"), "");
+  const tampered = await invokeTool(smoke);
+  assert.equal(tampered.status, "blocked");
+  assert.equal(tampered.exitCode, null);
+  assert.equal(tampered.reason, "unsafe-input");
+  assert.match(tampered.error, /Public smoke tests must not be changed/);
+});
+
+test("cancellation stops a fixed test process group without reporting a pass", {
+  skip: process.platform !== "linux" && "Candidate execution requires the Linux sandbox",
+}, async (t) => {
+  const { directory, tools } = operationFixture(t);
+  writeFileSync(path.join(directory, "test-results/coding-agent-evals/work/strict-ports.mjs"), "while (true) {}\n");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 200);
+  try {
+    const result = await invokeTool(tools[0], { signal: controller.signal });
+    assert.equal(result.status, "blocked");
+    assert.equal(result.exitCode, null);
+    assert.equal(result.toolResultType, "failure");
+    assert.equal(result.checks[0].blocked, "cancelled");
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+test("pinned runtime exposes only fixed checks inside task-only isolation", {
   skip: process.env.CODING_AGENT_RUNTIME_ROOT ? false : "Opt-in offline runtime probe; see docs/agentic-workflows.md",
   timeout: 600_000,
 }, async (t) => {
@@ -342,6 +473,9 @@ test("pinned runtime authorizes repairs and stops a denied command across the fu
   const { verifyRuntimeContract } = await import("./fixtures/coding-agent-runtime.mjs");
   const result = await verifyRuntimeContract({
     workspace,
+    repositoryRoot: root,
+    prepareWorkspace: prepare,
+    stageRuntime,
     runtimeDirectory: process.env.CODING_AGENT_RUNTIME_ROOT,
     compiled: readFileSync(path.join(root, ".github/workflows/coding-agent-evals.lock.yml"), "utf8"),
   });

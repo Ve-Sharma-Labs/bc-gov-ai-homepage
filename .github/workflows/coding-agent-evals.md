@@ -44,6 +44,7 @@ engine:
   id: copilot
   version: "1.0.87"
   copilot-sdk: true
+  driver: .gh-aw/coding-agent-runtime/driver.cjs
   harness:
     max-retries: 0
 imports:
@@ -56,13 +57,16 @@ max-ai-credits: 300
 max-daily-ai-credits: 900
 network:
   allowed: []
+sandbox:
+  agent:
+    mounts:
+      - "${{ runner.temp }}/gh-aw/coding-agent-runtime:${{ github.workspace }}/.gh-aw/coding-agent-runtime:ro"
 checkout: false
 tools:
   github: false
   edit:
-  bash:
-    - "node --test:*"
-    - "node --check:*"
+  bash: false
+  cli-proxy: false
 safe-outputs:
   staged: true
   noop:
@@ -81,6 +85,30 @@ steps:
   - uses: actions/setup-node@v7
     with:
       node-version: "24"
+pre-agent-steps:
+  - name: Stage fixed evaluation tools on the read-only runtime mount
+    uses: actions/github-script@v9
+    env:
+      EVAL_MANIFEST: ${{ needs.prepare_evals.outputs.manifest }}
+    with:
+      script: |
+        const fs = require('node:fs');
+        const path = require('node:path');
+        const { createHash } = require('node:crypto');
+        const { pathToFileURL } = require('node:url');
+        const manifest = JSON.parse(process.env.EVAL_MANIFEST);
+        const relative = 'scripts/coding-agent-evals.mjs';
+        const helper = path.join(process.env.GITHUB_WORKSPACE, relative);
+        for (const target of [path.dirname(helper), helper]) {
+          if (fs.lstatSync(target).isSymbolicLink()) throw new Error('Untrusted staging path');
+        }
+        const hash = createHash('sha256').update(fs.readFileSync(helper)).digest('hex');
+        if (hash !== manifest.protectedFiles[relative]) throw new Error('Staging helper was modified');
+        const { stageRuntime } = await import(pathToFileURL(helper).href);
+        stageRuntime(process.env.GITHUB_WORKSPACE,
+          path.join(process.env.RUNNER_TEMP, 'gh-aw', 'coding-agent-runtime'), manifest);
+        fs.mkdirSync(path.join(process.env.GITHUB_WORKSPACE, '.gh-aw', 'coding-agent-runtime'),
+          { recursive: true });
 post-steps:
   - name: Collect bounded submissions without executing candidate code
     id: collect
@@ -203,18 +231,21 @@ reference implementations; production source, Git objects and private grading
 checks are intentionally absent from this task-only workspace.
 
 The current working directory is already the root of the prepared task-only
-workspace. Run the public smoke tests there before and after the fixes, using
-this command directly without a leading `cd`, wrapper, pipeline or redirection:
-
-`node --test test-results/coding-agent-evals/work/*.test.mjs`
+workspace. Call `run_public_smoke_tests` with no arguments before making any
+repair, and again after the fixes. Call `check_candidate_syntax` with no
+arguments when you need to check JavaScript syntax. These tools execute the
+existing Node tests in this workspace and return the real exit status with
+bounded diagnostics. A nonzero smoke-test exit before repair is expected.
+Free-form shell execution is unavailable: do not compose command strings,
+pipelines, redirects, wrappers or interpreter invocations.
 
 The first run should reproduce assertion failures, not setup failures. Do not
 change the smoke tests, fixtures, catalog, instructions, workflows or harness.
 Do not install packages, start other agents, make network calls, commit changes,
 open issues or PRs, or access any live application.
 
-The SDK permission handler allows the declared Node test and syntax commands,
-not arbitrary Node execution. A permission denial is an infrastructure blocker,
+Only the two fixed check operations can execute candidate code. They accept no
+commands, paths or options. A permission denial is an infrastructure blocker,
 not an assertion failure: the runtime stops on the first denial and the harness
 does not retry. Do not try alternate interpreters, command wrappers, permission
 changes or subagents to work around a denial. Leave partial candidate files
