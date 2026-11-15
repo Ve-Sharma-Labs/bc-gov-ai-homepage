@@ -2,11 +2,12 @@ import { readFile } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
 import { pathToFileURL } from "node:url";
 
-export function stagingPlanBlockers(plan, { profileId, stagingGroup, endpointName }) {
+export function stagingPlanBlockers(plan, { profileId, stagingGroup, endpointName, phase = "initial" }) {
   const profile = typeof profileId === "string" && profileId.match(
     /^\/subscriptions\/([a-f0-9-]{36})\/resourceGroups\/([^/]+)\/providers\/Microsoft\.Cdn\/profiles\/([^/]+)$/iu,
   );
-  if (!profile || !/^[a-z0-9][a-z0-9-]{0,79}$/iu.test(stagingGroup || "")
+  if (!["initial", "routing"].includes(phase)
+    || !profile || !/^[a-z0-9][a-z0-9-]{0,79}$/iu.test(stagingGroup || "")
     || !/^[a-z0-9][a-z0-9-]{0,49}$/iu.test(endpointName || "")
     || profile[2].toLowerCase() === stagingGroup.toLowerCase()) {
     return ["Select a distinct staging resource group and exact shared profile/endpoint identity."];
@@ -30,8 +31,14 @@ export function stagingPlanBlockers(plan, { profileId, stagingGroup, endpointNam
   const bootstrappedIdentities = new Set(["api", "web", "publisher"].map(
     (role) => `${groupId}/providers/microsoft.managedidentity/userassignedidentities/id-${endpoint}-${role}`,
   ));
+  const routingIds = new Set([
+    `${edgeId}/origingroups/${endpoint}-web`,
+    `${edgeId}/origingroups/${endpoint}-web/origins/container-app`,
+    `${edgeId}/afdendpoints/${endpoint}/routes/application`,
+  ]);
   const blockers = [];
   let createsStaging = false;
+  let changesRouting = false;
   for (const [index, change] of plan.changes.entries()) {
     if (typeof change?.resourceId !== "string" || typeof change.changeType !== "string") {
       blockers.push("The what-if contains an invalid change record.");
@@ -41,10 +48,18 @@ export function stagingPlanBlockers(plan, { profileId, stagingGroup, endpointNam
     if (change.changeType === "NoChange") continue;
     if (change.changeType === "Ignore"
       && (id === edgeGroupId || id.startsWith(`${edgeGroupId}/providers/`) || bootstrappedIdentities.has(id))
-      && !allowedEdgeCreates.has(id)
+      && !(phase === "routing" ? routingIds : allowedEdgeCreates).has(id)
       && typeof change.before?.id === "string"
       && change.before.id.toLowerCase() === id
       && isDeepStrictEqual(change.before, change.after)) continue;
+    if (phase === "routing") {
+      if (["Create", "Modify"].includes(change.changeType) && routingIds.has(id)) {
+        changesRouting = true;
+      } else {
+        blockers.push(`Change ${index + 1} is outside the three staging routing resources.`);
+      }
+      continue;
+    }
     if (change.changeType !== "Create") {
       blockers.push(`Change ${index + 1} is not an approved initial resource creation.`);
       continue;
@@ -55,21 +70,22 @@ export function stagingPlanBlockers(plan, { profileId, stagingGroup, endpointNam
       blockers.push(`Change ${index + 1} creates a resource outside the reviewed staging boundary.`);
     }
   }
-  if (!createsStaging) blockers.push("The what-if does not create the selected staging environment.");
+  if (phase === "initial" && !createsStaging) blockers.push("The what-if does not create the selected staging environment.");
+  if (phase === "routing" && !changesRouting) blockers.push("The what-if contains no staging route repair.");
   return blockers;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const [file, profileId, stagingGroup, endpointName] = process.argv.slice(2);
+  const [file, profileId, stagingGroup, endpointName, phase] = process.argv.slice(2);
   try {
     if (!file) throw new Error("Provide the saved what-if JSON, profile ID, staging group, and endpoint name.");
     const plan = JSON.parse(await readFile(file, "utf8"));
-    const blockers = stagingPlanBlockers(plan, { profileId, stagingGroup, endpointName });
+    const blockers = stagingPlanBlockers(plan, { profileId, stagingGroup, endpointName, phase });
     if (blockers.length) {
       console.error(blockers.join("\n"));
       process.exitCode = 1;
     } else {
-      console.log("Initial staging changes stay within the reviewed resource boundary. No deployment was run.");
+      console.log("Staging changes stay within the selected resource boundary. No deployment was run.");
     }
   } catch {
     console.error("Could not read a valid staging what-if. Provide its JSON file, profile ID, staging group, and endpoint name.");

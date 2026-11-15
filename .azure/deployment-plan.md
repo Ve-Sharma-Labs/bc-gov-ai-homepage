@@ -1,18 +1,275 @@
 # Isolated PyRIT staging
 
-Status: Validated
+Status: Deployed and connected
 
 Prepared: November 14, 2026.
 
-Completed checkpoint: **identity bootstrap only** using
+## Verified outcome
+
+CoPyRIT 1.2.0 is running on `http://127.0.0.1:18765` with
+`bc-gov-staging` registered and selected in the browser. Its existing Microsoft
+sign-in is acquired automatically for the dedicated staging audience. A bounded
+manual text turn completed through the real CoPyRIT UI and staging BFF; local
+conversation contents remain outside Git. The backend reports `ready: true`
+and `state: ready`; the registry contains the configured target.
+
+Authenticated staging capabilities return HTTP 200 with matching API/web source
+commit `4d28d57fb13a8c9766e5374e3b3042b966509c92` and deployment
+`staging-pyrit-20261115-4d28d57`. Version-5 conversation, task assistance and
+reviewed-source retrieval are ready. Anonymous and invalid-token capability
+requests return HTTP 401; the static favicon health probe returns HTTP 200.
+All six protected production configurations remain unchanged.
+
+The current manual window began November 15 at 23:11:55 UTC and expires
+November 16 at 00:11:55 UTC. It permits 20 requests; one was used for the
+connection check. No ledger stop is set. Restarts preserve that window and its
+charges. The independent application allowance remains US$1.90/day, 300000
+tokens/day and 20 model-backed runs/day, with conservative per-run admission.
+This is not a guaranteed US$500 Azure invoice cutoff. No attacker/judge model,
+automated scan, production promotion, or GitHub workflow activation was added.
+
+Start the owned local server with `.cache\copyrit\CoPyRIT.ps1`; stop it using
+the same launcher with `-Stop`. It verifies process ownership and binds only
+to loopback. Runtime configuration, Azure credentials, local chat history,
+manual ledger, and detailed deployment artifacts remain ignored.
+
+## Completed follow-up: identity-based staging access
+
+The user selected identity-based authentication after the IP restriction was
+shown to block the local testing tools. Front Door WAF diagnostics matched the
+exact failing request references: `ValidationOnly` blocked rotating shared
+proxy egress addresses, whereas the public IP discovery service reported the
+previously approved home address. Broadening that shared range is not authorized.
+The deployed apps, sources, private connection, and preserved production
+configuration remain as recorded below. The initially unregistered target is
+now connected as verified above.
+
+Preparation scope: evaluate Container Apps' built-in Microsoft Entra bearer-token
+validation on the **staging web app only**, restrict authorization to the verified
+operator identity, and add corresponding credential handling to the local
+manual target. Use a separate staging-access application/audience, not the
+internal API audience. Retain the current IP block until authenticated access
+is configured and validated; only then replace that IP gate. Keep managed WAF
+rules, private origins, synthetic-only processing, and all cost limits.
+No public-pilot auth changes, citizen sign-in implementation, new paid service,
+attacker/judge model, or attack campaign is included.
+
+Implemented access plan, based on the current Microsoft Container Apps
+authentication and `Microsoft.App/containerApps/authConfigs@2025-01-01` reference:
+
+1. Create one separate single-tenant staging-access app registration exposing
+   only its own delegated access scope. Preauthorize the existing Azure CLI
+   client for that scope; no Graph permissions, credentials, or public browser
+   redirects are added.
+2. Enable built-in Container Apps authentication on the existing staging **web**
+   app. Require HTTPS, validate the dedicated audience and tenant issuer, and
+   require both the Azure CLI client application and the verified operator's
+   object ID. Anonymous/invalid requests are rejected. This is a platform gate,
+   not a replacement of the app's existing internal API identity or cookie logic.
+3. Exempt only the existing static `/favicon.ico` from authentication and use
+   it for the staging Front Door origin health probe. No application API or
+   page is anonymously exempt. No application-image rebuild is needed.
+4. Extend the local manual adapter with opt-in Azure CLI bearer authentication,
+   bounded token acquisition, in-memory refresh, and an exact-origin check.
+   Preserve the real Azure CLI config directory when CoPyRIT isolates its
+   runtime home. Never write tokens to the manual ledger, YAML, or Git.
+5. Configure and read back the auth gate before removing `ValidationOnly`.
+   Preserve managed WAF protections, the API rate limit, private routing, and
+   the US$1.90/day application allowance. No shared proxy range is allowlisted.
+6. Verify anonymous and invalid-token rejection, valid operator access,
+   exact release/source capabilities, and one bounded manual CoPyRIT turn.
+   Stop on a tenant-consent or sign-in blocker rather than disabling identity
+   validation. Other tenant users are not authorized by this deployment.
+
+The local CoPyRIT browser UI remains the manual testing interface. It uses the
+operator's existing Azure CLI sign-in to reach staging. A direct unauthenticated
+browser visit to the staging URL returns an authorization error; a separate
+interactive sign-in experience on that site is not included in this proposal.
+No additional paid Azure service or higher model/replica limit is required.
+The user selected identity-based staging authentication and then asked to make
+the experience simpler. Proceed with the existing-sign-in CoPyRIT path only:
+no second UI, browser login implementation, or password-management step.
+
+The dedicated secretless registration now exists:
+`c80d0189-bd20-4757-a057-5d9702fc0786`, in the approved staging tenant.
+It has only its own delegated scope, with Azure CLI preauthorized, and no Graph
+permissions, secrets, certificates, or redirect URIs. The shared machine's
+default Azure account changed during preparation; the guarded operation stopped
+before creating anything in that other context. All credential acquisition now
+pins the approved staging subscription without changing global defaults.
+The manual adapter's origin-bound authentication, caching/refresh, failure
+privacy, preflight, chat, cleanup and ledger tests pass (18 tests).
+
+All validation checks pass - identity transition:
+
+- [x] Compile, ARM/provider validation and exact what-if for staging auth,
+  staging origin health probe, and staging WAF IP-rule removal.
+- [x] Offline manual adapter tests and Ruff checks.
+- [x] Verify the existing sign-in can acquire the dedicated audience token.
+- [x] Static scope review: only the operator's object ID and Azure CLI client;
+  no subscription/Graph permissions or application-secret grants.
+- [x] Freeze exact inputs and confirm no production writes.
+- [x] Deploy/read back the identity gate before applying the WAF transition.
+
+### Section 7: Validation Proof - current identity transition
+
+The standard `validate-deployment.ps1` script passed compilation, authenticated
+target-scope ARM/provider validation, and what-if for all three exact payloads
+on November 15, 2026 UTC. No inherited policy was exempted or relaxed.
+
+| Template / parameters | Exact structured result |
+|---|---|
+| `infra\staging-auth.bicep` / `staging-auth-parameters.json` | One staging auth configuration Create, 28 identical Ignore |
+| `group-snapshot-update.bicep` / `identity-group-parameters.json` | One staging origin-group Modify; only the favicon health-probe path; 37 identical Ignore |
+| `edge-snapshot-update.bicep` / `identity-waf-parameters.json` | One staging WAF Modify; removes only `ValidationOnly`; 27 identical Ignore |
+
+The dedicated audience token was acquired using the existing sign-in, without
+another login or a saved credential. Its tenant, operator, client application,
+audience and delegated scope matched the reviewed configuration. Authorization
+is enforced by the platform's signature/issuer/audience and allowed-principal
+checks, not by local diagnostic decoding of those claims.
+
+Ruff and 18 isolated manual-target tests passed. All identities/scopes were
+reviewed statically; no Graph permission, secret, model allowance, or production
+resource is changed by these templates. Exact payload hashes and UTC verification
+time are saved in `staging-access-validation-proof.json`. The auth gate must
+be deployed and read back before the approved WAF transition is allowed.
+
+Earlier checkpoint: **staging application activation and restricted edge**.
+The route repair succeeded, the user approved its exact private connection,
+and the approved four-source bundle is published: 20 chunks, zero deletions.
+Source document identities and actual November 15 acquisition timestamps were
+read back from the new staging index. Neither sources nor source dates were
+copied into production.
+
+All validation checks pass - application/edge activation:
+
+- [x] Core validation: CLI, authentication, Bicep build, ARM/provider validation,
+  and what-if for the two app templates and separate WAF/endpoint scopes.
+- [x] Build verification: validate the real API image's proposed runtime settings
+  offline; preserve the already-built immutable API/web artifacts.
+- [x] Policy validation: unchanged inherited policy, no exemptions, successful
+  actual target-scope provider validation for each proposed payload.
+- [x] Static role review: no role changes in this phase; retain reviewed
+  per-service managed identities and their resource-scoped access.
+- [x] Save exact proposed payload hashes, inspect every Modify, and reject any
+  production mutation or nonidentical ignored resource.
+- [x] Verify WAF access restriction before enabling the staging endpoint.
+
+### Section 7: Validation Proof - current application activation
+
+Actual checks on November 15, 2026 UTC:
+
+| Check | Result |
+|---|---|
+| Standard validation script for `infra\app-image-update.bicep` and `activation-parameters.json` | Compile, provider validation, and what-if PASS; two staging app Modify resources, 26 identical Ignore |
+| Same script for ignored `edge-snapshot-update.bicep` and `waf-snapshot-parameters.json` | PASS; one staging WAF Modify, 27 identical Ignore; adds only `ValidationOnly` |
+| Same script and `endpoint-snapshot-parameters.json` | PASS; one staging endpoint Modify, 36 identical Ignore; changes only `enabledState` |
+| API immutable image, networking disabled, proposed settings | PASS; seven pathway bindings, conversation/task enabled, controls ready, 147264-token reservation |
+| Manual CoPyRIT compatibility tests | 15 passed |
+| Staging runtime/boundary tests | 17 passed |
+| Static role review | No new role assignments in activation; Foundry project/model, Search reader, metrics and ACR grants remain at their reviewed resource scopes |
+
+The first app validation rejected GET-redacted secret entries. The corrected
+validation-only template omits those entries; the full-resource preview therefore
+shows removal of the web secret list. **That full-resource operation is not
+authorized or executed.** The real rollout sends only `properties.template`
+with a pre-write drift check; it never sends `configuration` or secret values.
+Existing secret names/configuration are compared again after the new revision
+is ready. Provider `NoEffect` identity fields are not permission changes.
+
+The initial generic edge-module preview would remove provider-default fields.
+The selected edge snapshots instead preserve those values and remove only
+read-only backlink/status fields from the request. The final WAF delta is one
+new rule; the final endpoint delta is only Disabled to Enabled. The existing
+security-policy association is not rewritten. No production mutation or
+resource Create/Delete is selected.
+
+Final payload hashes and structured counts are frozen in
+`.azure\bc-pyrit-staging\activation-validation-proof.json`; the rollout script
+checks them again before writing. The WAF readback gate passed before endpoint activation.
+
+### Application activation outcome
+
+Both real image revisions are ready:
+`ca-bcassist-jrxx4g4iwu-api--stg-4d28d57-v1` and
+`ca-bcassist-jrxx4g4iwu-web--stg-4d28d57-v1`. Readback confirmed unchanged
+managed identities, ingress, secret references, environment, and one-replica
+scaling. The staging WAF adds only the approved `ValidationOnly` socket-IP
+restriction; its managed rules and original API rate limit were unchanged.
+The existing staging-only security-policy association was verified, not rewritten.
+The private connection is Approved. The staging endpoint became Enabled at
+approximately 21:46 UTC on November 15. The later identity-protected path became
+usable at 23:10 UTC after its queued WAF propagation completed.
+The API's actual source-health logs report four usable documents, no expired
+documents or rejected chunks, and first expiry at November 22, 03:21:57 UTC.
+These sources cover Service BC and health topics, not all seven pathway topics.
+
+All six protected production configurations match the original baseline.
+The first raw comparison differed only because Azure SDK output adds
+resource-group annotations and null SKU fields; those derived annotations were
+validated against resource IDs before normalizing. Exact baseline/current hashes
+and the comparison result are retained in `production-preservation-proof.json`.
+
+The two real images are immutable ACR digests from source
+`4d28d57fb13a8c9766e5374e3b3042b966509c92`. Their release identity will remain
+that source SHA even if the infrastructure repair is committed later.
+The application deployment ID is `staging-pyrit-20261115-4d28d57`.
+Both apps currently run bootstrap images. The proposed PATCH changes only
+`properties.template`: the image, revision suffix, release fields, actual
+published agent bindings, and version-5/task feature flags. Existing identities,
+ingress, secrets, budgets, one-replica sizing, and service endpoints are preserved.
+`infra\app-image-update.bicep` is for provider validation only, not a full PUT.
+
+### Synthetic-only technical privacy review
+
+Reviewed on November 15, 2026 against the deployed source SHA above:
+`manual.py` keeps sharing off and uses independent app sessions per conversation;
+`conversation.py` removes personal facts when sharing is disabled and constructs
+the current-message/context payload; `foundry.py` sends conversation decisions
+with `store=False`, explicit bounded output, and no client retry; `telemetry.py`
+exports explicit metrics rather than prompts, HTTP bodies, or tool results.
+Version-5 processing can still send text that an operator deliberately types
+to the model. Therefore **only invented/synthetic messages are authorized**;
+do not enter personal, government-confidential, or credential data. Foundry
+GlobalStandard is not a guarantee of Canada-only processing. CoPyRIT stores
+manual chat history locally; its database and configurations remain ignored.
+No PIA, legal review, human privacy-officer certification, or public-release
+approval is implied. `AI_CONVERSATION_PRIVACY_REVIEWED=true` records this
+restricted technical review only. Version 6, contextual demos, embeddings,
+live research, real sign-in, and transactions remain disabled.
+
+Before enabling the staging endpoint, deploy and read back the staging-only
+`ValidationOnly` WAF restriction for the exact user-approved current-connection
+IPv4 /32. Its existing managed rules and API rate limit must remain. Verify the
+existing association covers only the staging endpoint and `/*`. Enable only
+that endpoint, never the shared profile. A failed capability/source/identity
+check leaves CoPyRIT unregistered; do not use the public pilot as fallback.
+
+Completed checkpoint: **identity bootstrap** using
 `infra\staging-identities.bicep` and the ignored `identity-parameters.json`.
 It creates the new staging resource group and three managed identities, with
 no role assignments, compute, model deployments, data services, or public access.
-The complete platform must be revalidated afterwards. This lets what-if resolve
+The complete platform was revalidated afterwards. This let what-if resolve
 the real principal IDs instead of accepting 11 unresolved role-assignment IDs.
-It is now deployed successfully. Current validation/execution selection is the
-**closed full staging platform** in `rg-bcassist-jrxx4g4iwu`, Canada East, using
-`infra\main.bicep`. No public exposure or production modification is selected.
+It deployed successfully. The next, now completed, recovery selection was the
+**narrow staging route and publication-access repair**. The platform services,
+both apps, nine canonical agent versions, and two source-stamped images exist.
+The original platform operation failed only on the new staging route's unsupported
+Front Door Private Link region. The staging endpoint remained Disabled throughout that recovery.
+No full-stack replay, public exposure, or production modification is selected.
+
+The application stays in Canada East. Its Front Door managed Private Link
+endpoint uses supported Canada Central, as documented by Microsoft for origins
+in a different region. `AZURE_FRONT_DOOR_PRIVATE_LINK_LOCATION` makes this
+distinction permanent in Bicep. The route repair contains only the three new
+staging origin-group/origin/route resources.
+
+The authenticated publisher can manage the new Search schema but document
+access returned HTTP 403. A separate Bicep operation grants that verified human
+only Search Index Data Contributor on the new staging Search service. It does
+not elevate the API, grant subscription access, or change production permissions.
+The separate approved publication later acknowledged all 20 source chunks.
 Recipe for the completed checkpoint: Bicep via Azure CLI. The application phase retains
 the AZD/Bicep package and deployment flow.
 
@@ -29,9 +286,11 @@ Static role review: the bootstrap contains no role assignments, secrets, or
 service access. The intentionally unprivileged identities receive only the
 separately verified role assignments in the later platform phase.
 Proof and exact template/parameter SHA-256 values are recorded in the ignored
-`.azure\bc-pyrit-staging\identity-validation-proof.json`.
+the original `identity-what-if.json` and actual `identity-deployment.json`.
+The standalone bootstrap hash record was inadvertently superseded during the
+later access-checkpoint recording; it is not represented as preserved evidence.
 
-### Section 7: Validation Proof - current identity checkpoint
+### Historical validation proof - identity checkpoint
 
 | Check | Command/review performed | Result | Date |
 |---|---|---|---|
@@ -45,20 +304,51 @@ Proof and exact template/parameter SHA-256 values are recorded in the ignored
 Add a staging environment for manual testing through the local CoPyRIT UI.
 This is an addition to the existing application, not a replacement deployment.
 
-Azure currently has one BC assistant web/API pair in
+At the initial investigation Azure had one BC assistant web/API pair in
 `rg-bcassist-xufhsendpx`. The web app uses Single revision mode with 100% of
 traffic assigned to its latest revision. Its Front Door hostname is the public
-pilot, not staging. No staging endpoint was found in the subscription inventory.
+pilot, not staging. A separate staging platform now exists in
+`rg-bcassist-jrxx4g4iwu`; its endpoint is restricted to the approved connection.
 
-CoPyRIT 1.2.0 is running at `http://127.0.0.1:18765`; no target is registered.
-The `PyRIT integration` session has an uncommitted, offline-tested adapter and
-staging infrastructure draft. It has not deployed that work. Reuse its relevant
-parts after review; do not import its broader CI/CD or production-promotion work
-as part of this task.
+CoPyRIT 1.2.0 is running at `http://127.0.0.1:18765`; `bc-gov-staging` is registered.
+The relevant transport primitives from the coordinating session were reviewed
+and imported. Its broader CI/CD and production-promotion work is not part of
+this task.
 
 The focused transport primitives, manual target/initializer, release-identity
 headers, and shared-edge Bicep path are now implemented in this worktree.
-Offline checks passed. Cloud deployment and live activation remain unapproved.
+Offline checks passed. The user subsequently approved staging deployment and
+restricted manual activation; the connection is now verified as recorded above.
+
+### All validation checks pass - narrow recovery
+
+- [x] Core validation: CLI, authentication, Bicep build, ARM/provider validation,
+  and what-if for both exact group-scoped recovery payloads.
+- [x] Focused staging preflight and boundary regression suite: 17 passed.
+- [x] Policy assignments retrieved through Azure MCP, including inherited
+  baseline, governance deny/audit/modify, and MFA controls. Both exact payloads
+  passed provider validation; no policy exemption or relaxation is requested.
+- [x] Static role review: one data-plane role on the new Search service only;
+  the existing application identity permissions are not changed.
+- [x] Exact structured preview and immutable input hashes recorded.
+
+### Historical validation proof - route/publication recovery
+
+Both runs of the standard `validate-deployment.ps1` script returned
+`OVERALL: PASS` on November 15, 2026 UTC.
+
+| Scope | Template and parameters | Structured what-if |
+|---|---|---|
+| Shared edge group, staging children only | `infra\modules\edge-routes.bicep`, `route-parameters.json` | 3 Create, 37 identical Ignore; no Modify/Delete/Unsupported |
+| New staging Search only | `infra\staging-publisher-access.bicep`, `publisher-parameters.json` | 1 Create, 25 identical Ignore; no Modify/Delete/Unsupported |
+
+`scripts\verify-staging-plan.mjs` passed in explicit `routing` mode. The
+publisher preview was checked against the exact Search-scoped assignment ID,
+verified operator object ID, and Search Index Data Contributor role definition.
+Static Bicep review confirms `principalType: User`, resource-level scope, and
+no application, subscription-wide, or production permission changes.
+The proof, actual UTC timestamp, and input SHA-256 digests are saved in
+`.azure\bc-pyrit-staging\recovery-validation-proof.json`.
 
 ## 2. Confirmed requirements
 

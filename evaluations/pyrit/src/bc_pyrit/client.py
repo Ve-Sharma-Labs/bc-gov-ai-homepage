@@ -127,6 +127,7 @@ class AppClient:
         interval: float | None = None,
         expected_commit: str | None = None,
         expected_deployment: str | None = None,
+        auth: httpx.Auth | None = None,
     ):
         self.origin = exact_origin(origin, local=offline)
         self.ledger = ledger
@@ -143,6 +144,7 @@ class AppClient:
             raise CheckError("DEPLOYMENT_ID_REQUIRED")
         self.expected_deployment = expected_deployment
         self.transport = transport
+        self.auth = auth
         default_interval = (0 if transport is not None else 2.1) if offline else 8
         self.interval = default_interval if interval is None else interval
         if self.interval < 0 or (not offline and self.interval < 8):
@@ -156,6 +158,7 @@ class AppClient:
             follow_redirects=False,
             timeout=httpx.Timeout(125, connect=15),
             transport=self.transport,
+            auth=self.auth,
             headers={"Origin": self.origin},
         )
 
@@ -179,6 +182,8 @@ class AppClient:
                 response = await client.get(
                     "/api/capabilities", headers={"X-BC-Client-Version": "6"}
                 )
+                if self.auth is not None and response.status_code in (401, 403):
+                    raise CheckError("STAGING_ACCESS_DENIED")
                 if response.status_code != 200:
                     raise CheckError("CAPABILITIES_UNAVAILABLE")
                 self.verify_release(response)
@@ -276,6 +281,8 @@ class AppSession:
             ):
                 if response.status_code != 200:
                     self.active_run = None
+                    if self.app.auth is not None and response.status_code in (401, 403):
+                        raise CheckError("STAGING_ACCESS_DENIED")
                     if response.status_code == 429:
                         self.app.ledger.stop("RATE_LIMITED")
                         raise CheckError("RATE_LIMITED")
@@ -367,7 +374,7 @@ class AppSession:
                     )
                     if response.status_code != 204:
                         failure = True
-        except httpx.HTTPError, TimeoutError:
+        except httpx.HTTPError, TimeoutError, CheckError:
             failure = True
         finally:
             self.closed = True

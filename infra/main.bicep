@@ -13,6 +13,8 @@ param deploymentKind string = 'pilot'
 @description('Existing same-subscription Front Door profile. Staging creates only new child resources.')
 param sharedFrontDoorProfileName string = ''
 param sharedFrontDoorResourceGroup string = ''
+@description('Supported Front Door managed Private Link region; can differ from the origin region.')
+param frontDoorPrivateLinkLocation string = ''
 @description('Verified metadata for the three staging identities created by staging-identities.bicep. Empty preserves standalone creation.')
 param stagingIdentities object = {}
 @maxLength(40)
@@ -92,6 +94,7 @@ module pilot './modules/pilot.bicep' = {
     deploymentKind: deploymentKind
     sharedFrontDoorProfileName: sharedFrontDoorProfileName
     sharedFrontDoorResourceGroup: sharedFrontDoorResourceGroup
+    frontDoorPrivateLinkLocation: frontDoorPrivateLinkLocation
     stagingIdentities: stagingIdentities
     releaseCommit: releaseCommit
     releaseId: releaseId

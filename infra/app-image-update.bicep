@@ -1,7 +1,6 @@
 targetScope = 'resourceGroup'
 
-@description('Validation-only snapshots of existing applications. Actual rollout PATCHes only properties.template.')
-@secure()
+@description('Validation-only GET snapshots without resolved secret values. Actual rollout PATCHes only properties.template.')
 param snapshot object
 
 resource apps 'Microsoft.App/containerApps@2025-01-01' = [for app in snapshot.applications: {
@@ -12,7 +11,12 @@ resource apps 'Microsoft.App/containerApps@2025-01-01' = [for app in snapshot.ap
   properties: {
     environmentId: app.properties.environmentId
     workloadProfileName: app.properties.workloadProfileName
-    configuration: app.properties.configuration
+    // GET redacts secret values. Validate references here; only the template PATCH is deployed.
+    configuration: toObject(
+      filter(items(app.properties.configuration), property => property.key != 'secrets'),
+      property => property.key,
+      property => property.value
+    )
     template: app.properties.template
   }
 }]

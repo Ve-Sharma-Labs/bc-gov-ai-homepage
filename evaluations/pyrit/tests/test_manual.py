@@ -8,16 +8,19 @@ from unittest.mock import patch
 
 import httpx
 import pytest
+from azure.core.credentials import AccessToken
+from azure.core.exceptions import ClientAuthenticationError
 from pyrit.backend.services.target_service import TargetService
 from pyrit.memory import CentralMemory, SQLiteMemory
 from pyrit.models import Message
 from pyrit.prompt_normalizer import PromptNormalizer
 from pyrit.registry import TargetRegistry
 
+from bc_pyrit.auth import AzureCliAuth
 from bc_pyrit.client import AppClient
 from bc_pyrit.contracts import CheckError
 from bc_pyrit.ledger import Ledger
-from bc_pyrit.manual import ManualAppTarget, ManualSettings, load_settings
+from bc_pyrit.manual import ManualAppTarget, ManualSettings, create_manual_target, load_settings
 
 COMMIT = "a" * 40
 DEPLOYMENT = "staging-fixture"
@@ -321,3 +324,112 @@ async def test_registry_initializer_recreates_target_without_resetting_ledger(
         await restored.close_async()
     finally:
         TargetRegistry.reset_registry_singleton()
+
+
+async def test_staging_auth_caches_refreshes_and_never_sends_to_another_origin(monkeypatch):
+    now = [1000]
+    calls = []
+    sent = []
+
+    class Credential:
+        def __init__(self, **kwargs):
+            assert kwargs == {"subscription": "subscription", "process_timeout": 15}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def get_token(self, scope):
+            calls.append(scope)
+            return AccessToken(f"private-token-{len(calls)}", now[0] + 600)
+
+    monkeypatch.setattr("bc_pyrit.auth.AzureCliCredential", Credential)
+    monkeypatch.setattr("bc_pyrit.auth.time", lambda: now[0])
+    auth = AzureCliAuth(
+        origin="https://staging.example", subscription_id="subscription", client_id="app"
+    )
+
+    def respond(request):
+        sent.append(request.headers["authorization"])
+        return httpx.Response(200)
+
+    async with httpx.AsyncClient(auth=auth, transport=httpx.MockTransport(respond)) as client:
+        await client.get("https://staging.example/api/capabilities")
+        await client.post("https://staging.example/api/agent")
+        now[0] = 1490
+        await client.delete("https://staging.example/api/conversation")
+        for url in ("https://another.example/", "http://staging.example/", "https://staging.example:444/"):
+            with pytest.raises(CheckError, match="STAGING_AUTH_ORIGIN_MISMATCH"):
+                await client.get(url)
+    assert calls == ["api://app/.default", "api://app/.default"]
+    assert sent == ["Bearer private-token-1", "Bearer private-token-1", "Bearer private-token-2"]
+
+
+async def test_staging_sign_in_failure_is_private_and_sends_no_request(monkeypatch):
+    class Credential:
+        def __init__(self, **_):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def get_token(self, _):
+            raise ClientAuthenticationError(message="private credential diagnostic")
+
+    monkeypatch.setattr("bc_pyrit.auth.AzureCliCredential", Credential)
+    auth = AzureCliAuth(
+        origin="https://staging.example", subscription_id="subscription", client_id="app"
+    )
+    sent = []
+    async with httpx.AsyncClient(
+        auth=auth, transport=httpx.MockTransport(lambda request: sent.append(request))
+    ) as client:
+        with pytest.raises(CheckError, match="STAGING_SIGN_IN_REQUIRED") as failure:
+            await client.get("https://staging.example/api/capabilities")
+    assert not sent
+    assert "private credential" not in str(failure.value)
+
+
+async def test_authenticated_manual_target_covers_preflight_chat_and_cleanup(
+    memory, tmp_path, monkeypatch
+):
+    fixture = FixtureApp()
+    requests = []
+    original = httpx.AsyncClient
+
+    class Auth(httpx.Auth):
+        async def async_auth_flow(self, request):
+            request.headers["Authorization"] = "Bearer private-fixture-token"
+            yield request
+
+    def respond(request):
+        assert request.headers["authorization"] == "Bearer private-fixture-token"
+        requests.append((request.method, request.url.path))
+        return fixture(request)
+
+    def client(**kwargs):
+        kwargs["transport"] = httpx.MockTransport(respond)
+        return original(**kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    monkeypatch.setattr("bc_pyrit.manual.AzureCliAuth", lambda **_: Auth())
+    config = tmp_path / "target.json"
+    config.write_text(json.dumps(configuration(authentication={
+        "provider": "azure-cli",
+        "subscription_id": "11111111-1111-4111-8111-111111111111",
+        "client_id": "22222222-2222-4222-8222-222222222222",
+    })))
+    target = await create_manual_target(config)
+    try:
+        await send(target, str(uuid.uuid4()), "Help with a service.")
+    finally:
+        await target.close_async()
+    assert requests == [
+        ("GET", "/api/capabilities"), ("POST", "/api/agent"), ("DELETE", "/api/conversation"),
+    ]
+    assert b"private-fixture-token" not in (tmp_path / "manual-budget.sqlite").read_bytes()

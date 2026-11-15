@@ -6,6 +6,7 @@ param tags object
 param deploymentKind string = 'pilot'
 param sharedFrontDoorProfileName string = ''
 param sharedFrontDoorResourceGroup string = ''
+param frontDoorPrivateLinkLocation string = ''
 param stagingIdentities object = {}
 param releaseCommit string = ''
 param releaseId string = ''
@@ -198,7 +199,7 @@ module routes './edge-routes.bicep' = {
     originGroupName: sharedEdge ? '${name}-web' : 'web'
     webUrl: hosting.outputs.webUrl
     environmentId: hosting.outputs.environmentResourceId
-    privateLinkLocation: location
+    privateLinkLocation: empty(frontDoorPrivateLinkLocation) ? location : frontDoorPrivateLinkLocation
   }
 }
 module edgeLogs './edge-logging.bicep' = if (!sharedEdge) {

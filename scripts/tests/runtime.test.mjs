@@ -73,6 +73,7 @@ test("shared Front Door requires isolated staging and an explicit sharing review
     AZURE_PRODUCTION_ENV_NAME: "production",
     AZURE_SHARED_FRONT_DOOR_PROFILE_NAME: "reviewed-profile",
     AZURE_SHARED_FRONT_DOOR_RESOURCE_GROUP: "reviewed-edge-group",
+    AZURE_FRONT_DOOR_PRIVATE_LINK_LOCATION: "canadacentral",
     AZURE_SHARED_FRONT_DOOR_APPROVED: "1",
     AZURE_PILOT_CONTROLS: JSON.stringify({
       ...JSON.parse(reviewedEnvironment.AZURE_PILOT_CONTROLS),
@@ -85,6 +86,7 @@ test("shared Front Door requires isolated staging and an explicit sharing review
     { AZURE_SHARED_FRONT_DOOR_PROFILE_NAME: "" },
     { AZURE_SHARED_FRONT_DOOR_RESOURCE_GROUP: "" },
     { AZURE_SHARED_FRONT_DOOR_APPROVED: "0" },
+    { AZURE_FRONT_DOOR_PRIVATE_LINK_LOCATION: "" },
     { AZURE_PRODUCTION_ENV_NAME: "" },
     { AZURE_ENV_NAME: "PRODUCTION" },
     { AZURE_DEPLOYMENT_STAGE: "public" },

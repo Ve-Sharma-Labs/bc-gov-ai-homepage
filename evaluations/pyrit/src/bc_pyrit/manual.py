@@ -12,9 +12,16 @@ from pydantic import Field, ValidationError, model_validator
 from pyrit.models import Message, construct_response_from_request
 from pyrit.prompt_target import PromptTarget, TargetCapabilities, TargetConfiguration
 
+from bc_pyrit.auth import AzureCliAuth
 from bc_pyrit.client import AppClient, AppSession
 from bc_pyrit.contracts import CheckError, Contract, Limits, ModelLimit, exact_origin
 from bc_pyrit.ledger import Ledger
+
+
+class ManualAuthentication(Contract):
+    provider: Literal["azure-cli"]
+    subscription_id: str = Field(pattern=r"^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$")
+    client_id: str = Field(pattern=r"^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$")
 
 
 class ManualSettings(Contract):
@@ -26,6 +33,7 @@ class ManualSettings(Contract):
     request_limit: int = Field(ge=1, le=500)
     wall_seconds: int = Field(ge=30, le=3600)
     max_conversations: int = Field(default=8, ge=1, le=32)
+    authentication: ManualAuthentication | None = None
 
     @model_validator(mode="after")
     def staging_origin(self) -> Self:
@@ -147,19 +155,29 @@ class ManualAppTarget(PromptTarget):
 
 async def create_manual_target(path: Path) -> ManualAppTarget:
     settings = load_settings(path)
+    identity: dict[str, object] = {
+        "origin": settings.origin,
+        "commit": settings.release_commit,
+        "deployment": settings.deployment_id,
+    }
+    auth = None
+    if settings.authentication:
+        identity["authentication"] = settings.authentication.model_dump()
+        auth = AzureCliAuth(
+            origin=settings.origin,
+            subscription_id=settings.authentication.subscription_id,
+            client_id=settings.authentication.client_id,
+        )
     ledger = Ledger.open_manual(
         path.parent / "manual-budget.sqlite",
         limits=settings.limits(),
-        identity={
-            "origin": settings.origin,
-            "commit": settings.release_commit,
-            "deployment": settings.deployment_id,
-        },
+        identity=identity,
     )
     app = AppClient(
         settings.origin, ledger,
         expected_commit=settings.release_commit,
         expected_deployment=settings.deployment_id,
+        auth=auth,
     )
     await app.preflight()
     return ManualAppTarget(app=app, max_conversations=settings.max_conversations)

@@ -6,6 +6,7 @@ param originGroupName string = 'web'
 param webUrl string
 param environmentId string
 param privateLinkLocation string
+param healthProbePath string = '/'
 
 resource profile 'Microsoft.Cdn/profiles@2025-06-01' existing = { name: profileName }
 resource endpoint 'Microsoft.Cdn/profiles/afdEndpoints@2025-06-01' existing = {
@@ -22,7 +23,7 @@ resource group 'Microsoft.Cdn/profiles/originGroups@2025-06-01' = {
       additionalLatencyInMilliseconds: 0
     }
     healthProbeSettings: {
-      probePath: '/'
+      probePath: healthProbePath
       probeProtocol: 'Https'
       probeRequestType: 'GET'
       probeIntervalInSeconds: 30

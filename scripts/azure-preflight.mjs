@@ -118,6 +118,9 @@ export function deploymentBlockers(env) {
       || env.AZURE_SHARED_FRONT_DOOR_APPROVED !== "1") {
       blockers.push("Shared Front Door requires staging, an exact profile/resource group, and AZURE_SHARED_FRONT_DOOR_APPROVED=1.");
     }
+    if (!/^[a-z][a-z0-9]+$/u.test(env.AZURE_FRONT_DOOR_PRIVATE_LINK_LOCATION || "")) {
+      blockers.push("Select AZURE_FRONT_DOOR_PRIVATE_LINK_LOCATION from Front Door's supported regions; it can differ from the application region.");
+    }
   }
   if (kind === "staging") {
     if (!env.AZURE_PRODUCTION_ENV_NAME?.trim()

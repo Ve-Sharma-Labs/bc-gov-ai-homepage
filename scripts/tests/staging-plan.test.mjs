@@ -68,3 +68,24 @@ test("Ignore is accepted only for byte-equivalent existing resources outside sta
     resourceId: identityId, changeType: "Ignore", before: identity, after: { ...identity, properties: {} },
   }]), context).length);
 });
+
+test("routing repair can touch only the new staging origin group, origin, and route", () => {
+  const routing = { ...context, phase: "routing" };
+  const changes = [
+    create(`${context.profileId}/originGroups/bc-staging-web`),
+    create(`${context.profileId}/originGroups/bc-staging-web/origins/container-app`),
+    create(`${context.profileId}/afdEndpoints/bc-staging/routes/application`),
+  ];
+  assert.deepEqual(stagingPlanBlockers({ status: "Succeeded", changes }, routing), []);
+  const endpointId = `${context.profileId}/afdEndpoints/bc-staging`;
+  const endpoint = { id: endpointId, properties: { enabledState: "Disabled" } };
+  assert.deepEqual(stagingPlanBlockers({ status: "Succeeded", changes: [...changes, {
+    resourceId: endpointId, changeType: "Ignore", before: endpoint, after: structuredClone(endpoint),
+  }] }, routing), []);
+  for (const extra of [
+    create(`${stagingGroup}/providers/Microsoft.App/containerApps/new`),
+    { resourceId: context.profileId, changeType: "Modify" },
+    { resourceId: `${context.profileId}/afdEndpoints/production/routes/application`, changeType: "Modify" },
+    { resourceId: changes[0].resourceId, changeType: "Delete" },
+  ]) assert.ok(stagingPlanBlockers({ status: "Succeeded", changes: [...changes, extra] }, routing).length);
+});

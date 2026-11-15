@@ -43,7 +43,12 @@ Create a **new ignored directory** for the approved manual-use window, such as
   "live_use_approved": false,
   "request_limit": 20,
   "wall_seconds": 1800,
-  "max_conversations": 8
+  "max_conversations": 8,
+  "authentication": {
+    "provider": "azure-cli",
+    "subscription_id": "YOUR-VERIFIED-STAGING-SUBSCRIPTION-GUID",
+    "client_id": "YOUR-STAGING-ACCESS-APP-GUID"
+  }
 }
 ```
 
@@ -51,6 +56,11 @@ Replace the placeholders with actual deployment outputs. The example is
 deliberately invalid until reviewed: `live_use_approved` must become `true`
 only after live use and its limits are approved. A request allowance does not
 override the app's separate token, cost, concurrency, or daily limits.
+
+Use only invented test data. Sharing off does not prevent a message deliberately
+typed into the chat from reaching the model, and CoPyRIT retains its local
+transcripts. The staging technical review is not approval for personal or
+government-confidential information.
 
 In `.cache\copyrit\.env.local`, set `BC_PYRIT_MANUAL_CONFIG` to the absolute path
 of that JSON file. Add the following entries to the existing local
@@ -76,6 +86,18 @@ It never sends a test prompt during startup. Select that target under
 
 ## Limits, errors, and local data
 
+For identity-protected staging, the adapter uses the operator's existing Azure
+CLI sign-in and the separate staging-access audience. Tokens are refreshed in
+memory and sent only to the exact configured HTTPS origin. They are never
+written to the manual ledger or configuration. A launcher that changes
+`USERPROFILE` must first preserve the original Azure CLI directory through
+`AZURE_CONFIG_DIR`; do not copy its credentials into the CoPyRIT runtime home.
+Missing/expired sign-in and access denial fail explicitly without a production
+fallback. The `authentication` block may be omitted only for a separately
+approved deployment using another access gate, such as a dedicated fixed IP.
+Token acquisition pins the selected subscription rather than relying on the
+shared machine's current CLI default; it does not change that default.
+
 The window starts at its first initialization. Request charges and expiry are
 stored in `manual-budget.sqlite` beside the configuration. Restarts preserve
 them; changing the identity or limits does not reset the ledger. For a new
@@ -90,3 +112,37 @@ CoPyRIT retains chat history in its local database. Keep its configuration,
 database, credentials, and exports out of Git and shared logs. The manual ledger
 contains only identity, limits, timestamps, and counts, not prompt bodies.
 This manual window is not a CI qualification report and cannot promote a release.
+
+## Staging infrastructure notes
+
+`AZURE_FRONT_DOOR_PRIVATE_LINK_LOCATION` selects Front Door's managed private
+gateway region independently of `AZURE_LOCATION`. Canada East origins use a
+Canada Central gateway because Front Door does not offer one in Canada East;
+the origin remains private. Check the current
+[supported regions](https://learn.microsoft.com/azure/frontdoor/private-link)
+before deploying elsewhere. An empty value preserves the origin-region default
+for existing standalone deployments; shared staging requires an explicit value.
+
+If a platform operation fails after creating services, inspect its actual
+resources before retrying. The explicit `routing` mode of
+`scripts\verify-staging-plan.mjs` permits only the three named staging routing
+resources; it does not authorize production edits or a full platform replay.
+Application image updates use a drift-checked `properties.template` PATCH.
+`infra\app-image-update.bicep` validates a GET snapshot without reading secret
+values; **do not deploy that full-resource snapshot**, which omits the existing
+write-only secret definitions.
+
+A publisher with management-plane access can create a Search index but still
+lack permission to upload documents. `infra\staging-publisher-access.bicep`
+grants the separately approved human publisher only Search Index Data
+Contributor on the selected staging Search service. Use exact reviewed source
+hashes and never substitute the production index.
+
+`infra\staging-auth.bicep` enables Container Apps' built-in Entra gate on the
+staging web app only. It requires both the approved operator object ID and the
+Azure CLI client, with a separate single-tenant audience. It does not introduce
+citizen sign-in or change web-to-API managed identity. Only the existing static
+favicon is exempt for the origin health probe; use `healthProbePath=/favicon.ico`
+in the staging routing parameters. Keep the old network restriction until the
+identity gate is deployed and verified, then remove only that restriction.
+Do not broaden an allowlist to include shared proxy ranges.
