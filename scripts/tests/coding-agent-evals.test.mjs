@@ -450,7 +450,8 @@ test("cancellation stops a fixed test process group without reporting a pass", {
   skip: process.platform !== "linux" && "Candidate execution requires the Linux sandbox",
 }, async (t) => {
   const { directory, tools } = operationFixture(t);
-  writeFileSync(path.join(directory, "test-results/coding-agent-evals/work/strict-ports.mjs"), "while (true) {}\n");
+  writeFileSync(path.join(directory, "test-results/coding-agent-evals/work/strict-ports.mjs"),
+    "export function portFrom() { while (true) {} }\n");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 200);
   try {
@@ -459,6 +460,7 @@ test("cancellation stops a fixed test process group without reporting a pass", {
     assert.equal(result.exitCode, null);
     assert.equal(result.toolResultType, "failure");
     assert.equal(result.checks[0].blocked, "cancelled");
+    assert.equal(result.checks[0].signal, "SIGKILL");
   } finally {
     clearTimeout(timer);
   }
