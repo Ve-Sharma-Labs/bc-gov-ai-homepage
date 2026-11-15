@@ -41,12 +41,13 @@ managed identities, a private application origin and a reviewed Search corpus.
 Azure-native hosting does **not** mean every service endpoint is private or that
 Global Standard model processing stays in Canada.
 
-Repository maintenance is separate from the resident request path. The
-[agentic workflows guide and diagrams](agentic-workflows.md#workflow-diagrams)
-describe the official-source freshness watchdog and bug-report-to-draft-fix
-automation, including deterministic checks, agent boundaries and human review.
-These workflows require repository activation; they are not deployed Azure
-services and cannot publish sources, merge fixes or deploy the application.
+Repository maintenance and evaluation run in GitHub Actions, outside the
+resident request path. [Foundry Evals](foundry-evaluations.md) grades the app's
+answers; [coding-agent evaluations](agentic-workflows.md#coding-agent-evaluations-in-ci)
+test the agent that repairs code. Neither workflow deploys the app.
+The [agentic workflow diagrams](agentic-workflows.md#workflow-diagrams) cover
+source freshness and bug-report-to-draft-fix automation. Those workflows require
+repository activation and cannot publish sources, merge fixes or deploy services.
 
 ## 1. System overview
 
@@ -104,7 +105,7 @@ graph TB
         subgraph SERVICES["Managed data and AI services"]
             REDIS[("Redis Balanced_B0<br/>TLS/Entra; private access")]
             SEARCH[("Search Basic<br/>bc-pilot-public")]
-            FOUNDRY["Foundry account + project<br/>1 general + 5 pathway agents<br/>bc-fast / Global Standard"]
+            FOUNDRY["Foundry account + project<br/>Planner, general + 7 pathway agents<br/>bc-fast / Global Standard"]
         end
         ACR["ACR Basic<br/>Linux amd64 images"]
         OBS["Application Insights + Log Analytics<br/>30-day pilot logs<br/>Failure-anomaly alert"]
@@ -767,6 +768,64 @@ a workflow run is configured. The manual image-replacement workflow checks that
 the actual edge is closed; application readiness is not inferred from an ARM
 `Succeeded` state or `/healthz`.
 
+### Evaluation workflows outside the resident request path
+
+The two evaluation workflows answer different questions:
+
+| Question | Foundry application evaluations | Coding-agent evaluations |
+|---|---|---|
+| What is tested? | The BC Gov App's replies | Repairs produced by the software-building agent |
+| Inputs | 16 synthetic turns across six conversations | Six frozen coding tasks and public smoke tests |
+| Who grades? | Code-based app checks, then Foundry relevance and task-outcome judges | An independent deterministic grader on a fresh runner |
+| Pass rule | Every turn needs both judge scores at least 4/5 and passing code checks | All six tasks must pass their normal, boundary and negative checks |
+| When does it run? | Manual dispatch with protected-environment approvals | Relevant trusted PRs, daily or manual |
+| What happens next? | Scores and evaluation status; no deployment dependency | Task results and a CI gate; merge blocking depends on repository rules |
+
+This branch contains the Foundry workflow from
+[PR #13](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/13).
+The fixed-tool coding-agent runtime is implemented and tested in
+[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14), pending merge.
+It is not yet the runtime in this branch. These repository changes do not alter
+the deployed Azure topology or refresh the deployment observations on this page.
+
+```mermaid
+flowchart TB
+    subgraph FoundryEval["Foundry application evaluations"]
+        FM["Manual run + pilot approval"] --> APP["Candidate API<br/>16 synthetic turns"]
+        APP --> FC["Code checks + session cleanup"]
+        FC --> JUDGE["Foundry judge deployment<br/>Relevance + task outcome"]
+        JUDGE --> FR["Per-turn scores<br/>Evaluation pass or fail"]
+    end
+
+    subgraph CodingEval["Coding-agent evaluations"]
+        CT["Trusted relevant PR, daily or manual"] --> AGENT["Six synthetic repairs<br/>Fixed-tool runtime pending in PR #14"]
+        AGENT --> GRADE["Independent deterministic grader<br/>Fresh runner"]
+        GRADE --> CR["Per-task results + CI gate<br/>Merge rules control enforcement"]
+    end
+
+    subgraph Deployment["Separate BC Gov App deployment"]
+        DM["Manual operation + release approvals"] --> DEPLOY["Provision, deploy or verify"]
+    end
+```
+
+The app keeps its existing Foundry agent bindings during an answer evaluation;
+the selected judge scores the captured replies separately. Foundry stores the
+submitted synthetic dialogue and detailed judge results. GitHub receives scores
+and metadata, without that dialogue.
+
+Coding-agent evaluations use Copilot to repair synthetic modules, then grade
+those modules independently. They do not call the app's Foundry agents or use
+resident conversations. Their CI report distinguishes a failed assertion from
+work that could not be graded.
+
+See the [Foundry walkthrough](foundry-evaluations.md#how-the-workflow-runs) for
+the answer and data-storage flow, and the
+[pending fixed-tool design](agentic-workflows.md#fixed-tool-runtime-pending-in-pr-14)
+for the coding-agent isolation boundaries. A passing result from either system
+does not certify legal accuracy or replace release approvals.
+
+### Release verification and rollback
+
 A release check exercises the public site, real cited answers, follow-ups,
 cancellation, source abstention and control-state finalization. Keep the
 verified image digests, agent registry and corpus record for rollback. Recheck
@@ -953,6 +1012,8 @@ publication is implied. See [the configuration, limits and release procedure](..
 | Infrastructure and rollout | [Infrastructure guide](../infra/README.md), [orchestration](../infra/modules/pilot.bicep), [hosting](../infra/modules/hosting.bicep), [AI/data](../infra/modules/ai-services.bicep) |
 | Private networking and edge | [Network](../infra/modules/network.bicep), [Redis](../infra/modules/shared-controls.bicep), [WAF/profile](../infra/modules/edge-profile.bicep), [routes](../infra/modules/edge-routes.bicep), [access logging](../infra/modules/edge-logging.bicep) |
 | Workflow definitions | [Actions name/purpose map](../README.md#checks), [web tests](../.github/workflows/ci-web-tests.yml), [API tests](../.github/workflows/ci-api-tests.yml), [ingestion tests](../.github/workflows/ci-ingestion-tests.yml), [web build](../.github/workflows/ci-web-build.yml), [E2E tests](../.github/workflows/ci-e2e.yml), [container checks](../.github/workflows/ci-containers.yml), [tooling and workflow validation](../.github/workflows/automation-validation.yml), [manual Azure deployment](../.github/workflows/azure-pilot.yml) |
+| Foundry application evaluations | [Exam and grading guide](foundry-evaluations.md), [manual workflow](../.github/workflows/foundry-evals.yml), [evaluation runner](../apps/api/src/bc_api/foundry_evaluation.py) |
+| Coding-agent evaluations | [Evaluation guide](agentic-workflows.md#coding-agent-evaluations-in-ci), [current workflow](../.github/workflows/coding-agent-evals.md), [fixed-tool workflow pending in PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/blob/8615c8a7cfe0b5713e1379e46ec853a4bc115f79/.github/workflows/coding-agent-evals.md) |
 
 Update this page when a deployed boundary, source-publication mode or material
 runtime relationship changes. Keep implementation contracts and operational

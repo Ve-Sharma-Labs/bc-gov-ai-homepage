@@ -21,6 +21,12 @@ handled in code without generating a new model answer. The judge assesses the
 reply the app returned. It does not choose the test questions or rewrite the
 answers.
 
+The separate [coding-agent evaluation](agentic-workflows.md#coding-agent-evaluations-in-ci)
+asks Copilot to repair six synthetic code tasks and uses a deterministic grader.
+It does not grade the BC Gov App's answers. Its fixed-tool runtime is verified in
+[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14), pending merge;
+that repair is not yet part of this branch.
+
 ## The 16 messages
 
 These are synthetic public questions and replies, grouped into six conversations.
@@ -229,17 +235,42 @@ function execution, and output validation. A direct call to the managed Foundry
 prompt agent would bypass those behaviours.
 
 ```mermaid
-flowchart LR
-    Code["Checked-out candidate SHA"] --> App["Isolated loopback API"]
-    Config["Existing Container App bindings and Search settings"] --> App
-    Cases["16 synthetic turns across 6 conversations"] --> App
-    App --> Checks["Existing deterministic release assertions"]
-    Checks --> Foundry["Foundry relevance + task-outcome judges"]
-    Foundry --> Result{"Every turn passes?"}
-    Result -->|Yes| Pass["Foundry Evals: PASS"]
-    Result -->|No or incomplete| Fail["Foundry Evals: FAIL"]
-    Manual["Separate manual dispatch"] --> Deploy["BC Gov App - Azure Deployment"]
+flowchart TB
+    Config["Existing Container App<br/>bindings and Search settings"]
+    Search["Reviewed Azure AI Search index"]
+
+    subgraph Runner["GitHub Actions runner"]
+        Code["Checked-out candidate SHA"] --> App["Isolated loopback API"]
+        Cases["16 synthetic turns<br/>across 6 conversations"] --> App
+        App --> Checks["Code-based assertions<br/>and synthetic-session cleanup"]
+        Checks -->|"All pass"| Capture["Validated synthetic replies<br/>Temporary local capture"]
+        Checks -->|"Failure"| Result["Evaluation pass or fail"]
+        Scores["Check every row and both scores"] --> Result
+        Result --> GitHub["GitHub summary + artifact<br/>Metadata and scores only"]
+    end
+
+    subgraph Foundry["Approved Foundry project"]
+        AppModels["Existing app agents and models"]
+        Judge["Separately selected judge deployment<br/>Relevance + task outcome"]
+        CloudReport["Stored synthetic dialogue<br/>and detailed judge results"]
+        Judge --> CloudReport
+    end
+
+    Config --> App
+    App <-->|"Approved evidence"| Search
+    App <-->|"Model-dependent turns"| AppModels
+    Capture -->|"Synthetic dialogue only"| Judge
+    CloudReport -->|"Scores and report metadata"| Scores
+
+    subgraph Deployment["Separate deployment workflow"]
+        Manual["Manual dispatch + release approvals"] --> Deploy["BC Gov App - Azure Deployment"]
+    end
 ```
+
+The temporary capture is deleted when collection finishes. Validated rows
+continue to Foundry, where the synthetic dialogue and judge results are retained.
+Only scores and metadata go into the GitHub report. A collection failure can
+produce a GitHub failure report without creating a Foundry run.
 
 The runner combines this checkout's API code and catalogue with settings from the
 existing API Container App. It reads only an allowlist of non-secret settings:

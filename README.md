@@ -421,6 +421,7 @@ identify the failing component without exposing matrix commands or file paths.
 | [BC Gov App - Container Build & Smoke Tests](.github/workflows/ci-containers.yml) | API, web, and ingestion `linux/amd64` builds and disconnected runtime checks; no publication or deployment | PRs and pushes to `main` |
 | [BC Gov Automation - Tooling & Workflow Validation](.github/workflows/automation-validation.yml) | Tooling tests and pinned GH-AW compilation/drift checks for all seven generated workflows, in independent jobs | PRs and pushes to `main` |
 | [BC Gov Agents - Coding Agent Evals](.github/workflows/coding-agent-evals.md) | Coding agent repairs six frozen tasks; an independent isolated grader fails CI below 100% | Relevant trusted PRs, daily or manual; unrelated PRs skip inference |
+| [BC Gov App - Foundry Evals (Relevance & Task Outcomes)](.github/workflows/foundry-evals.yml) | Code checks and Foundry judges evaluate 16 synthetic app turns; results do not trigger or block deployment | Manual only, with inference and storage approvals |
 | [BC Gov App - Azure Deployment](.github/workflows/azure-pilot.yml) | Reviewed `provision`, `deploy`, or `verify` operations; live verification requires separate approval | Manual only |
 | [BC Gov Sources - Collection](.github/workflows/official-source-collection.yml) | Source metadata, authorized bounded refreshes, and durable charged checkpoints | Daily or manual, default branch only |
 
@@ -434,6 +435,14 @@ The seven **BC Gov Agents** workflows are listed in the
 check the approved live app, assess sources, propose draft bug fixes, or evaluate
 the coding agent itself. The coding-agent eval has a blocking deterministic
 grade; none of these replaces the application's ordinary CI.
+
+The [evaluation architecture](docs/architecture.md#evaluation-workflows-outside-the-resident-request-path)
+shows how app-answer grading, coding-agent grading, and deployment stay separate.
+Foundry Evals is part of this branch. The
+[fixed-tool coding-agent repair](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14)
+is verified in PR #14 but still pending merge; its
+[diagram](docs/agentic-workflows.md#fixed-tool-runtime-pending-in-pr-14) is labelled
+accordingly.
 
 GitHub-managed **CodeQL**, **CodeQL - Code Quality**, **Security Risk Assessment**,
 **GitHub Advanced Security**, **Dependabot Updates**, and **Dependency Graph**
