@@ -30,7 +30,7 @@ on:
           const files = await github.paginate(github.rest.pulls.listFiles, {
             ...context.repo, pull_number: context.payload.pull_request.number, per_page: 100
           });
-          const relevant = /^(?:\.github\/|(?:AGENTS|CLAUDE)\.md$|scripts\/coding-agent-eval|scripts\/tests\/coding-agent-evals\.test\.mjs$|tests\/agent-evals\/|data\/evaluations\/coding-agent\/)/;
+          const relevant = /^(?:\.github\/|(?:AGENTS|CLAUDE)\.md$|scripts\/coding-agent-eval|scripts\/tests\/(?:coding-agent-evals\.test\.mjs|fixtures\/coding-agent-runtime\.mjs)$|tests\/agent-evals\/|data\/evaluations\/coding-agent\/)/;
           return files.some(file => [file.filename, file.previous_filename]
             .some(name => typeof name === 'string' && relevant.test(name)));
     - id: eval_needed
@@ -40,12 +40,18 @@ if: needs.pre_activation.outputs.trusted_source_result == 'success' && needs.pre
 permissions:
   contents: read
   copilot-requests: write
-engine: copilot
+engine:
+  id: copilot
+  version: "1.0.87"
+  copilot-sdk: true
+  harness:
+    max-retries: 0
 imports:
   - shared/coding-agent-policy.md
 strict: true
 timeout-minutes: 20
 max-turns: 60
+max-tool-denials: 1
 max-ai-credits: 300
 max-daily-ai-credits: 900
 network:
@@ -53,6 +59,7 @@ network:
 checkout: false
 tools:
   github: false
+  edit:
   bash:
     - "node --test:*"
     - "node --check:*"
@@ -195,7 +202,9 @@ exports and return shapes. Do not copy answers from Git history or retrieve
 reference implementations; production source, Git objects and private grading
 checks are intentionally absent from this task-only workspace.
 
-Run the public smoke tests before and after the fixes:
+The current working directory is already the root of the prepared task-only
+workspace. Run the public smoke tests there before and after the fixes, using
+this command directly without a leading `cd`, wrapper, pipeline or redirection:
 
 `node --test test-results/coding-agent-evals/work/*.test.mjs`
 
@@ -203,6 +212,13 @@ The first run should reproduce assertion failures, not setup failures. Do not
 change the smoke tests, fixtures, catalog, instructions, workflows or harness.
 Do not install packages, start other agents, make network calls, commit changes,
 open issues or PRs, or access any live application.
+
+The SDK permission handler allows the declared Node test and syntax commands,
+not arbitrary Node execution. A permission denial is an infrastructure blocker,
+not an assertion failure: the runtime stops on the first denial and the harness
+does not retry. Do not try alternate interpreters, command wrappers, permission
+changes or subagents to work around a denial. Leave partial candidate files
+intact for collection; a blocked run cannot pass independent grading.
 
 Each task has additional independent checks on a fresh runner. They test normal,
 boundary and negative behavior, not an exact implementation. Passing smoke tests

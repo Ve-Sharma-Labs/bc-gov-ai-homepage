@@ -226,13 +226,20 @@ session; grading executes each solution separately.
    and public smoke checks. The agent receives that task-only workspace, not a
    checkout: production implementations, Git objects/history and private grading
    checks are absent. It can repair only the prepared candidate modules. GitHub
-   tools and external network access are disabled; no package installation,
-   app services, Foundry calls or production credentials are needed.
-   Shell permissions use Copilot's command-prefix syntax (`node --test:*` and
-   `node --check:*`), not filename globs in permission rules. This authorizes
-   the public smoke command and individual test/syntax checks without granting
-   arbitrary Node execution or unrestricted shell access. File-change boundaries
-   remain enforced by the protected-input collector and independent grader.
+   tools and external network access are disabled. The agent cannot install
+   packages and needs no app services, Foundry calls or production credentials.
+   Trusted Actions setup installs the pinned SDK dependencies before the
+   isolated engine starts.
+   This evaluation alone uses the pinned Copilot **SDK transport**, whose
+   permission handler evaluates the full command against `node --test:*` and
+   `node --check:*`. These are command prefixes, not filename globs. The native
+   Copilot 1.0.87 CLI rejects these argument-qualified Node grants, including
+   the plain smoke command; removing a leading `cd` does not fix that mismatch.
+   Exact-rule alternatives also failed the offline native-runtime probe.
+   Do not grant general `node` or shell access to compensate. The SDK exposes
+   editing explicitly, preserving the native workflow's existing write
+   capability. Protected-input collection and independent grading still enforce
+   file-change boundaries.
 3. Before inference, Actions fingerprints the protected inputs. Afterward a
    hash-checked collector rejects missing, oversized or linked files and
    records any changes to protected instructions, fixtures or public tests.
@@ -249,6 +256,29 @@ session; grading executes each solution separately.
    files, failed/skipped inference, unavailable grading infrastructure or
    cleanup failures produce a blocked/incomplete result and a failing gate.
    There is no automatic retry or success-shaped fallback.
+
+Run `node --test test-results/coding-agent-evals/work/*.test.mjs` directly in
+the already-configured task-only workspace, both before and after repairs.
+Do not prepend `cd`, switch interpreters, wrap the command, redirect output or
+start subagents as recovery strategies. Individual `node --test` and
+`node --check` invocations use that same working directory.
+
+The evaluation sets `max-tool-denials: 1` and `engine.harness.max-retries: 0`.
+The supported SDK guard emits `guard.tool_denials_exceeded` on the first
+permission refusal, disconnects the session and forces its pending wait to
+settle after a bounded 15-second grace period if necessary. The standalone
+driver exits nonzero; the harness cannot start another attempt. The retry
+setting also intentionally disables transient-error retries for this evaluation,
+without changing the shared bug-repair workflow. The native CLI transport has
+no equivalent in-attempt guard in this pinned harness: retry settings alone
+would not stop its model from repeatedly attempting denied commands.
+
+| Failure class | Meaning and outcome |
+| --- | --- |
+| Permission denial | A command was not authorized to execute. Stop and block grading; this is not a failed task assertion. |
+| Invocation/credit exhaustion | The run exceeded its existing budget. `429 Maximum LLM invocations exceeded (60 / 60)` is a hard invocation cap, not transient throttling. |
+| Assertion failure | Checks actually executed. Broken starters should fail public assertions before repair; independent assertion failures after repair are failed tasks. |
+| Agent did not complete | The grader's prerequisite failed. Six `agent-did-not-complete` results mean six blocked tasks, not six assertion failures. |
 
 The gate compares against fixed acceptance criteria, not an automatically
 changing historical average. `coding-agent-eval-report` contains sanitized
@@ -280,6 +310,12 @@ failure/incomplete tracking is disabled where supported, so those framework
 tools cannot publish an issue. Staging does not soften the independent CI gate
 or prevent its deterministic artifact uploads.
 
+Opening a repair PR that changes these workflow and tooling-test files can
+activate both **Coding Agent Evals** and **PR Conversation QA**, in addition to
+ordinary CI. The latter has its own 15-turn/500-credit ceiling. Obtain explicit
+approval for opening the PR and its normal live CI; local compilation and
+offline permission probes do not authorize those runs.
+
 After the workflow is merged and a live trial is reviewed, require
 **BC Gov Agents - Coding Agent Eval Gate** in the repository's merge rules if
 merges must be prevented on failure. Committing these files does not modify
@@ -303,6 +339,53 @@ gh aw compile --strict --validate --no-check-update
 Compilation and local harness checks do not prove a live agent run or hosted
 container grading succeeded. Do not dispatch billable trials as part of ordinary
 authoring validation.
+
+### Offline runtime permission regression
+
+The ordinary tooling suite checks the compiled contract and independent grader;
+it does **not** simulate the CLI's permission matcher. The opt-in `pinned runtime`
+test in `scripts/tests/coding-agent-evals.test.mjs` exercises the actual native
+CLI, then the complete SDK harness/driver boundary using a fixed loopback provider.
+It reproduces the native denial, runs smoke checks before and after a synthetic
+candidate edit, runs single-file/syntax checks, preserves the public test, and
+asserts one harness attempt, one provider request and exit 1 on a denied command.
+It also checks the negative-command matrix against the shipped SDK handler.
+No model performs inference. No live six-task evaluation or quality pass is
+implied by this test.
+
+Prepare an external scratch bundle before running it; do not commit the runtime
+or install these dependencies into the application:
+
+| Bundle path | Pinned contents |
+| --- | --- |
+| `copilot` | Linux x64 executable from [Copilot v1.0.87](https://github.com/github/copilot-cli/releases/tag/v1.0.87). Verify `copilot-linux-x64.tar.gz` SHA256 `49d81b184f1a1b358af676155fe97e341b9d9f0bc8dd25190dfe17087669b5b9` before extraction. |
+| `gh-aw\` | Unmodified files from `setup/js` and `setup/md` in [the compiled setup-action revision](https://github.com/github/gh-aw-actions/tree/924af5fdc64061cfbf66fb584c8b07e2ac230c60/setup), flattened into this directory. |
+| `node_modules\` | `@github/copilot-sdk@1.0.13` and `undici@6.28.0`, the compiler's pinned dependencies, installed with `--ignore-scripts` and Linux x64 native dependencies. |
+| `bin\node` | Linux x64 Node 24 executable from the digest-pinned image in `data/evaluations/coding-agent/suite.json`. |
+
+Pull the firewall image below during preparation. Set `$runtime` to the absolute
+bundle directory, then run from the repository worktree:
+
+```powershell
+docker run --rm --pull=never --platform linux/amd64 --network=none `
+  --add-host api-proxy:127.0.0.1 --read-only --cap-drop=ALL `
+  --security-opt=no-new-privileges --user 1001:1001 --pids-limit=128 `
+  --memory=2g --cpus=2 --tmpfs /tmp:rw,exec,nosuid,size=512m `
+  --env COPILOT_OFFLINE=true --env CODING_AGENT_RUNTIME_ROOT=/runtime `
+  --env NODE_PATH=/runtime/node_modules `
+  --env PATH=/runtime/bin:/usr/local/bin:/usr/bin:/bin `
+  --mount "type=bind,source=$runtime,target=/runtime,readonly" `
+  --mount "type=bind,source=$PWD,target=/repo,readonly" --workdir /repo `
+  --entrypoint /runtime/bin/node `
+  ghcr.io/github/gh-aw-firewall/agent:0.28.23@sha256:2c78aaba1c108e130e2d6d01e4f2cca334ea04c53e6f258913ac34173fe7e3b2 `
+  --test --test-name-pattern="pinned runtime" scripts/tests/coding-agent-evals.test.mjs
+```
+
+The test refuses non-Linux, non-Node-24 or network-attached environments and does
+not inherit GitHub/Azure credentials into the child runtime. Without
+`CODING_AGENT_RUNTIME_ROOT`, it is explicitly skipped, not reported as runtime
+authorization evidence. Review the live run's tested SHA and independent results
+for **all six tasks** after separately approving the repair PR's normal CI.
 
 ## Source watchdog and automatic bug repair
 

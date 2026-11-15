@@ -216,8 +216,9 @@ test("candidate execution is isolated, bounded and receives neither the grader n
 test("the coding workflow shares production policy and grades on a fresh, always-run job", () => {
   const workflow = readFileSync(path.join(root, ".github/workflows/coding-agent-evals.md"), "utf8");
   const repair = readFileSync(path.join(root, ".github/workflows/bug-regression-fix.md"), "utf8");
+  assert.match(workflow, /engine:\r?\n  id: copilot\r?\n/);
+  assert.match(repair, /engine: copilot/);
   for (const source of [workflow, repair]) {
-    assert.match(source, /engine: copilot/);
     assert.match(source, /imports:\r?\n  - shared\/coding-agent-policy\.md/);
   }
   assert.match(workflow, /allowed: \[\]/);
@@ -253,7 +254,8 @@ test("PR scope detection covers configuration, renamed files and schedules witho
   const github = (files) => ({ rest: { pulls: { listFiles: {} } }, paginate: async () => files });
   for (const filename of [".github/workflows/shared/coding-agent-policy.md", "CLAUDE.md", "AGENTS.md",
     "scripts/coding-agent-evals.mjs", "scripts/coding-agent-eval-worker.mjs",
-    "scripts/tests/coding-agent-evals.test.mjs", "tests/agent-evals/checks.mjs",
+    "scripts/tests/coding-agent-evals.test.mjs", "scripts/tests/fixtures/coding-agent-runtime.mjs",
+    "tests/agent-evals/checks.mjs",
     "data/evaluations/coding-agent/suite.json"]) {
     assert.equal(await run(github([{ filename }]), context), true, filename);
   }
@@ -279,35 +281,37 @@ test("compiled activation references real outputs and safe outputs cannot publis
   assert.ok(!manifest.mcp_servers.some((server) => server.name === "github"));
 });
 
-test("compiled permissions cover smoke and syntax checks without authorizing arbitrary Node execution", () => {
+test("static SDK contract keeps narrow permissions, a single denial limit and no harness retries", () => {
   const source = readFileSync(path.join(root, ".github/workflows/coding-agent-evals.md"), "utf8");
   const compiled = readFileSync(path.join(root, ".github/workflows/coding-agent-evals.lock.yml"), "utf8");
-  const invocation = compiled.split(/\r?\n/).find((line) =>
-    !line.trimStart().startsWith("#") && line.includes("--allow-tool") && line.includes("shell("));
-  assert.ok(invocation, "Missing compiled agent invocation");
-  const rules = [...invocation.matchAll(/shell\(([^)]+)\)/g)].map((match) => match[1]);
-  // Copilot command prefixes are not shell filename globs.
-  const permits = (command) => rules.some((rule) => {
-    const prefix = rule.endsWith(":*") ? rule.slice(0, -2) : rule;
-    return command === prefix || command.startsWith(`${prefix} `);
+  const config = JSON.parse(compiled.match(/GH_AW_COPILOT_SDK_TOOL_CONFIG: '([^'\r\n]+)'/)[1]);
+  const args = JSON.parse(compiled.match(/GH_AW_COPILOT_SDK_SERVER_ARGS: '([^'\r\n]+)'/)[1]);
+  assert.equal(config.version, 1);
+  assert.deepEqual(config.capabilities, {
+    bash: true, edit: true, webFetch: false, webSearch: false, mcp: true, cliProxy: false,
   });
-  const smoke = source.match(/`(node --test [^`]+)`/)[1];
-  assert.ok(permits(smoke), smoke);
-  for (const item of suite.cases) {
-    for (const command of [
-      `node --test test-results/coding-agent-evals/work/${item.id}.test.mjs`,
-      `node --check test-results/coding-agent-evals/work/${item.id}.mjs`,
-    ]) assert.ok(permits(command), command);
+  assert.deepEqual(config.permissions.allowedTools, [
+    "read", "safeoutputs", "shell(cat)", "shell(date)", "shell(echo)", "shell(grep)",
+    "shell(head)", "shell(ls)", "shell(node --check:*)", "shell(node --test:*)",
+    "shell(printf)", "shell(pwd)", "shell(safeoutputs:*)", "shell(sort)", "shell(tail)",
+    "shell(uniq)", "shell(wc)", "shell(yq)", "write",
+  ]);
+  assert.ok(args.includes("--headless"));
+  assert.ok(args.includes("--no-ask-user"));
+  assert.ok(!args.includes("--allow-all-tools"));
+  assert.match(source, /copilot-sdk: true/);
+  assert.match(source, /max-tool-denials: 1/);
+  assert.match(source, /harness:\r?\n    max-retries: 0/);
+  assert.match(compiled, /GH_AW_MAX_TOOL_DENIALS: "?1"?\r?\n/);
+  assert.match(compiled, /GH_AW_HARNESS_MAX_RETRIES: "?0"?\r?\n/);
+  for (const budget of ["max-turns: 60", "max-ai-credits: 300", "max-daily-ai-credits: 900"]) {
+    assert.ok(source.includes(budget), budget);
   }
-  for (const command of [
-    "node --eval 'process.exit(0)'", "node scripts/coding-agent-evals.mjs grade",
-    "node --test-other file.mjs", "npm install", "curl https://example.com",
-  ]) assert.equal(permits(command), false, command);
-  assert.ok(!invocation.includes("--allow-all-tools"));
-  assert.doesNotMatch(invocation, /--allow-tool shell(?:\s|$)/);
+  assert.match(source, /without a leading `cd`, wrapper, pipeline or redirection/);
+  assert.match(source, /Do not try alternate interpreters/);
 });
 
-test("the documented public smoke command reproduces assertions in the task-only workspace", (t) => {
+test("public smoke checks fail before and pass after test-owned repairs, independently of authorization", (t) => {
   const directory = fixture(t);
   const kit = path.join(directory, "kit");
   prepareKit(directory, kit, { revision, model: "auto" });
@@ -321,4 +325,25 @@ test("the documented public smoke command reproduces assertions in the task-only
   assert.match(result.stdout, /ERR_ASSERTION/);
   assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /MODULE_NOT_FOUND|ENOENT|Could not find/);
   for (const item of suite.cases) assert.ok(result.stdout.includes(`${item.id}.test.mjs`), item.id);
+  solve(kit);
+  const repaired = spawnSync(process.execPath, command.slice(1), {
+    cwd: kit, env: { ...process.env, NODE_TEST_CONTEXT: undefined },
+    encoding: "utf8", timeout: 15_000, maxBuffer: 128 * 1024,
+  });
+  assert.equal(repaired.status, 0, repaired.stdout + repaired.stderr);
+});
+
+test("pinned runtime authorizes repairs and stops a denied command across the full harness", {
+  skip: process.env.CODING_AGENT_RUNTIME_ROOT ? false : "Opt-in offline runtime probe; see docs/agentic-workflows.md",
+  timeout: 600_000,
+}, async (t) => {
+  const workspace = mkdtempSync(path.join(tmpdir(), "bc-agent-permission-test-"));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const { verifyRuntimeContract } = await import("./fixtures/coding-agent-runtime.mjs");
+  const result = await verifyRuntimeContract({
+    workspace,
+    runtimeDirectory: process.env.CODING_AGENT_RUNTIME_ROOT,
+    compiled: readFileSync(path.join(root, ".github/workflows/coding-agent-evals.lock.yml"), "utf8"),
+  });
+  t.diagnostic(JSON.stringify(result));
 });
