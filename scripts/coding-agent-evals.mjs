@@ -139,6 +139,7 @@ export function stageRuntime(directory, destination, manifest) {
   const sources = [
     [".github/aw/coding-agent-runtime/driver.cjs", "driver.cjs"],
     [".github/aw/coding-agent-runtime/tools.cjs", "tools.cjs"],
+    [".github/aw/coding-agent-runtime/worker.cjs", "worker.cjs"],
     [helperPath, "inputs.mjs"],
   ].map(([source, target]) => {
     const bytes = readRegular(directory, source);
@@ -170,7 +171,19 @@ export function stageRuntime(directory, destination, manifest) {
   cpSync(dependencies, path.join(destination, "node_modules"), { recursive: true, dereference: true });
   writeJson(path.join(destination, "config.json"), {
     version: 1, workspace: realpathSync(directory), caseIds: manifest.caseIds, smokeHashes,
+    readableFiles: [
+      ".github/aw/instructions.md", ".github/workflows/shared/coding-agent-policy.md",
+      ".github/workflows/coding-agent-evals.md", suitePath,
+      ...manifest.caseIds.map((id) => `data/evaluations/coding-agent/fixtures/${id}.mjs`),
+    ].filter((relative) => Object.hasOwn(manifest.protectedFiles, relative)),
     forbiddenPaths: [".git", "tests/agent-evals/checks.mjs", ...new Set(suite.cases.map((item) => item.source))],
+  });
+  const worker = `${destination}-checks`;
+  mkdirSync(worker);
+  for (const target of ["worker.cjs", "tools.cjs", "inputs.mjs"]) cpSync(path.join(destination, target), path.join(worker, target));
+  writeJson(path.join(worker, "config.json"), {
+    version: 1, workspace: "/eval", caseIds: manifest.caseIds, smokeHashes,
+    forbiddenPaths: [".git", "tests/agent-evals/checks.mjs"],
   });
 }
 

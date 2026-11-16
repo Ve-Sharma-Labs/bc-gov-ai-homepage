@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { createEvaluationTools } = require("./tools.cjs");
+const { createTaskFileTools } = require("./tools.cjs");
 
 function required(name) {
   assert.ok(process.env[name], `${name} is required`);
@@ -32,7 +32,7 @@ async function main() {
   const { readRegular } = await import(pathToFileURL(path.join(__dirname, "inputs.mjs")).href);
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
   assert.equal(fs.realpathSync(required("GITHUB_WORKSPACE")), config.workspace);
-  const tools = createEvaluationTools(sdk, config, readRegular);
+  const tools = createTaskFileTools(sdk, config, readRegular);
   const toolConfig = parseCopilotSDKToolConfig(required("GH_AW_COPILOT_SDK_TOOL_CONFIG"));
   assert.equal(toolConfig.capabilities.bash, false, "Free-form shell execution must remain disabled");
   const providers = parseMultiProviderJson(required("GH_AW_COPILOT_SDK_MULTI_PROVIDER_JSON"));
@@ -44,9 +44,8 @@ async function main() {
       return super.createSession({
         ...sessionConfig,
         tools: [...sessionConfig.tools, ...tools],
-        excludedTools: new sdk.ToolSet().addBuiltIn([
-          "bash", "read_bash", "stop_bash", "list_bash", "write_bash", "task",
-        ]),
+        availableTools: new sdk.ToolSet().addCustom("read_task_file").addCustom("edit_candidate").addMcp("*"),
+        excludedTools: new sdk.ToolSet().addBuiltIn("*"),
       });
     }
   }

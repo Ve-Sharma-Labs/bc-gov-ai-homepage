@@ -230,21 +230,22 @@ session; grading executes each solution separately.
    packages and needs no app services, Foundry calls or production credentials.
    Trusted Actions setup installs the pinned SDK dependencies before the
    isolated engine starts.
-   This evaluation alone uses the pinned Copilot **SDK transport** and two
-   fixed, parameterless tools: `run_public_smoke_tests` and
-   `check_candidate_syntax`. Bash, shell-input and task/subagent-launching tools
-   are not exposed. The SDK still exposes editing; protected-input collection
-   and independent grading enforce file-change boundaries.
+   The SDK session exposes `read_task_file` for listed inputs and
+   `edit_candidate` for exact replacements in catalogued candidates. It exposes
+   no built-in file, shell or subagent tools. Both file operations reject other
+   paths and symlinks before access. Protected-input collection and independent
+   grading still enforce the repair contract.
 3. Before inference, Actions fingerprints the protected inputs. Afterward a
    hash-checked collector rejects missing, oversized or linked files and
    records any changes to protected instructions, fixtures or public tests.
    The agent does not supply the score or the collector's metadata.
    Immediately before engine startup, a trusted step verifies and stages the
-   fixed-tool executable, configuration and SDK dependencies outside the
+   file-tool executable, configuration and SDK dependencies outside the
    writable workspace. An explicit **read-only bind mount** exposes them at
    `.gh-aw/coding-agent-runtime` inside the agent container. The driver refuses
    to start without that read-only mount. Public-test hashes and allowed case
-   IDs are fixed by the preparation manifest, not supplied by the agent.
+   IDs come from the preparation manifest. A separate staged runtime serves
+   `run_public_smoke_tests` and `check_candidate_syntax` through the MCP gateway.
 4. A separate job checks out the same immutable commit and downloads only
    this run's bounded candidate artifact. Each candidate executes inside a
    digest-pinned Node 24 container with no network, credentials, Docker socket
@@ -261,16 +262,34 @@ session; grading executes each solution separately.
 Call `run_public_smoke_tests({})` before and after repairs.
 `check_candidate_syntax({})` checks every candidate. Neither accepts command
 text, paths, flags or other arguments. They run fixed Node argument arrays
-within the same task-only workspace, without a shell or inherited credentials.
+against read-only task-input mounts in a separate container,
+without a shell or inherited agent credentials.
 Each operation has a 15-second execution deadline and a shared 16-KiB
 stdout/stderr budget; truncation is explicit and never changes the test exit
 code. One operation runs at a time, with at most one queued operation. A failed
 assertion is a **completed check with a nonzero exit code**, not a permission
 refusal. Unsafe/mutated inputs, cancellation and timeouts are blocked outcomes.
 
-These tools run in the SDK driver **inside the existing agent sandbox**, not
-through host-side `mcp-scripts`. The latter execute on the Actions runner outside
-the sandbox and must not run untrusted candidate code.
+The check worker has its own PID namespace, `--network=none`, a read-only root,
+128 MiB of memory, one CPU and a 64-process limit. It receives only read-only
+candidate and runtime mounts, with no Docker socket, reference checkout or
+private grader. It refuses to start without its PID, network and mount controls.
+Smoke files run sequentially within that memory limit. Candidate code cannot
+read the SDK sidecar's process environment.
+
+The worker uses the compiler's existing digest-pinned `gh-aw-node` image. The
+pinned gateway requires a tag-form image name; trusted setup pulls the recorded
+digest and creates its local alias, and `--pull=never` prevents a tag lookup
+during worker startup. The authoring compiler also requires a nonempty network
+list for container MCP servers. `[local]` records the loopback addresses already
+on its proxy-bypass list; it adds no external domain. The worker remains
+network-disabled.
+
+Diagnostics carry an explicit untrusted-data envelope. JSON encoding preserves
+assertion details and real exit status while escaping envelope delimiters.
+Framing is a reminder to the model, not a guarantee against prompt injection.
+File restrictions, worker isolation and the independent grader enforce the
+boundaries. Host-side `mcp-scripts` must not execute candidate code.
 
 The native Copilot 1.0.87 CLI rejected the original argument-qualified
 `node --test:*` / `node --check:*` grants, even without `cd`; exact-rule
@@ -368,12 +387,16 @@ workspace, verifier and read-only runtime are mounted; there is no repository
 checkout, private grader, Docker socket or inherited host environment.
 A fixed loopback provider supplies tool calls without model inference.
 
-The regression checks the actual exposed tool set (including absence of bash
-and task launching), failing-before/passing-after smoke, candidate editing,
-syntax checks, preserved public tests, rejected arbitrary arguments and rejected
-runtime-file mutation. It also checks that candidate execution stays in the task
-workspace and receives no runner credentials. This is execution-contract
-evidence, not a live six-task quality pass.
+The regression checks the actual SDK tool set, allowed input reads and candidate
+edits, and denied outside paths, `/proc` reads and symlink access. It also forces
+calls to excluded built-in file tools. A second check feeds the compiled worker
+configuration to the pinned gateway and captures its Docker arguments, then
+executes that generated launch with local fixture paths and the compiler's
+recorded image digest. Container inspection checks its mounts, environment,
+PID and network modes. Synthetic candidate code attempts outside-file,
+ancestor-environment, network and runtime-write access. Smoke assertions still
+fail before repair and pass afterward. No real secrets or model inference are
+used; the live six-task gate supplies the quality result.
 
 Prepare an external scratch bundle before running it; do not commit the runtime
 or install these dependencies into the application:
@@ -385,7 +408,8 @@ or install these dependencies into the application:
 | `node_modules\` | `@github/copilot-sdk@1.0.13` and `undici@6.28.0`, the compiler's pinned dependencies, installed with `--ignore-scripts` and Linux x64 native dependencies. |
 | `bin\node` | Linux x64 Node 24 executable from the digest-pinned image in `data/evaluations/coding-agent/suite.json`. |
 
-Pull the pinned firewall image during preparation. Set the bundle's absolute
+Pull the pinned firewall, gateway and `gh-aw-node` images recorded in the lock
+file during preparation. Set the bundle's absolute
 path and run from a host with Node and Docker available; the test itself starts
 the network-disabled Linux/Node-24 container:
 
