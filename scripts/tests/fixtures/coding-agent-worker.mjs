@@ -7,6 +7,112 @@ import { setTimeout as delay } from "node:timers/promises";
 
 const gatewayImage = "ghcr.io/github/gh-aw-mcpg:v0.4.25@sha256:9be0a86220e807a0ecc89e53d7453468f7a53fbc6b3d1efd2299025ffe01d086";
 
+function docker(args) {
+  const result = spawnSync("docker", args, { encoding: "utf8", timeout: 60_000 });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim();
+}
+
+function workerConfig(compiled) {
+  const source = compiled.match(/"public-checks": (\{[\s\S]*?\n\s+\}),\n\s+"safeoutputs"/)?.[1];
+  assert.ok(source, "Missing compiled worker");
+  return JSON.parse(source.replaceAll("\\$", "$"));
+}
+
+export async function connectGateway({ compiled, workspace, assets, name }) {
+  const server = workerConfig(compiled);
+  const manifest = JSON.parse(compiled.match(/^# gh-aw-manifest: (.+)$/m)[1]);
+  const pinned = manifest.containers.find((item) => item.image === server.container).pinned_image;
+  const volume = `${name}-data`;
+  const network = `${name}-net`;
+  const gateway = `${name}-connected-gateway`;
+  const workerLabel = `bc-eval-probe=${name}`;
+  const alias = `bc-eval-probe:${name}`;
+  let gatewayProcess;
+  const workers = () => docker(["ps", "-aq", "--filter", `label=${workerLabel}`]).split(/\s+/).filter(Boolean);
+  function cleanup() {
+    spawnSync("docker", ["rm", "--force", gateway], { stdio: "ignore", timeout: 15_000 });
+    for (const container of workers()) {
+      spawnSync("docker", ["rm", "--force", container], { stdio: "ignore", timeout: 15_000 });
+    }
+    gatewayProcess?.stdout.destroy();
+    gatewayProcess?.stderr.destroy();
+    spawnSync("docker", ["network", "rm", network], { stdio: "ignore", timeout: 15_000 });
+    spawnSync("docker", ["volume", "rm", volume], { stdio: "ignore", timeout: 15_000 });
+    spawnSync("docker", ["image", "rm", "--no-prune", alias], { stdio: "ignore", timeout: 15_000 });
+  }
+  try {
+    docker(["volume", "create", volume]);
+    docker(["network", "create", "--internal", network]);
+    assert.equal(JSON.parse(docker(["network", "inspect", network]))[0].Internal, true);
+    docker(["tag", pinned, alias]);
+    docker([
+      "run", "--rm", "--pull=never", "--platform", "linux/amd64", "--network=none", "--user", "0:0",
+      "--mount", `type=volume,source=${volume},target=/shared`,
+      "--mount", `type=bind,source=${assets}-checks,target=/source/runtime,readonly`,
+      "--mount", `type=bind,source=${path.join(workspace, "test-results/coding-agent-evals/work")},target=/source/work,readonly`,
+      "--entrypoint", "node", pinned, "-e",
+      "const fs=require('node:fs');for(const name of ['runtime','work'])fs.cpSync('/source/'+name,'/shared/'+name,{recursive:true});for(const name of fs.readdirSync('/shared/work'))fs.chownSync('/shared/work/'+name,1001,1001);fs.chownSync('/shared/work',1001,1001);",
+    ]);
+    const root = JSON.parse(docker(["volume", "inspect", volume]))[0].Mountpoint;
+    server.container = alias;
+    server.mounts = server.mounts.map((mount) => mount
+      .replace("${{ runner.temp }}/gh-aw/coding-agent-runtime-checks", `${root}/runtime`)
+      .replace("${GITHUB_WORKSPACE}/test-results/coding-agent-evals/work", `${root}/work`));
+    server.args.push("--label", workerLabel, "--platform", "linux/amd64");
+    gatewayProcess = spawn("docker", [
+      "run", "--rm", "-i", "--name", gateway, "--platform", "linux/amd64", "--network", network,
+      "--network-alias", "review-gateway", "--read-only", "--cap-drop=ALL",
+      "--security-opt=no-new-privileges", "--tmpfs", "/tmp:rw,nosuid,size=32m",
+      "--env", `MCP_GATEWAY_ALLOWED_MOUNT_ROOTS=${root}/runtime:ro,${root}/work:ro`,
+      "--mount", "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock",
+      "--mount", `type=volume,source=${volume},target=${root},readonly`,
+      "--entrypoint", "/app/awmg", gatewayImage, "--config-stdin", "--routed",
+      "--listen", "0.0.0.0:8080", "--log-dir", "/tmp/logs",
+    ], { stdio: ["pipe", "pipe", "pipe"] });
+    let logs = "";
+    gatewayProcess.stdout.on("data", (chunk) => { logs += chunk; });
+    gatewayProcess.stderr.on("data", (chunk) => { logs += chunk; });
+    gatewayProcess.stdin.on("error", () => {});
+    gatewayProcess.stdin.end(JSON.stringify({
+      mcpServers: { "public-checks": server },
+      gateway: { port: 8080, domain: "review-gateway", agentId: "offline-canary" },
+    }));
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline && gatewayProcess.exitCode === null) {
+      const ids = workers();
+      if (ids.length > 0 && JSON.parse(docker(["inspect", ids[0]]))[0].State.Running) break;
+      await delay(100);
+    }
+    const state = JSON.parse(docker(["inspect", workers()[0]]))[0];
+    assert.equal(state.State.Running, true, logs.slice(-2000));
+    assert.equal(state.HostConfig.NetworkMode, "none");
+    assert.equal(state.HostConfig.PidMode, "");
+    assert.ok(state.Mounts.every((mount) => !mount.RW));
+    assert.equal(state.Mounts.length, 2);
+    assert.ok(!state.Config.Env.some((value) => /TOKEN=|SECRET=|COPILOT_/.test(value)));
+    assert.equal(state.Image, JSON.parse(docker(["image", "inspect", pinned]))[0].Id);
+    return {
+      network, volume, cleanup,
+      gatewayUrl: "http://review-gateway:8080/mcp/public-checks",
+      copyBack() {
+        docker([
+          "run", "--rm", "--pull=never", "--platform", "linux/amd64", "--network=none", "--user", "0:0",
+          "--mount", `type=volume,source=${volume},target=/shared,readonly`,
+          "--mount", `type=bind,source=${path.join(workspace, "test-results/coding-agent-evals/work")},target=/out`,
+          "--entrypoint", "node", pinned, "-e", "require('node:fs').cpSync('/shared/work','/out',{recursive:true});",
+        ]);
+      },
+      diagnostics() {
+        return docker(["exec", gateway, "/bin/sh", "-c", "tail -100 /tmp/logs/mcp-gateway.log"]);
+      },
+    };
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+}
+
 export function parseTaskData(text) {
   const match = text.match(/^Untrusted task data follows\.[^\n]*\n<untrusted-task-data>\n([^\n]+)\n<\/untrusted-task-data>$/);
   assert.ok(match, "Missing untrusted-data envelope");
@@ -14,9 +120,7 @@ export function parseTaskData(text) {
 }
 
 export async function verifyWorker({ compiled, workspace, assets, name }) {
-  const source = compiled.match(/"public-checks": (\{[\s\S]*?\n\s+\}),\n\s+"safeoutputs"/)?.[1];
-  assert.ok(source, "Missing compiled worker");
-  const server = JSON.parse(source.replaceAll("\\$", "$"));
+  const server = workerConfig(compiled);
   const manifest = JSON.parse(compiled.match(/^# gh-aw-manifest: (.+)$/m)[1]);
   const pinnedImage = manifest.containers.find((item) => item.image === server.container)?.pinned_image;
   assert.ok(pinnedImage, "Worker image must have a compiler-owned digest pin");

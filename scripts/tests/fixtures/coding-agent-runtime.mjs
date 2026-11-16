@@ -6,7 +6,7 @@ import http from "node:http";
 import { networkInterfaces } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseTaskData, verifyWorker } from "./coding-agent-worker.mjs";
+import { connectGateway, parseTaskData, verifyWorker } from "./coding-agent-worker.mjs";
 
 const image = "ghcr.io/github/gh-aw-firewall/agent:0.28.23@sha256:2c78aaba1c108e130e2d6d01e4f2cca334ea04c53e6f258913ac34173fe7e3b2";
 const model = "claude-sonnet-5";
@@ -79,7 +79,7 @@ function completion(response, body, message, finishReason) {
 async function verifyInsideContainer() {
   assert.equal(process.platform, "linux");
   assert.match(process.version, /^v24\./);
-  assert.ok(Object.values(networkInterfaces()).flat().every((address) => address.internal));
+  assert.ok(process.env.BC_REVIEW_GATEWAY_URL || Object.values(networkInterfaces()).flat().every((address) => address.internal));
   const compiled = readFileSync("/profile.lock.yml", "utf8");
   const metadata = JSON.parse(compiled.match(/^# gh-aw-metadata: (.+)$/m)[1]);
   const configBefore = readFileSync(`${runtimeTarget}/config.json`);
@@ -111,6 +111,14 @@ async function verifyInsideContainer() {
     GH_AW_HARNESS_MAX_RETRIES: compiledField(compiled, "GH_AW_HARNESS_MAX_RETRIES"),
     GH_AW_MAX_TOOL_DENIALS: compiledField(compiled, "GH_AW_MAX_TOOL_DENIALS"),
   };
+  const serverArgs = JSON.parse(env.GH_AW_COPILOT_SDK_SERVER_ARGS);
+  serverArgs.push("--additional-mcp-config", JSON.stringify({
+    mcpServers: {
+      "public-checks": { type: "http", url: "http://127.0.0.1:10000/mcp", tools: ["*"] },
+      "negative-checks": { type: "http", url: "http://127.0.0.1:10000/negative-mcp", tools: ["*"] },
+    },
+  }));
+  env.GH_AW_COPILOT_SDK_SERVER_ARGS = JSON.stringify(serverArgs);
   const version = spawnSync("/runtime/copilot", ["--no-auto-update", "--version"], {
     cwd: "/workspace", env, encoding: "utf8", timeout: 60_000, maxBuffer: 64 * 1024,
   });
@@ -118,8 +126,47 @@ async function verifyInsideContainer() {
   assert.ok(version.stdout.includes(`CLI ${metadata.engine_versions.copilot}.`));
 
   let active;
+  const mcpCalls = [];
   const server = http.createServer(async (request, response) => {
     try {
+      if (request.url === "/mcp" || request.url === "/negative-mcp") {
+        if (request.method !== "POST") { response.writeHead(405); response.end(); return; }
+        let raw = "";
+        for await (const chunk of request) raw += chunk;
+        const rpc = JSON.parse(raw);
+        if (request.url === "/mcp" && process.env.BC_REVIEW_GATEWAY_URL) {
+          if (rpc.method === "tools/call") mcpCalls.push(rpc.params.name);
+          const headers = { "Content-Type": "application/json", Accept: "application/json, text/event-stream", Authorization: "offline-canary" };
+          for (const header of ["mcp-session-id", "mcp-protocol-version"]) {
+            if (request.headers[header]) headers[header] = request.headers[header];
+          }
+          const upstream = await fetch(process.env.BC_REVIEW_GATEWAY_URL, {
+            method: "POST", headers, body: raw, signal: AbortSignal.timeout(30_000),
+          });
+          const responseHeaders = { "Content-Type": upstream.headers.get("content-type") || "application/json" };
+          if (upstream.headers.has("mcp-session-id")) responseHeaders["Mcp-Session-Id"] = upstream.headers.get("mcp-session-id");
+          response.writeHead(upstream.status, responseHeaders);
+          response.end(await upstream.text());
+          return;
+        }
+        if (rpc.id === undefined) { response.writeHead(202); response.end(); return; }
+        const names = ["undeclared_operation"];
+        let result;
+        if (rpc.method === "initialize") {
+          result = { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "transport-canary", version: "1" } };
+        } else if (rpc.method === "tools/list") {
+          result = { tools: names.map((name) => ({
+            name, description: "Synthetic permission-transport canary; no code executes.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+          })) };
+        } else if (rpc.method === "tools/call") {
+          mcpCalls.push(rpc.params.name);
+          result = { content: [{ type: "text", text: "MCP_TRANSPORT_CANARY_OK" }] };
+        } else result = {};
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result }));
+        return;
+      }
       if (request.method === "GET" && request.url === "/reflect") {
         response.writeHead(200, { "Content-Type": "application/json" });
         response.end(JSON.stringify({ endpoints: [{
@@ -177,30 +224,50 @@ async function verifyInsideContainer() {
     server.once("error", reject);
     server.listen(10000, "127.0.0.1", resolve);
   });
-  async function run(name, steps) {
+  async function run(name, steps, overrides = {}) {
     active = { name, steps, requests: 0, results: new Map() };
     const result = await execute(process.execPath, [
       "/runtime-root/gh-aw/actions/copilot_harness.cjs", process.execPath,
       `${runtimeTarget}/driver.cjs`, "/runtime/copilot",
-    ], { cwd: "/workspace", env });
+    ], { cwd: "/workspace", env: { ...env, ...overrides } });
     assert.ifError(active.error);
     assert.ok(active.requests > 0,
       `Runtime did not reach the offline provider; exit ${result.code}: ${result.output.slice(-1200)}`);
     assert.equal((result.output.match(/^\[copilot-harness\] attempt \d+: spawning:/gm) ?? []).length, 1);
     return { ...result, results: [...active.results.values()] };
   }
+  function mcpResult(text) {
+    if (text.startsWith("Untrusted task data")) return parseTaskData(text);
+    const result = JSON.parse(text);
+    assert.ok(Array.isArray(result.content), `Unexpected MCP result: ${text.slice(0, 400)}`);
+    return parseTaskData(result.content.find((item) => item.type === "text").text);
+  }
   try {
     const repaired = await run("repair", [
       { tool: "read_task_file", args: { file: "data/evaluations/coding-agent/suite.json" } },
       { tool: "read_task_file", args: { file: `${work}/probe.mjs` } },
+      { tool: "public-checks-run_public_smoke_tests", args: {} },
       { tool: "edit_candidate", args: {
         caseId: "probe", oldText: "return 0;", newText: "return 1;",
       } },
+      { tool: "public-checks-run_public_smoke_tests", args: {} },
+      { tool: "public-checks-check_candidate_syntax", args: {} },
     ]);
     assert.equal(repaired.code, 0);
     assert.match(parseTaskData(repaired.results[0]).content, /offline-runtime-probe/);
     assert.match(parseTaskData(repaired.results[1]).content, /export function probe/);
-    assert.equal(parseTaskData(repaired.results[2]).changed, true);
+    assert.equal(mcpResult(repaired.results[2]).exitCode, 1);
+    assert.equal(parseTaskData(repaired.results[3]).changed, true);
+    assert.equal(mcpResult(repaired.results[4]).exitCode, 0);
+    assert.equal(mcpResult(repaired.results[5]).exitCode, 0);
+    const expectedCalls = ["run_public_smoke_tests", "run_public_smoke_tests", "check_candidate_syntax"];
+    assert.deepEqual(mcpCalls, expectedCalls);
+    const invalidMcp = await run("invalid-mcp-arguments", [
+      { tool: "public-checks-run_public_smoke_tests", args: { command: "unwanted-command" } },
+    ]);
+    assert.match(invalidMcp.results[0], /invalid-arguments|takes no arguments|additional properties|validation|not allowed|invalid.*argument/i);
+    assert.doesNotMatch(invalidMcp.results[0], /REVIEW_OUTSIDE|REVIEW_ANCESTOR/);
+    const callsAfterArgumentCheck = [...mcpCalls];
     assert.equal(readFileSync(testPath, "utf8"), publicTest);
 
     const deniedPaths = ["/tmp/review-canary.txt", "/proc/self/environ", "/proc/1/environ", "/run",
@@ -231,10 +298,21 @@ async function verifyInsideContainer() {
     writeFileSync(`/workspace/${work}/probe.mjs`, original);
     assert.equal(readFileSync(`${runtimeTarget}/driver.cjs`, "utf8"), driverBefore.toString("utf8"));
     assert.equal(readFileSync(`${runtimeTarget}/config.json`, "utf8"), configBefore.toString("utf8"));
+    const deniedArgs = [...serverArgs];
+    const deniedConfig = JSON.parse(deniedArgs.at(-1));
+    deniedConfig.mcpServers["public-checks"].url = "http://127.0.0.1:10000/negative-mcp";
+    deniedArgs[deniedArgs.length - 1] = JSON.stringify(deniedConfig);
+    const undeclared = await run("undeclared-mcp", [
+      { tool: "public-checks-undeclared_operation", args: {} },
+    ], { GH_AW_COPILOT_SDK_SERVER_ARGS: JSON.stringify(deniedArgs) });
+    assert.equal(undeclared.code, 1);
+    assert.match(undeclared.output, /guard\.tool_denials_exceeded/);
+    assert.deepEqual(mcpCalls, callsAfterArgumentCheck);
     return {
       cli: metadata.engine_versions.copilot, taskFileTools: 2, builtinFileTools: 0,
       allowedReadAndEdit: true, deniedPaths: deniedPaths.length,
       symlinkReadAndEdit: "denied", protectedInputsUnchanged: true,
+      declaredMcpCalls: 3, undeclaredMcpCall: "denied", sdkGatewayWorkerInvocation: true,
     };
   } finally {
     server.closeAllConnections();
@@ -316,7 +394,21 @@ export async function verifyRuntimeContract({
     "--workdir", "/workspace", "--entrypoint", "/runtime/bin/node", image, "/verify.mjs", "--child",
   ];
   try {
-    const result = await execute("docker", args, { timeoutMs: 600_000 });
+    const connected = await connectGateway({ compiled, workspace, assets, name });
+    const networkIndex = args.indexOf("--network=none");
+    args.splice(networkIndex, 1, "--network", connected.network);
+    const entrypoint = args.indexOf("--entrypoint");
+    args.splice(entrypoint, 0,
+      "--env", `BC_REVIEW_GATEWAY_URL=${connected.gatewayUrl}`,
+      "--mount", `type=volume,source=${connected.volume},volume-subpath=work,target=/workspace/${work}`);
+    let result;
+    try {
+      result = await execute("docker", args, { timeoutMs: 600_000 });
+      if (result.code !== 0) result.output += `\nGateway diagnostics:\n${connected.diagnostics()}`;
+      connected.copyBack();
+    } finally {
+      connected.cleanup();
+    }
     assert.equal(result.code, 0, result.output.slice(-5000));
     const summary = result.output.split(/\r?\n/).find((line) => line.startsWith('{"cli":'));
     assert.ok(summary, "Missing runtime regression evidence");

@@ -43,6 +43,15 @@ async function main() {
       for (const tool of tools) sessionConfig.availableTools.addCustom(tool.name);
       return super.createSession({
         ...sessionConfig,
+        onPermissionRequest(request, invocation) {
+          // Copilot reports the MCP wire name here; GH-AW grants the leaf name.
+          if (request.kind === "mcp" && request.serverName === "public-checks") {
+            const names = ["run_public_smoke_tests", "check_candidate_syntax"];
+            const name = names.find((name) => request.toolName === `public-checks-${name}`);
+            if (name) request = { ...request, toolName: name };
+          }
+          return sessionConfig.onPermissionRequest(request, invocation);
+        },
         tools: [...sessionConfig.tools, ...tools],
         availableTools: new sdk.ToolSet().addCustom("read_task_file").addCustom("edit_candidate").addMcp("*"),
         excludedTools: new sdk.ToolSet().addBuiltIn("*"),

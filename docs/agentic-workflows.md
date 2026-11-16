@@ -284,6 +284,9 @@ during worker startup. The authoring compiler also requires a nonempty network
 list for container MCP servers. `[local]` records the loopback addresses already
 on its proxy-bypass list; it adds no external domain. The worker remains
 network-disabled.
+The pinned SDK reports server-prefixed MCP tool names in permission requests.
+The driver maps only the two declared `public-checks` names to the leaf names
+in the compiled grants. Other names still go through the unchanged deny policy.
 
 Diagnostics carry an explicit untrusted-data envelope. JSON encoding preserves
 assertion details and real exit status while escaping envelope delimiters.
@@ -397,6 +400,11 @@ PID and network modes. Synthetic candidate code attempts outside-file,
 ancestor-environment, network and runtime-write access. Smoke assertions still
 fail before repair and pass afterward. No real secrets or model inference are
 used; the live six-task gate supplies the quality result.
+The SDK also invokes the real gateway-backed worker through an internal Docker
+network with no external route. That check covers the MCP permission-name
+conversion, both declared operations, rejected extra arguments and an
+undeclared operation. Candidate execution stays in the worker's separate
+network-disabled container.
 
 Prepare an external scratch bundle before running it; do not commit the runtime
 or install these dependencies into the application:
@@ -418,8 +426,8 @@ $env:CODING_AGENT_RUNTIME_ROOT = 'C:\path\to\prepared-runtime'
 node --test --test-name-pattern="pinned runtime" scripts\tests\coding-agent-evals.test.mjs
 ```
 
-The container verifier refuses non-Linux, non-Node-24 or network-attached
-environments and does not inherit GitHub/Azure credentials. Without
+The verifier requires Linux and Node 24, keeps the worker network-disabled,
+and does not inherit GitHub/Azure credentials. Without
 `CODING_AGENT_RUNTIME_ROOT`, it is explicitly skipped, not reported as runtime
 authorization evidence. Review the live run's tested SHA and independent results
 for **all six tasks** after separately approving the repair PR's normal CI.
