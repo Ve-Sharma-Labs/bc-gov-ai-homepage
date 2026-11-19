@@ -404,7 +404,7 @@ schedule detects model/default drift even without a configuration commit, and
 not emit a PR event: dispatch an eval when changing model selection rather than
 waiting for the next daily run.
 
-The agent is bounded to 60 turns, 300 AI Credits/run, 900/day and 20 minutes.
+The agent is bounded to 60 turns, 1,000 AI Credits/run, 10,000/day and 20 minutes.
 The independent grading job has a ten-minute limit. Framework detection and
 Actions compute remain separate costs. Budget exhaustion is not a pass. No
 automatic issues, comments, draft PRs, merge, deployment or application-model
@@ -442,7 +442,7 @@ not retry until green. Two successes are a bounded acceptance check, not a
 guarantee against future model drift.
 
 This protocol needs new approval before the push or dispatch. Its coding-agent
-ceiling is 300 AI Credits per run, with the existing 900/day limit. The PR
+ceiling is 1,000 AI Credits per run, with a 10,000/day limit. The PR
 update may also activate PR Conversation QA (500/run); framework work and
 Actions compute have separate costs. The second evaluation is not authorized
 by an earlier, consumed PR cycle approval.

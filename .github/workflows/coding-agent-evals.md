@@ -53,8 +53,8 @@ strict: true
 timeout-minutes: 20
 max-turns: 60
 max-tool-denials: 1
-max-ai-credits: 300
-max-daily-ai-credits: 900
+max-ai-credits: 1000
+max-daily-ai-credits: 10000
 network:
   allowed: [local]
 sandbox:

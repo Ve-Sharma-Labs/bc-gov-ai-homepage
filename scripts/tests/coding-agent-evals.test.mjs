@@ -307,7 +307,7 @@ test("static SDK contract keeps narrow permissions, a single denial limit and no
   assert.match(source, /harness:\r?\n    max-retries: 0/);
   assert.match(compiled, /GH_AW_MAX_TOOL_DENIALS: "?1"?\r?\n/);
   assert.match(compiled, /GH_AW_HARNESS_MAX_RETRIES: "?0"?\r?\n/);
-  for (const budget of ["max-turns: 60", "max-ai-credits: 300", "max-daily-ai-credits: 900"]) {
+  for (const budget of ["max-turns: 60", "max-ai-credits: 1000", "max-daily-ai-credits: 10000"]) {
     assert.ok(source.includes(budget), budget);
   }
   assert.match(source, /Free-form shell execution is unavailable/);
