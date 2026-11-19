@@ -46,7 +46,7 @@ async function main() {
         onPermissionRequest(request, invocation) {
           // Copilot reports the MCP wire name here; GH-AW grants the leaf name.
           if (request.kind === "mcp" && request.serverName === "public-checks") {
-            const names = ["run_public_smoke_tests", "check_candidate_syntax"];
+            const names = ["run_public_smoke_tests", "check_candidate_syntax", "probe_candidate"];
             const name = names.find((name) => request.toolName === `public-checks-${name}`);
             if (name) request = { ...request, toolName: name };
           }

@@ -6,7 +6,32 @@ const path = require("node:path");
 const readline = require("node:readline");
 const { networkInterfaces } = require("node:os");
 const { pathToFileURL } = require("node:url");
-const { createEvaluationTools } = require("./tools.cjs");
+const { createEvaluationTools, validateJson } = require("./tools.cjs");
+
+async function probe() {
+  const write = fs.writeFileSync.bind(fs);
+  const stringify = JSON.stringify;
+  const request = JSON.parse(fs.readFileSync(0, "utf8"));
+  const candidate = await import(`data:text/javascript;base64,${request.source}`);
+  const fn = candidate[request.function];
+  assert.equal(typeof fn, "function", "Missing required export");
+  const results = [];
+  for (const invocation of request.invocations) {
+    let value;
+    try {
+      value = await fn(...invocation.args);
+    } catch {
+      results.push({ kind: "throw" });
+      continue;
+    }
+    if (value === undefined) results.push({ kind: "return", undefined: true });
+    else {
+      validateJson(value);
+      results.push({ kind: "return", value });
+    }
+  }
+  write(3, stringify({ results }));
+}
 
 async function main() {
   assert.equal(process.platform, "linux");
@@ -23,13 +48,20 @@ async function main() {
   }
   const { readRegular } = await import(pathToFileURL(path.join(__dirname, "inputs.mjs")).href);
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
-  const tools = createEvaluationTools({ defineTool: (name, definition) => ({ name, ...definition }) }, config, readRegular);
+  const tools = createEvaluationTools({ defineTool: (name, definition) => ({ name, ...definition }) }, config, readRegular, {
+    recordProbe: (record) => process.stderr.write(`${JSON.stringify({ type: "candidate.self_check", ...record })}\n`),
+  });
   const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+  const operations = new Map();
   const send = (id, value) => process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id, ...value })}\n`);
   input.on("line", (line) => {
     void (async () => {
       if (Buffer.byteLength(line) > 64 * 1024) throw new Error("Oversized worker request");
       const request = JSON.parse(line);
+      if (request.method === "notifications/cancelled") {
+        operations.get(request.params?.requestId)?.abort();
+        return;
+      }
       if (request.id === undefined) return;
       if (request.method === "initialize") {
         send(request.id, { result: {
@@ -45,10 +77,16 @@ async function main() {
         const tool = tools.find((item) => item.name === request.params?.name);
         if (!tool) send(request.id, { error: { code: -32602, message: "Unknown check operation" } });
         else {
-          const result = await tool.handler(request.params.arguments);
-          send(request.id, { result: {
-            isError: result.resultType !== "success", content: [{ type: "text", text: result.textResultForLlm }],
-          } });
+          const controller = new AbortController();
+          operations.set(request.id, controller);
+          try {
+            const result = await tool.handler(request.params.arguments, { signal: controller.signal });
+            send(request.id, { result: {
+              isError: result.resultType !== "success", content: [{ type: "text", text: result.textResultForLlm }],
+            } });
+          } finally {
+            operations.delete(request.id);
+          }
         }
       } else send(request.id, { error: { code: -32601, message: "Unsupported method" } });
     })().catch((error) => {
@@ -56,9 +94,12 @@ async function main() {
       process.exit(1);
     });
   });
+  input.on("close", () => {
+    for (const controller of operations.values()) controller.abort();
+  });
 }
 
-main().catch((error) => {
+(process.argv[2] === "--probe" ? probe() : main()).catch((error) => {
   process.stderr.write(`Check worker startup failed: ${error.message}\n`);
   process.exit(1);
 });

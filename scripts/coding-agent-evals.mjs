@@ -114,6 +114,7 @@ export function prepare(directory, { revision, model }) {
     schemaVersion: 1, suiteId: suite.id, revision, model,
     ...inputHashes(protectedFiles, model),
     protectedFiles, caseIds: suite.cases.map((item) => item.id),
+    caseFunctions: Object.fromEntries(suite.cases.map((item) => [item.id, item.function])),
   };
 }
 
@@ -133,6 +134,8 @@ export function stageRuntime(directory, destination, manifest) {
   const suite = loadSuite(directory);
   assert.equal(manifest.schemaVersion, 1);
   assert.deepEqual(manifest.caseIds, suite.cases.map((item) => item.id));
+  assert.deepEqual(manifest.caseFunctions, Object.fromEntries(suite.cases.map((item) => [item.id, item.function])));
+  assert.equal(sha256(readRegular(directory, suitePath)), manifest.protectedFiles[suitePath], "Task catalog was modified");
   const relative = path.relative(realpathSync(directory), path.resolve(destination));
   assert.ok(relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative),
     "Trusted runtime must be staged outside the writable task workspace");
@@ -170,7 +173,7 @@ export function stageRuntime(directory, destination, manifest) {
   for (const [target, bytes] of sources) writeFileSync(path.join(destination, target), bytes, { flag: "wx" });
   cpSync(dependencies, path.join(destination, "node_modules"), { recursive: true, dereference: true });
   writeJson(path.join(destination, "config.json"), {
-    version: 1, workspace: realpathSync(directory), caseIds: manifest.caseIds, smokeHashes,
+    version: 1, workspace: realpathSync(directory), caseIds: manifest.caseIds, caseFunctions: manifest.caseFunctions, smokeHashes,
     readableFiles: [
       ".github/aw/instructions.md", ".github/workflows/shared/coding-agent-policy.md",
       ".github/workflows/coding-agent-evals.md", suitePath,
@@ -182,7 +185,7 @@ export function stageRuntime(directory, destination, manifest) {
   mkdirSync(worker);
   for (const target of ["worker.cjs", "tools.cjs", "inputs.mjs"]) cpSync(path.join(destination, target), path.join(worker, target));
   writeJson(path.join(worker, "config.json"), {
-    version: 1, workspace: "/eval", caseIds: manifest.caseIds, smokeHashes,
+    version: 1, workspace: "/eval", caseIds: manifest.caseIds, caseFunctions: manifest.caseFunctions, smokeHashes,
     forbiddenPaths: [".git", "tests/agent-evals/checks.mjs"],
   });
 }

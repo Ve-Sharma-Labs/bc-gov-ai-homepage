@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -295,7 +296,8 @@ test("static SDK contract keeps narrow permissions, a single denial limit and no
     bash: false, edit: false, webFetch: false, webSearch: false, mcp: true, cliProxy: false,
   });
   assert.deepEqual(config.permissions.allowedTools, [
-    "public-checks(check_candidate_syntax)", "public-checks(run_public_smoke_tests)", "read", "safeoutputs",
+    "public-checks(check_candidate_syntax)", "public-checks(probe_candidate)",
+    "public-checks(run_public_smoke_tests)", "read", "safeoutputs",
   ]);
   assert.ok(args.includes("--headless"));
   assert.ok(args.includes("--no-ask-user"));
@@ -323,6 +325,9 @@ test("static SDK contract keeps narrow permissions, a single denial limit and no
   const network = JSON.parse(compiled.match(/"network":(\{[^}]+\})/)[1]);
   assert.equal(network.isolation, true);
   assert.deepEqual(network.allowDomains, ["127.0.0.1", "::1", "localhost"]);
+  assert.match(source, /For every task[\s\S]*probe_candidate/);
+  assert.match(source, /After the last edit[\s\S]*reread it with `read_task_file`/);
+  assert.doesNotMatch(source, /invalid-evidence-4|evidence\.baseSha\s*!==|context\.baseSha/);
 });
 
 test("public smoke checks fail before and pass after test-owned repairs, independently of authorization", (t) => {
@@ -351,6 +356,7 @@ function operationFixture(t) {
   const manifest = prepare(directory, { revision, model: "auto" });
   const config = {
     version: 1, workspace: realpathSync(directory), caseIds: manifest.caseIds,
+    caseFunctions: manifest.caseFunctions,
     readableFiles: ["data/evaluations/coding-agent/suite.json"],
     smokeHashes: Object.fromEntries(manifest.caseIds.map((id) =>
       [id, manifest.protectedFiles[`test-results/coding-agent-evals/work/${id}.test.mjs`]])),
@@ -360,8 +366,8 @@ function operationFixture(t) {
   return { directory, manifest, config, tools: createEvaluationTools(sdk, config, readRegular) };
 }
 
-async function invokeTool(tool, invocation) {
-  const result = await tool.handler({}, invocation);
+async function invokeTool(tool, invocation, args = {}) {
+  const result = await tool.handler(args, invocation);
   return { ...parseTaskData(result.textResultForLlm), toolResultType: result.resultType };
 }
 
@@ -380,11 +386,16 @@ test("runtime staging verifies protected sources and isolates SDK dependencies f
   stageRuntime(directory, destination, manifest);
   const config = JSON.parse(readFileSync(path.join(destination, "config.json"), "utf8"));
   assert.deepEqual(config.caseIds, manifest.caseIds);
+  assert.deepEqual(config.caseFunctions, manifest.caseFunctions);
   assert.equal(config.workspace, realpathSync(directory));
   assert.equal(readFileSync(path.join(destination, "inputs.mjs"), "utf8"),
     readFileSync(path.join(directory, "scripts/coding-agent-evals.mjs"), "utf8"));
   writeFileSync(path.join(dependencies, "fixture.cjs"), "modified");
   assert.equal(readFileSync(path.join(destination, "node_modules/fixture.cjs"), "utf8"), "trusted");
+  const workerConfig = JSON.parse(readFileSync(path.join(`${destination}-checks`, "config.json"), "utf8"));
+  assert.deepEqual(workerConfig.caseFunctions, Object.fromEntries(suite.cases.map((item) => [item.id, item.function])));
+  assert.throws(() => stageRuntime(directory, `${destination}-invalid`,
+    { ...manifest, caseFunctions: { ...manifest.caseFunctions, "strict-ports": "arbitraryExport" } }));
   writeFileSync(path.join(directory, ".github/aw/coding-agent-runtime/tools.cjs"), "modified");
   assert.throws(() => stageRuntime(directory, `${destination}-invalid`, manifest), /Runtime source was modified/);
 });
@@ -403,7 +414,7 @@ test("runtime staging refuses dependency links that escape the installed SDK tre
 
 test("fixed check tools accept neither command strings nor path/options parameters", async (t) => {
   const { tools } = operationFixture(t);
-  for (const tool of tools) {
+  for (const tool of tools.filter((tool) => tool.name !== "probe_candidate")) {
     assert.deepEqual(tool.parameters, { type: "object", properties: {}, additionalProperties: false });
     for (const input of [{ command: "node --eval 'process.exit(0)'" }, { path: "../checks.mjs" },
       { args: ["--require", "file.mjs"] }, "smoke", [], null]) {
@@ -513,6 +524,179 @@ test("cancellation stops a fixed test process group without reporting a pass", {
   } finally {
     clearTimeout(timer);
   }
+});
+
+function probeFixture(t) {
+  const directory = fixture(t);
+  const work = path.join(directory, "test-results/coding-agent-evals/work");
+  mkdirSync(work, { recursive: true });
+  const sources = {
+    "bounded-value": "export function withinBound(value, maximum) { return value >= 0; }\n",
+    "optional-value": "export function optionalValue(value) { if (value === null) return undefined; " +
+      'if (typeof value !== "string") throw new Error("Expected text"); return { text: value }; }\n',
+  };
+  const smoke = {
+    "bounded-value": 'import assert from "node:assert/strict"; import { withinBound } from "./bounded-value.mjs"; assert.equal(withinBound(2, 4), true);\n',
+    "optional-value": 'import assert from "node:assert/strict"; import { optionalValue } from "./optional-value.mjs"; assert.deepEqual(optionalValue("text"), { text: "text" });\n',
+  };
+  for (const id of Object.keys(sources)) {
+    writeFileSync(path.join(work, `${id}.mjs`), sources[id]);
+    writeFileSync(path.join(work, `${id}.test.mjs`), smoke[id]);
+  }
+  const sha = (value) => createHash("sha256").update(value).digest("hex");
+  const config = {
+    version: 1, workspace: realpathSync(directory), caseIds: Object.keys(sources),
+    caseFunctions: { "bounded-value": "withinBound", "optional-value": "optionalValue" },
+    smokeHashes: Object.fromEntries(Object.entries(smoke).map(([id, source]) => [id, sha(source)])),
+    forbiddenPaths: [],
+  };
+  const records = [];
+  const tools = createEvaluationTools({ defineTool: (name, definition) => ({ name, ...definition }) },
+    config, readRegular, { recordProbe: (record) => records.push(record) });
+  const probe = tools.find((tool) => tool.name === "probe_candidate");
+  const call = (caseId, probes, invocation) => invokeTool(probe, invocation, { caseId, probes });
+  return { work, sha, sources, records, tools, probe, call };
+}
+
+test("structured probes reject executable selectors and excessive or non-JSON data before execution", async (t) => {
+  const { probe, records } = probeFixture(t);
+  const valid = { caseId: "bounded-value", probes: [{ args: [2, 4], value: true }] };
+  const cyclic = {};
+  cyclic.self = cyclic;
+  let deep = null;
+  for (let depth = 0; depth < 8; depth++) deep = { nested: deep };
+  const invalid = [
+    { ...valid, caseId: "../bounded-value.mjs" }, { ...valid, caseId: "unknown" },
+    { ...valid, function: "arbitraryExport" }, { ...valid, path: "/proc/self/environ" },
+    { ...valid, command: "node --eval 'unwanted'" }, { ...valid, source: "return true;" },
+    { ...valid, probes: [] }, { ...valid, probes: Array.from({ length: 9 }, () => valid.probes[0]) },
+    ...[
+      { args: [], value: true, throws: true }, { args: [], throws: false }, { args: [], undefined: false },
+      { args: [], expression: "true" }, { args: [], value: true, flags: ["--inspect"] },
+      { args: "[]", value: true }, { args: Array(17).fill(0), value: true },
+      ...[undefined, NaN, Infinity, -0, 1n, () => true, new Date(), cyclic, deep, "x".repeat(2049),
+        Array(65).fill(0), Array(1)].map((value) => ({ args: [value], value: true })),
+      { args: [Object.defineProperty({}, "payload", { enumerable: true, get: () => assert.fail("Getter executed") })], value: true },
+    ].map((item) => ({ ...valid, probes: [item] })),
+    { ...valid, probes: Array.from({ length: 8 }, () => ({ args: ["x".repeat(1800)], value: true })) },
+  ];
+  for (const request of invalid) {
+    const result = parseTaskData((await probe.handler(request)).textResultForLlm);
+    assert.equal(result.status, "blocked");
+    assert.equal(result.reason, "invalid-arguments");
+    assert.equal(result.exitCode, null);
+  }
+  assert.deepEqual(records, []);
+});
+
+test("public-contract counterexamples catch a smoke-passing incomplete diagnostic candidate", {
+  skip: process.platform !== "linux" && "Candidate execution requires the Linux sandbox",
+}, async (t) => {
+  const { work, tools, call, records, sha } = probeFixture(t);
+  assert.equal((await invokeTool(tools[0])).exitCode, 0);
+  // Public diagnostic contract: accept values from zero through the supplied maximum.
+  const probes = [{ args: [2, 4], value: true }, { args: [5, 4], value: false }, { args: [-1, 4], value: false }];
+  const before = await call("bounded-value", probes);
+  assert.equal(before.diagnosticOnly, true);
+  assert.equal(before.status, "failed");
+  assert.equal(before.matched, 2);
+  assert.equal(before.results[1].status, "mismatched");
+  const corrected = "export function withinBound(value, maximum) { return value >= 0 && value <= maximum; }\n";
+  writeFileSync(path.join(work, "bounded-value.mjs"), corrected);
+  const after = await call("bounded-value", probes);
+  assert.equal(after.status, "passed");
+  assert.equal(after.candidateHash, sha(corrected));
+  assert.notEqual(after.candidateHash, before.candidateHash);
+  assert.equal(after.appliesToCurrentCandidate, true);
+  assert.equal((await invokeTool(tools[0])).exitCode, 0);
+  assert.equal(records.length, 2);
+  assert.deepEqual(Object.keys(records[1]).sort(), [
+    "appliesToCurrentCandidate", "candidateHash", "caseId", "currentCandidateHash",
+    "diagnosticOnly", "exitCode", "matched", "probeCount", "status",
+  ]);
+  const text = "node --eval 'process.exit(9)'";
+  const outcomes = await call("optional-value", [
+    { args: [text], value: { text } }, { args: [null], undefined: true }, { args: [4], throws: true },
+  ]);
+  assert.equal(outcomes.status, "passed");
+  assert.equal(outcomes.results[0].actual.value.text, text);
+  const maximum = await call("optional-value", Array.from({ length: 8 }, () => ({ args: [null], undefined: true })));
+  assert.equal(maximum.matched, 8);
+});
+
+test("probe receipts bind executed bytes and reject concurrent edits without misattributing the result", {
+  skip: process.platform !== "linux" && "Candidate execution requires the Linux sandbox",
+}, async (t) => {
+  const { work, call, sha } = probeFixture(t);
+  const original = "export async function withinBound() { await new Promise(resolve => setTimeout(resolve, 500)); return 1; }\n";
+  const edited = "export function withinBound() { return 2; }\n";
+  writeFileSync(path.join(work, "bounded-value.mjs"), original);
+  const pending = call("bounded-value", [{ args: [], value: 1 }]);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  writeFileSync(path.join(work, "bounded-value.mjs"), edited);
+  const result = await pending;
+  assert.equal(result.status, "blocked");
+  assert.equal(result.reason, "candidate-changed");
+  assert.equal(result.candidateHash, sha(original));
+  assert.equal(result.currentCandidateHash, sha(edited));
+  assert.equal(result.appliesToCurrentCandidate, false);
+  assert.equal(result.results[0].actual.value, 1);
+});
+
+test("probe output is bounded and absent, forged, unsupported or truncated results never pass", {
+  skip: process.platform !== "linux" && "Candidate execution requires the Linux sandbox",
+}, async (t) => {
+  const { work, call } = probeFixture(t);
+  const candidate = path.join(work, "bounded-value.mjs");
+  writeFileSync(candidate, 'export function withinBound() { console.log("x".repeat(20000)); return "ok"; }\n');
+  const bounded = await call("bounded-value", [{ args: [], value: "ok" }]);
+  assert.equal(bounded.status, "passed");
+  assert.equal(bounded.checks[0].truncated.stdout, true);
+  assert.ok(Buffer.byteLength(bounded.checks[0].stdout + bounded.checks[0].stderr) <= 8192);
+  for (const source of [
+    "export function withinBound() { process.exit(0); }",
+    'export function withinBound() { console.log(\'{"results":[{"kind":"return","value":true}]}\'); process.exit(0); }',
+    'import fs from "node:fs"; export function withinBound() { fs.writeFileSync(3, \'{"results":[]}\'); process.exit(0); }',
+    'import fs from "node:fs"; export function withinBound() { fs.writeFileSync(3, "null"); process.exit(0); }',
+    "export const missingRequiredExport = true;",
+    "export function withinBound() { return NaN; }",
+    "export function withinBound() { return { unsupported: undefined }; }",
+  ]) {
+    writeFileSync(candidate, source);
+    const result = await call("bounded-value", [{ args: [], throws: true }]);
+    assert.equal(result.status, "blocked");
+    assert.deepEqual(result.results, []);
+  }
+  writeFileSync(candidate, 'export function withinBound() { return "x".repeat(2048); }\n');
+  const truncated = await call("bounded-value", Array.from({ length: 8 }, () => ({ args: [], value: "" })));
+  assert.equal(truncated.status, "blocked");
+  assert.equal(truncated.reason, "probe-result-truncated");
+  assert.equal(truncated.checks[0].protocolTruncated, true);
+});
+
+test("probe cancellation, deadline and queue limits remain incomplete outcomes", {
+  skip: process.platform !== "linux" && "Candidate execution requires the Linux sandbox",
+  timeout: 25_000,
+}, async (t) => {
+  const { work, call } = probeFixture(t);
+  writeFileSync(path.join(work, "bounded-value.mjs"), "export function withinBound() { while (true) {} }\n");
+  const controller = new AbortController();
+  const first = call("bounded-value", [{ args: [], value: true }], { signal: controller.signal });
+  const second = call("optional-value", [{ args: [null], undefined: true }]);
+  const excess = await call("optional-value", [{ args: [null], undefined: true }]);
+  assert.equal(excess.reason, "busy");
+  const timer = setTimeout(() => controller.abort(), 200);
+  const cancelled = await first;
+  clearTimeout(timer);
+  assert.equal(cancelled.status, "blocked");
+  assert.equal(cancelled.reason, "cancelled");
+  assert.equal(cancelled.exitCode, null);
+  assert.equal((await second).status, "passed");
+  const expired = await call("bounded-value", [{ args: [], value: true }]);
+  assert.equal(expired.status, "blocked");
+  assert.equal(expired.reason, "timed-out");
+  assert.equal(expired.exitCode, null);
+  assert.equal(expired.toolResultType, "failure");
 });
 
 test("pinned runtime exposes only fixed checks inside task-only isolation", {

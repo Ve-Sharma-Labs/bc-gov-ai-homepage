@@ -86,7 +86,7 @@ mcp-servers:
     mounts:
       - "${{ runner.temp }}/gh-aw/coding-agent-runtime-checks:/runtime:ro"
       - "${{ github.workspace }}/test-results/coding-agent-evals/work:/eval/test-results/coding-agent-evals/work:ro"
-    allowed: [run_public_smoke_tests, check_candidate_syntax]
+    allowed: [run_public_smoke_tests, check_candidate_syntax, probe_candidate]
 safe-outputs:
   staged: true
   noop:
@@ -254,12 +254,27 @@ Use `edit_candidate` to change a catalogued candidate. Supply its case ID and
 one exact old/new text replacement. Other file edits and built-in file tools
 are unavailable.
 
-The current working directory is already the root of the prepared task-only
-workspace. Call `run_public_smoke_tests` with no arguments before making any
-repair, and again after the fixes. Call `check_candidate_syntax` with no
-arguments when you need to check JavaScript syntax. These tools execute the
-existing Node tests in this workspace and return the real exit status with
-bounded diagnostics. A nonzero smoke-test exit before repair is expected.
+Before editing, turn each task's public contract into a checklist of obligations.
+Read the candidate and its public smoke file, then call `run_public_smoke_tests`
+with no arguments to establish the baseline. A nonzero assertion exit is
+expected for the frozen starters.
+
+For every task, repair the candidate and test your interpretation of its
+contract with `probe_candidate`. Supply the case ID and up to eight probes per
+call. Each probe contains a JSON `args` array and exactly one expected outcome:
+`value`, `undefined: true`, or `throws: true`. Choose valid, negative, boundary
+and inter-input examples from the public contract. These are data-only calls;
+the worker chooses the function and candidate path. Revise failures within the
+existing run budget and check the revised content again.
+
+After the last edit to each candidate, reread it with `read_task_file` and
+compare it against every checklist clause. A passing probe covers only its
+declared examples, not the whole contract. Its candidate hash identifies the
+content checked; an earlier result does not verify a later edit. Finish with
+`run_public_smoke_tests` and `check_candidate_syntax`, both with no arguments.
+Keep setup errors, invalid/incomplete probe results and timeouts distinct from
+completed assertions. These tools return real exit status and bounded
+diagnostics.
 Free-form shell execution is unavailable: do not compose command strings,
 pipelines, redirects, wrappers or interpreter invocations.
 
@@ -268,16 +283,18 @@ change the smoke tests, fixtures, catalog, instructions, workflows or harness.
 Do not install packages, start other agents, make network calls, commit changes,
 open issues or PRs, or access any live application.
 
-Only the two fixed check operations can execute candidate code. They accept no
-commands, paths or options. A permission denial is an infrastructure blocker,
+Only the declared worker operations can execute candidate code. They accept no
+executable commands, paths, export names or JavaScript expressions. JSON strings
+in probe arguments remain data. A permission denial is an infrastructure blocker,
 not an assertion failure: the runtime stops on the first denial and the harness
 does not retry. Do not try alternate interpreters, command wrappers, permission
 changes or subagents to work around a denial. Leave partial candidate files
 intact for collection; a blocked run cannot pass independent grading.
 
 Each task has additional independent checks on a fresh runner. They test normal,
-boundary and negative behavior, not an exact implementation. Passing smoke tests
-alone is not a final eval pass. Do not write reports, scores or capture metadata:
+boundary and negative behavior, not an exact implementation. Passing smoke
+tests or your own probes does not establish an independent eval pass.
+Do not write reports, scores or capture metadata:
 trusted Actions steps collect bounded solutions and the independent grader owns
 the result. Leave all candidate files in place when finished.
 

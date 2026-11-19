@@ -244,8 +244,9 @@ session; grading executes each solution separately.
    writable workspace. An explicit **read-only bind mount** exposes them at
    `.gh-aw/coding-agent-runtime` inside the agent container. The driver refuses
    to start without that read-only mount. Public-test hashes and allowed case
-   IDs come from the preparation manifest. A separate staged runtime serves
-   `run_public_smoke_tests` and `check_candidate_syntax` through the MCP gateway.
+   IDs and function names come from the preparation manifest. A separate
+   staged runtime serves `run_public_smoke_tests`, `check_candidate_syntax`
+   and `probe_candidate` through the MCP gateway.
 4. A separate job checks out the same immutable commit and downloads only
    this run's bounded candidate artifact. Each candidate executes inside a
    digest-pinned Node 24 container with no network, credentials, Docker socket
@@ -270,6 +271,71 @@ code. One operation runs at a time, with at most one queued operation. A failed
 assertion is a **completed check with a nonzero exit code**, not a permission
 refusal. Unsafe/mutated inputs, cancellation and timeouts are blocked outcomes.
 
+### Structured self-checks
+
+Public smoke examples do not cover every contract clause. For each task, the
+agent derives a checklist from the public contract, establishes baseline smoke
+results, repairs the candidate, and chooses its own valid, negative, boundary
+and inter-input probes. After its last edit, it rereads the candidate against
+every clause and finishes with public smoke and syntax checks.
+
+`probe_candidate` accepts a manifest `caseId` and one to eight `probes`. Each
+probe has an `args` array and exactly one expected outcome:
+
+| Field | Meaning |
+| --- | --- |
+| `value` | A JSON return value, compared with deep equality |
+| `undefined: true` | An undefined return |
+| `throws: true` | An exception from the invoked function |
+
+Each arguments array holds at most 16 values. The request is limited to 8 KiB.
+Data may nest at most six levels inside an arguments array or expected value;
+arrays/objects hold at most 64 entries, strings at most 2,048 bytes, keys at
+most 256 bytes, and the request at most 1,024 values. Values must round-trip as
+JSON; accessors, sparse arrays, cycles, functions, non-finite numbers and `-0`
+are rejected. JSON strings are passed as data, never evaluated as code.
+The caller cannot select a path, export name, module, shell command, flag or
+JavaScript expression.
+
+The worker resolves the candidate and function from trusted preparation
+metadata. It hashes and snapshots the candidate bytes before starting a fresh
+child process, then sends only that source snapshot, the function name and
+JSON arguments to the child. Expected outcomes remain in the worker for
+comparison. The child returns the existing `return`/`throw` result shapes on a
+separate pipe, so a printed score or JSON-looking stdout is not a result.
+The snapshot is a standalone module with access to Node built-ins; relative
+imports cannot resolve from it.
+
+Self-checks use the same 15-second deadline and one-active/one-queued limit as
+the other operations. Their 16-KiB capture budget is split between 8 KiB of
+stdout/stderr and 8 KiB of return data. Truncated diagnostics are marked.
+Missing, malformed, unsupported, interrupted or truncated return data makes
+the self-check incomplete. A complete mismatching return is a failed
+self-check, not an infrastructure denial.
+
+Every executed self-check result includes its case ID, candidate hash,
+completion-time hash, probe count and comparison results. A concurrent edit
+produces `candidate-changed` rather than attributing an old result to new code.
+Any later edit also invalidates the earlier receipt. The worker emits a bounded
+`candidate.self_check` diagnostic event with the hashes and result; it omits
+probe arguments and expectations. These events and tool results use the
+existing worker/MCP/agent diagnostic logs. They do not enter the independent
+pass rate, prove contract coverage, or replace the grader.
+
+```mermaid
+flowchart LR
+    Contract["Public contract and smoke examples"] --> Checklist["Checklist and baseline"]
+    Checklist --> Edit["Candidate repair"]
+    Edit --> Probes["Agent-authored JSON probes"]
+    Probes --> Worker["Isolated worker compares expected/actual"]
+    Worker --> Receipt["Diagnostic result and source hash"]
+    Receipt --> Edit
+    Receipt --> Readback["Reread every clause; final smoke/syntax"]
+    Readback --> Grader["Fresh independent six-task grader"]
+```
+
+### Worker isolation
+
 The check worker has its own PID namespace, `--network=none`, a read-only root,
 128 MiB of memory, one CPU and a 64-process limit. It receives only read-only
 candidate and runtime mounts, with no Docker socket, reference checkout or
@@ -285,7 +351,7 @@ list for container MCP servers. `[local]` records the loopback addresses already
 on its proxy-bypass list; it adds no external domain. The worker remains
 network-disabled.
 The pinned SDK reports server-prefixed MCP tool names in permission requests.
-The driver maps only the two declared `public-checks` names to the leaf names
+The driver maps only the three declared `public-checks` names to the leaf names
 in the compiled grants. Other names still go through the unchanged deny policy.
 
 Diagnostics carry an explicit untrusted-data envelope. JSON encoding preserves
@@ -355,6 +421,32 @@ ordinary CI. The latter has its own 15-turn/500-credit ceiling. Obtain explicit
 approval for opening the PR and its normal live CI; local compilation and
 offline permission probes do not authorize those runs.
 
+For agent-quality changes, predeclare a two-run acceptance protocol before
+publishing. Keep one immutable head, the same requested/resolved model and the
+same suite, grader and agent configuration. The current baseline requests
+`auto` and resolves to `claude-sonnet-5` (`copilot/claude-sonnet-5` in the SDK
+route). Verify that resolution in both runs; stop on drift rather than
+silently changing the model.
+
+The PR update's normal evaluation can be run 1. Only if it succeeds, an
+explicitly approved manual evaluation at that unchanged branch commit can be
+run 2. Record both execution SHAs: a PR run normally uses a synthetic merge
+commit, while a manual ref run uses the branch commit. Compare their Git tree
+IDs, suite/configuration hashes, grader revision and pinned images. Stop if a
+main-branch change makes the trees differ.
+
+Both runs must show self-probe use for all six final candidate hashes, final
+source rereads and 6/6 independent task passes. Preserve both reports and
+candidate artifacts. Stop on the first failed, blocked or mismatched run; do
+not retry until green. Two successes are a bounded acceptance check, not a
+guarantee against future model drift.
+
+This protocol needs new approval before the push or dispatch. Its coding-agent
+ceiling is 300 AI Credits per run, with the existing 900/day limit. The PR
+update may also activate PR Conversation QA (500/run); framework work and
+Actions compute have separate costs. The second evaluation is not authorized
+by an earlier, consumed PR cycle approval.
+
 After the workflow is merged and a live trial is reviewed, require
 **BC Gov Agents - Coding Agent Eval Gate** in the repository's merge rules if
 merges must be prevented on failure. Committing these files does not modify
@@ -402,9 +494,17 @@ fail before repair and pass afterward. No real secrets or model inference are
 used; the live six-task gate supplies the quality result.
 The SDK also invokes the real gateway-backed worker through an internal Docker
 network with no external route. That check covers the MCP permission-name
-conversion, both declared operations, rejected extra arguments and an
+conversion, all declared operations, rejected extra arguments and an
 undeclared operation. Candidate execution stays in the worker's separate
 network-disabled container.
+The structured-probe regression adds a smoke-passing incomplete diagnostic
+function, a counterexample from its public contract, and a corrected diagnostic
+copy. It exercises JSON/undefined/throw outcomes across function shapes, rejects
+selectors and excessive data, and checks hash binding across edits. Cancellation,
+deadline, missing-result and truncation tests remain blocked outcomes.
+The connected SDK/gateway/worker path also checks self-probes against the
+ancestor-environment, network and read/write canaries. None of these diagnostic
+fixtures adds a private grader case to the frozen public suite.
 
 Prepare an external scratch bundle before running it; do not commit the runtime
 or install these dependencies into the application:

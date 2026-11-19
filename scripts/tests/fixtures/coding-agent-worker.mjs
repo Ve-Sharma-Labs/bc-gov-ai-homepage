@@ -186,14 +186,22 @@ export async function verifyWorker({ compiled, workspace, assets, name }) {
     const response = JSON.parse(line);
     pending.get(response.id)?.(response);
   });
-  async function rpc(method, params = {}) {
+  async function rpc(method, params = {}, cancelAfterMs) {
     const id = nextId++;
     let timer;
+    let cancelTimer;
     try {
       const response = await Promise.race([
         new Promise((resolve) => {
           pending.set(id, resolve);
           worker.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+          if (cancelAfterMs !== undefined) {
+            cancelTimer = setTimeout(() => {
+              worker.stdin.write(`${JSON.stringify({
+                jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: id },
+              })}\n`);
+            }, cancelAfterMs);
+          }
         }),
         new Promise((_, reject) => {
           timer = setTimeout(() => reject(new Error(`Worker response timed out: ${errors.slice(-1200)}`)), 30_000);
@@ -203,13 +211,14 @@ export async function verifyWorker({ compiled, workspace, assets, name }) {
       return response.result;
     } finally {
       clearTimeout(timer);
+      clearTimeout(cancelTimer);
       pending.delete(id);
     }
   }
   try {
     await rpc("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "offline", version: "1" } });
     assert.deepEqual((await rpc("tools/list")).tools.map((tool) => tool.name),
-      ["run_public_smoke_tests", "check_candidate_syntax"]);
+      ["run_public_smoke_tests", "check_candidate_syntax", "probe_candidate"]);
     const inspection = spawnSync("docker", ["inspect", `${name}-worker`], { encoding: "utf8", timeout: 15_000 });
     assert.equal(inspection.status, 0);
     const container = JSON.parse(inspection.stdout)[0];
@@ -240,8 +249,37 @@ export async function verifyWorker({ compiled, workspace, assets, name }) {
     assert.equal(parseTaskData(invalid.content[0].text).reason, "invalid-arguments");
     const syntax = await rpc("tools/call", { name: "check_candidate_syntax", arguments: {} });
     assert.equal(parseTaskData(syntax.content[0].text).exitCode, 0);
+    const runProbe = async (probes, cancelAfterMs) => parseTaskData((await rpc("tools/call", {
+      name: "probe_candidate", arguments: { caseId: "probe", probes },
+    }, cancelAfterMs)).content[0].text);
+    const selfCheck = await runProbe([{ args: [], value: 1 }]);
+    assert.equal(selfCheck.status, "passed");
+    assert.equal(selfCheck.diagnosticOnly, true);
+    assert.equal(selfCheck.appliesToCurrentCandidate, true);
+    for (const marker of ["REVIEW_OUTSIDE=false", "REVIEW_ANCESTOR=false", "REVIEW_NETWORK=false", "REVIEW_WRITE=false"]) {
+      assert.ok(selfCheck.checks[0].stdout.includes(marker));
+    }
+    const source = readFileSync(candidatePath, "utf8");
+    try {
+      writeFileSync(candidatePath, "export function probe() { while (true) {} }\n");
+      const cancelled = await runProbe([{ args: [], value: 1 }], 200);
+      assert.equal(cancelled.status, "blocked");
+      assert.equal(cancelled.exitCode, null);
+      assert.match(cancelled.reason, /cancelled/);
+      writeFileSync(candidatePath, 'export function probe() { return "x".repeat(2048); }\n');
+      const truncated = await runProbe(Array.from({ length: 8 }, () => ({ args: [], value: "" })));
+      assert.equal(truncated.status, "blocked");
+      assert.equal(truncated.reason, "probe-result-truncated");
+    } finally {
+      writeFileSync(candidatePath, source);
+    }
+    const records = errors.split("\n").filter((line) => line.startsWith('{"type":"candidate.self_check"'))
+      .map((line) => JSON.parse(line));
+    assert.ok(records.some((record) => record.candidateHash === selfCheck.candidateHash && record.status === "passed"));
+    assert.ok(records.every((record) => record.diagnosticOnly === true && !("probes" in record) && !("args" in record)));
     return { gatewayGeneratedLaunch: true, workerNetwork: "none", workerHostPid: false, workerCredentialCanary: false,
-      workerSmoke: "assertion-before/pass-after", syntaxCases: parseTaskData(syntax.content[0].text).checks.length };
+      workerSmoke: "assertion-before/pass-after", syntaxCases: parseTaskData(syntax.content[0].text).checks.length,
+      structuredProbe: "passed", probeCancellation: "blocked", probeTruncation: "blocked", selfCheckRecords: records.length };
   } finally {
     worker.stdin.end();
     spawnSync("docker", ["rm", "--force", `${name}-worker`], { stdio: "ignore", timeout: 15_000 });

@@ -89,14 +89,14 @@ async function verifyInsideContainer() {
   const testPath = `/workspace/${work}/probe.test.mjs`;
   const publicTest = readFileSync(testPath, "utf8");
   const driverBefore = readFileSync(`${runtimeTarget}/driver.cjs`);
-  mkdirSync("/workspace/home");
+  mkdirSync("/tmp/probe-home");
   mkdirSync("/tmp/gh-aw", { recursive: true });
   mkdirSync("/tmp/runner");
   writeFileSync("/tmp/review-canary.txt", "outside-workspace-canary");
   writeFileSync("/tmp/runner/prompt.txt", "Execute the fixed synthetic tools from the offline fixture, then stop.");
   const env = {
-    PATH: "/runtime/bin:/usr/local/bin:/usr/bin:/bin", HOME: "/workspace/home",
-    COPILOT_HOME: "/workspace/home/.copilot", NODE_PATH: `${runtimeTarget}/node_modules`,
+    PATH: "/runtime/bin:/usr/local/bin:/usr/bin:/bin", HOME: "/tmp/probe-home",
+    COPILOT_HOME: "/tmp/probe-home/.copilot", NODE_PATH: `${runtimeTarget}/node_modules`,
     CI: "true", COPILOT_OFFLINE: "true", COPILOT_AUTO_UPDATE: "false",
     COPILOT_API_KEY: "dummy-byok-key-for-offline-mode", CODING_EVAL_TEST_SECRET: "do-not-inherit-test-sentinel",
     COPILOT_MODEL: model, COPILOT_AGENT_RUNNER_TYPE: "STANDALONE",
@@ -122,7 +122,8 @@ async function verifyInsideContainer() {
   const version = spawnSync("/runtime/copilot", ["--no-auto-update", "--version"], {
     cwd: "/workspace", env, encoding: "utf8", timeout: 60_000, maxBuffer: 64 * 1024,
   });
-  assert.equal(version.status, 0, "Pinned CLI could not start");
+  assert.equal(version.status, 0,
+    `Pinned CLI could not start: ${version.error?.code || version.signal || version.stderr.slice(-500)}`);
   assert.ok(version.stdout.includes(`CLI ${metadata.engine_versions.copilot}.`));
 
   let active;
@@ -250,6 +251,26 @@ async function verifyInsideContainer() {
       { tool: "edit_candidate", args: {
         caseId: "probe", oldText: "return 0;", newText: "return 1;",
       } },
+      { tool: "public-checks-probe_candidate", args: {
+        caseId: "probe", probes: [{ args: [], value: 1 }],
+      } },
+      { tool: "public-checks-probe_candidate", args: {
+        caseId: "bounded-value", probes: [{ args: [2, 4], value: true }, { args: [5, 4], value: false }],
+      } },
+      { tool: "edit_candidate", args: {
+        caseId: "bounded-value", oldText: "return value >= 0;", newText: "return value >= 0 && value <= maximum;",
+      } },
+      { tool: "public-checks-probe_candidate", args: {
+        caseId: "bounded-value", probes: [{ args: [2, 4], value: true }, { args: [5, 4], value: false }],
+      } },
+      { tool: "public-checks-probe_candidate", args: {
+        caseId: "optional-value", probes: [
+          { args: ["literal command: node --eval"], value: { text: "literal command: node --eval" } },
+          { args: [null], undefined: true }, { args: [42], throws: true },
+        ],
+      } },
+      { tool: "read_task_file", args: { file: `${work}/bounded-value.mjs` } },
+      { tool: "read_task_file", args: { file: `${work}/probe.mjs` } },
       { tool: "public-checks-run_public_smoke_tests", args: {} },
       { tool: "public-checks-check_candidate_syntax", args: {} },
     ]);
@@ -258,15 +279,39 @@ async function verifyInsideContainer() {
     assert.match(parseTaskData(repaired.results[1]).content, /export function probe/);
     assert.equal(mcpResult(repaired.results[2]).exitCode, 1);
     assert.equal(parseTaskData(repaired.results[3]).changed, true);
-    assert.equal(mcpResult(repaired.results[4]).exitCode, 0);
-    assert.equal(mcpResult(repaired.results[5]).exitCode, 0);
-    const expectedCalls = ["run_public_smoke_tests", "run_public_smoke_tests", "check_candidate_syntax"];
+    const isolatedProbe = mcpResult(repaired.results[4]);
+    assert.equal(isolatedProbe.status, "passed");
+    for (const marker of ["REVIEW_ANCESTOR=false", "REVIEW_NETWORK=false", "REVIEW_WRITE=false"]) {
+      assert.ok(isolatedProbe.checks[0].stdout.includes(marker));
+    }
+    const counterexample = mcpResult(repaired.results[5]);
+    assert.equal(counterexample.status, "failed");
+    assert.equal(counterexample.diagnosticOnly, true);
+    assert.equal(counterexample.results[1].status, "mismatched");
+    const corrected = mcpResult(repaired.results[7]);
+    assert.equal(corrected.status, "passed");
+    assert.equal(corrected.appliesToCurrentCandidate, true);
+    assert.notEqual(corrected.candidateHash, counterexample.candidateHash);
+    assert.equal(mcpResult(repaired.results[8]).matched, 3);
+    assert.match(parseTaskData(repaired.results[9]).content, /value <= maximum/);
+    assert.equal(mcpResult(repaired.results[11]).exitCode, 0);
+    assert.equal(mcpResult(repaired.results[12]).exitCode, 0);
+    const expectedCalls = ["run_public_smoke_tests", "probe_candidate", "probe_candidate",
+      "probe_candidate", "probe_candidate", "run_public_smoke_tests", "check_candidate_syntax"];
     assert.deepEqual(mcpCalls, expectedCalls);
     const invalidMcp = await run("invalid-mcp-arguments", [
       { tool: "public-checks-run_public_smoke_tests", args: { command: "unwanted-command" } },
+      { tool: "public-checks-probe_candidate", args: {
+        caseId: "probe", function: "arbitraryExport", probes: [{ args: [], value: 1 }],
+      } },
+      { tool: "public-checks-probe_candidate", args: {
+        caseId: "../probe.mjs", probes: [{ args: [], value: 1 }],
+      } },
     ]);
-    assert.match(invalidMcp.results[0], /invalid-arguments|takes no arguments|additional properties|validation|not allowed|invalid.*argument/i);
-    assert.doesNotMatch(invalidMcp.results[0], /REVIEW_OUTSIDE|REVIEW_ANCESTOR/);
+    for (const result of invalidMcp.results) {
+      assert.match(result, /invalid-arguments|takes no arguments|additional properties|validation|not allowed|invalid.*argument/i);
+      assert.doesNotMatch(result, /REVIEW_OUTSIDE|REVIEW_ANCESTOR/);
+    }
     const callsAfterArgumentCheck = [...mcpCalls];
     assert.equal(readFileSync(testPath, "utf8"), publicTest);
 
@@ -312,7 +357,8 @@ async function verifyInsideContainer() {
       cli: metadata.engine_versions.copilot, taskFileTools: 2, builtinFileTools: 0,
       allowedReadAndEdit: true, deniedPaths: deniedPaths.length,
       symlinkReadAndEdit: "denied", protectedInputsUnchanged: true,
-      declaredMcpCalls: 3, undeclaredMcpCall: "denied", sdkGatewayWorkerInvocation: true,
+      declaredMcpCalls: expectedCalls.length, undeclaredMcpCall: "denied", sdkGatewayWorkerInvocation: true,
+      selfCheckCounterexample: "failed-before/pass-after", selfCheckHashesMatchEdits: true,
     };
   } finally {
     server.closeAllConnections();
@@ -356,6 +402,24 @@ export async function verifyRuntimeContract({
   writeFileSync(path.join(data, "fixtures", "probe.mjs"), candidate);
   const suite = JSON.parse(readFileSync(path.join(repositoryRoot, "data/evaluations/coding-agent/suite.json"), "utf8"));
   const extraCases = Array.from({ length: 5 }, (_, index) => {
+    if (index === 0) {
+      writeFileSync(path.join(data, "fixtures", "bounded-value.mjs"),
+        "export function withinBound(value, maximum) { return value >= 0; }\n");
+      return {
+        id: "bounded-value", function: "withinBound", source: "diagnostic-range-reference.mjs",
+        prompt: "Return true exactly when value is nonnegative and at most maximum.",
+        smoke: [{ args: [2, 4], value: true }],
+      };
+    }
+    if (index === 1) {
+      writeFileSync(path.join(data, "fixtures", "optional-value.mjs"),
+        'export function optionalValue(value) { if (value === null) return undefined; if (typeof value !== "string") throw new Error("Expected text"); return { text: value }; }\n');
+      return {
+        id: "optional-value", function: "optionalValue", source: "diagnostic-optional-reference.mjs",
+        prompt: "Return undefined for null, wrap strings as text, and throw for other types.",
+        smoke: [{ args: ["text"], value: { text: "text" } }],
+      };
+    }
     const id = `extra-${index}`;
     writeFileSync(path.join(data, "fixtures", `${id}.mjs`), "export function probe() { return 1; }\n");
     return { id, function: "probe", source: "reference-solution.mjs", prompt: "Return 1.", smoke: [{ args: [], value: 1 }] };
@@ -404,7 +468,9 @@ export async function verifyRuntimeContract({
     let result;
     try {
       result = await execute("docker", args, { timeoutMs: 600_000 });
-      if (result.code !== 0) result.output += `\nGateway diagnostics:\n${connected.diagnostics()}`;
+      if (result.code !== 0) {
+        result.output = `${result.output.slice(-3800)}\nGateway diagnostics:\n${connected.diagnostics().slice(-1000)}`;
+      }
       connected.copyBack();
     } finally {
       connected.cleanup();
