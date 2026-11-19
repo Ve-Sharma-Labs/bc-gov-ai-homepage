@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
   appendFileSync, chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync,
-  readdirSync, rmSync, writeFileSync,
+  readdirSync, realpathSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -114,6 +114,7 @@ export function prepare(directory, { revision, model }) {
     schemaVersion: 1, suiteId: suite.id, revision, model,
     ...inputHashes(protectedFiles, model),
     protectedFiles, caseIds: suite.cases.map((item) => item.id),
+    caseFunctions: Object.fromEntries(suite.cases.map((item) => [item.id, item.function])),
   };
 }
 
@@ -127,6 +128,66 @@ export function prepareKit(directory, destination, metadata) {
     cpSync(source, target, { recursive: true, dereference: false });
   }
   return prepare(destination, metadata);
+}
+
+export function stageRuntime(directory, destination, manifest) {
+  const suite = loadSuite(directory);
+  assert.equal(manifest.schemaVersion, 1);
+  assert.deepEqual(manifest.caseIds, suite.cases.map((item) => item.id));
+  assert.deepEqual(manifest.caseFunctions, Object.fromEntries(suite.cases.map((item) => [item.id, item.function])));
+  assert.equal(sha256(readRegular(directory, suitePath)), manifest.protectedFiles[suitePath], "Task catalog was modified");
+  const relative = path.relative(realpathSync(directory), path.resolve(destination));
+  assert.ok(relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative),
+    "Trusted runtime must be staged outside the writable task workspace");
+  const sources = [
+    [".github/aw/coding-agent-runtime/driver.cjs", "driver.cjs"],
+    [".github/aw/coding-agent-runtime/tools.cjs", "tools.cjs"],
+    [".github/aw/coding-agent-runtime/worker.cjs", "worker.cjs"],
+    [helperPath, "inputs.mjs"],
+  ].map(([source, target]) => {
+    const bytes = readRegular(directory, source);
+    assert.equal(sha256(bytes), manifest.protectedFiles[source], "Runtime source was modified");
+    return [target, bytes];
+  });
+  const smokeHashes = Object.fromEntries(manifest.caseIds.map((id) => {
+    const relative = `${workPath}/${id}.test.mjs`;
+    const hash = sha256(readRegular(directory, relative));
+    assert.equal(hash, manifest.protectedFiles[relative], "Public smoke test was modified");
+    return [id, hash];
+  }));
+  const dependencies = path.join(directory, "node_modules");
+  assert.ok(lstatSync(dependencies).isDirectory() && !lstatSync(dependencies).isSymbolicLink());
+  const dependencyRoot = realpathSync(dependencies);
+  function validateDependencies(current) {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const target = path.join(current, entry.name);
+      if (entry.isSymbolicLink()) {
+        const relative = path.relative(dependencyRoot, realpathSync(target));
+        assert.ok(relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative),
+          "SDK dependency links must stay inside the installed dependency tree");
+      } else if (entry.isDirectory()) validateDependencies(target);
+    }
+  }
+  validateDependencies(dependencies);
+  mkdirSync(destination);
+  for (const [target, bytes] of sources) writeFileSync(path.join(destination, target), bytes, { flag: "wx" });
+  cpSync(dependencies, path.join(destination, "node_modules"), { recursive: true, dereference: true });
+  writeJson(path.join(destination, "config.json"), {
+    version: 1, workspace: realpathSync(directory), caseIds: manifest.caseIds, caseFunctions: manifest.caseFunctions, smokeHashes,
+    readableFiles: [
+      ".github/aw/instructions.md", ".github/workflows/shared/coding-agent-policy.md",
+      ".github/workflows/coding-agent-evals.md", suitePath,
+      ...manifest.caseIds.map((id) => `data/evaluations/coding-agent/fixtures/${id}.mjs`),
+    ].filter((relative) => Object.hasOwn(manifest.protectedFiles, relative)),
+    forbiddenPaths: [".git", "tests/agent-evals/checks.mjs", ...new Set(suite.cases.map((item) => item.source))],
+  });
+  const worker = `${destination}-checks`;
+  mkdirSync(worker);
+  for (const target of ["worker.cjs", "tools.cjs", "inputs.mjs"]) cpSync(path.join(destination, target), path.join(worker, target));
+  writeJson(path.join(worker, "config.json"), {
+    version: 1, workspace: "/eval", caseIds: manifest.caseIds, caseFunctions: manifest.caseFunctions, smokeHashes,
+    forbiddenPaths: [".git", "tests/agent-evals/checks.mjs"],
+  });
 }
 
 export function collect(directory, outputDirectory, manifest) {
