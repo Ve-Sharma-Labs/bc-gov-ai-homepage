@@ -783,10 +783,11 @@ The two evaluation workflows answer different questions:
 
 This branch contains the Foundry workflow from
 [PR #13](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/13).
-The fixed-tool coding-agent runtime is implemented and tested in
-[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14), pending merge.
-It is not yet the runtime in this branch. These repository changes do not alter
-the deployed Azure topology or refresh the deployment observations on this page.
+The coding-agent runtime merged in
+[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14) is included
+here. It uses scoped file access and isolated self-checks. These repository
+changes do not alter the deployed Azure topology or refresh the deployment
+observations on this page.
 
 ```mermaid
 flowchart TB
@@ -798,7 +799,7 @@ flowchart TB
     end
 
     subgraph CodingEval["Coding-agent evaluations"]
-        CT["Trusted relevant PR, daily or manual"] --> AGENT["Six synthetic repairs<br/>Fixed-tool runtime pending in PR #14"]
+        CT["Trusted relevant PR, daily or manual"] --> AGENT["Six synthetic repairs<br/>Scoped files + isolated self-checks"]
         AGENT --> GRADE["Independent deterministic grader<br/>Fresh runner"]
         GRADE --> CR["Per-task results + CI gate<br/>Merge rules control enforcement"]
     end
@@ -820,7 +821,7 @@ work that could not be graded.
 
 See the [Foundry walkthrough](foundry-evaluations.md#how-the-workflow-runs) for
 the answer and data-storage flow, and the
-[pending fixed-tool design](agentic-workflows.md#fixed-tool-runtime-pending-in-pr-14)
+[isolated runtime](agentic-workflows.md#isolated-coding-agent-runtime)
 for the coding-agent isolation boundaries. A passing result from either system
 does not certify legal accuracy or replace release approvals.
 
@@ -1013,7 +1014,7 @@ publication is implied. See [the configuration, limits and release procedure](..
 | Private networking and edge | [Network](../infra/modules/network.bicep), [Redis](../infra/modules/shared-controls.bicep), [WAF/profile](../infra/modules/edge-profile.bicep), [routes](../infra/modules/edge-routes.bicep), [access logging](../infra/modules/edge-logging.bicep) |
 | Workflow definitions | [Actions name/purpose map](../README.md#checks), [web tests](../.github/workflows/ci-web-tests.yml), [API tests](../.github/workflows/ci-api-tests.yml), [ingestion tests](../.github/workflows/ci-ingestion-tests.yml), [web build](../.github/workflows/ci-web-build.yml), [E2E tests](../.github/workflows/ci-e2e.yml), [container checks](../.github/workflows/ci-containers.yml), [tooling and workflow validation](../.github/workflows/automation-validation.yml), [manual Azure deployment](../.github/workflows/azure-pilot.yml) |
 | Foundry application evaluations | [Exam and grading guide](foundry-evaluations.md), [manual workflow](../.github/workflows/foundry-evals.yml), [evaluation runner](../apps/api/src/bc_api/foundry_evaluation.py) |
-| Coding-agent evaluations | [Evaluation guide](agentic-workflows.md#coding-agent-evaluations-in-ci), [current workflow](../.github/workflows/coding-agent-evals.md), [fixed-tool workflow pending in PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/blob/8615c8a7cfe0b5713e1379e46ec853a4bc115f79/.github/workflows/coding-agent-evals.md) |
+| Coding-agent evaluations | [Evaluation guide](agentic-workflows.md#coding-agent-evaluations-in-ci), [workflow](../.github/workflows/coding-agent-evals.md), [scoped SDK driver](../.github/aw/coding-agent-runtime/driver.cjs), [isolated check worker](../.github/aw/coding-agent-runtime/worker.cjs) |
 
 Update this page when a deployed boundary, source-publication mode or material
 runtime relationship changes. Keep implementation contracts and operational

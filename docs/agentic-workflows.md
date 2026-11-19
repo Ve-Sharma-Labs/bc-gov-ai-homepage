@@ -77,7 +77,7 @@ flowchart LR
     end
 
     subgraph CodingEval["Coding-agent evaluation"]
-        CODING["Copilot repairs six frozen tasks<br/>Fixed-tool runtime pending in PR #14"]
+        CODING["Copilot repairs six frozen tasks<br/>Scoped file tools + isolated checks"]
         GRADE["Independent deterministic grader"]
         EVALRESULT["Task results + CI gate"]
     end
@@ -138,8 +138,9 @@ flowchart LR
 
 The coding-agent gate is a trusted CI job, separate from advisory comments and
 safe-output write jobs. A failing gate blocks merging only when repository rules
-require it. The [fixed-tool runtime](#fixed-tool-runtime-pending-in-pr-14) shown
-above belongs to pending PR #14; this branch still has the older CLI workflow.
+require it. The [isolated runtime](#isolated-coding-agent-runtime) shown above
+includes the repair merged through
+[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14).
 
 The agent jobs receive read-only repository permissions. GitHub applies issue,
 comment, artifact, and draft-PR writes in separate safe-output jobs with explicit
@@ -250,19 +251,27 @@ session; grading executes each solution separately.
    and public smoke checks. The agent receives that task-only workspace, not a
    checkout: production implementations, Git objects/history and private grading
    checks are absent. It can repair only the prepared candidate modules. GitHub
-   tools and external network access are disabled; no package installation,
-   app services, Foundry calls or production credentials are needed.
-   The workflow in this branch declares `node --test:*` and `node --check:*`
-   as shell grants. The pinned native CLI rejected those commands in the
-   reproduced CI failure, even though static permission tests passed.
-   Treat them as declared intent, not verified runtime authorization. The
-   [pending repair](#fixed-tool-runtime-pending-in-pr-14) replaces this command
-   interface. Protected-input collection and independent grading still enforce
-   file-change boundaries.
+   tools and external network access are disabled. The agent cannot install
+   packages and needs no app services, Foundry calls or production credentials.
+   Trusted Actions setup installs the pinned SDK dependencies before the
+   isolated engine starts.
+   The SDK session exposes `read_task_file` for listed inputs and
+   `edit_candidate` for exact replacements in catalogued candidates. It exposes
+   no built-in file, shell or subagent tools. Both file operations reject other
+   paths and symlinks before access. Protected-input collection and independent
+   grading still enforce the repair contract.
 3. Before inference, Actions fingerprints the protected inputs. Afterward a
    hash-checked collector rejects missing, oversized or linked files and
    records any changes to protected instructions, fixtures or public tests.
    The agent does not supply the score or the collector's metadata.
+   Immediately before engine startup, a trusted step verifies and stages the
+   file-tool executable, configuration and SDK dependencies outside the
+   writable workspace. An explicit **read-only bind mount** exposes them at
+   `.gh-aw/coding-agent-runtime` inside the agent container. The driver refuses
+   to start without that read-only mount. Public-test hashes and allowed case
+   IDs and function names come from the preparation manifest. A separate
+   staged runtime serves `run_public_smoke_tests`, `check_candidate_syntax`
+   and `probe_candidate` through the MCP gateway.
 4. A separate job checks out the same immutable commit and downloads only
    this run's bounded candidate artifact. Each candidate executes inside a
    digest-pinned Node 24 container with no network, credentials, Docker socket
@@ -276,6 +285,132 @@ session; grading executes each solution separately.
    cleanup failures produce a blocked/incomplete result and a failing gate.
    A blocked or incomplete submission cannot count as a pass.
 
+Call `run_public_smoke_tests({})` before and after repairs.
+`check_candidate_syntax({})` checks every candidate. Neither accepts command
+text, paths, flags or other arguments. They run fixed Node argument arrays
+against read-only task-input mounts in a separate container,
+without a shell or inherited agent credentials.
+Each operation has a 15-second execution deadline and a shared 16-KiB
+stdout/stderr budget; truncation is explicit and never changes the test exit
+code. One operation runs at a time, with at most one queued operation. A failed
+assertion is a **completed check with a nonzero exit code**, not a permission
+refusal. Unsafe/mutated inputs, cancellation and timeouts are blocked outcomes.
+
+### Structured self-checks
+
+Public smoke examples do not cover every contract clause. The evaluation
+instructs the agent to derive a checklist from the public contract, establish
+baseline smoke results, repair the candidate, and choose valid, negative,
+boundary and inter-input probes. It also calls for a final source reread after
+the last edit, followed by public smoke and syntax checks. These are instructions
+to the model; inspect recorded tool use rather than assuming every step happened.
+
+`probe_candidate` accepts a manifest `caseId` and one to eight `probes`. Each
+probe has an `args` array and exactly one expected outcome:
+
+| Field | Meaning |
+| --- | --- |
+| `value` | A JSON return value, compared with deep equality |
+| `undefined: true` | An undefined return |
+| `throws: true` | An exception from the invoked function |
+
+Each arguments array holds at most 16 values. The request is limited to 8 KiB.
+Data may nest at most six levels inside an arguments array or expected value;
+arrays/objects hold at most 64 entries, strings at most 2,048 bytes, keys at
+most 256 bytes, and the request at most 1,024 values. Values must round-trip as
+JSON; accessors, sparse arrays, cycles, functions, non-finite numbers and `-0`
+are rejected. JSON strings are passed as data, never evaluated as code.
+The caller cannot select a path, export name, module, shell command, flag or
+JavaScript expression.
+
+The worker resolves the candidate and function from trusted preparation
+metadata. It hashes and snapshots the candidate bytes before starting a fresh
+child process, then sends only that source snapshot, the function name and
+JSON arguments to the child. Expected outcomes remain in the worker for
+comparison. The child returns the existing `return`/`throw` result shapes on a
+separate pipe, so a printed score or JSON-looking stdout is not a result.
+The snapshot is a standalone module with access to Node built-ins; relative
+imports cannot resolve from it.
+
+Self-checks use the same 15-second deadline and one-active/one-queued limit as
+the other operations. Their 16-KiB capture budget is split between 8 KiB of
+stdout/stderr and 8 KiB of return data. Truncated diagnostics are marked.
+Missing, malformed, unsupported, interrupted or truncated return data makes
+the self-check incomplete. A complete mismatching return is a failed
+self-check, not an infrastructure denial.
+
+Every executed self-check result includes its case ID, candidate hash,
+completion-time hash, probe count and comparison results. A concurrent edit
+produces `candidate-changed` rather than attributing an old result to new code.
+Any later edit also invalidates the earlier receipt. The worker emits a bounded
+`candidate.self_check` diagnostic event with the hashes and result; it omits
+probe arguments and expectations. These events and tool results use the
+existing worker/MCP/agent diagnostic logs. They do not enter the independent
+pass rate, prove contract coverage, or replace the grader.
+
+```mermaid
+flowchart LR
+    Contract["Public contract and smoke examples"] --> Checklist["Checklist and baseline"]
+    Checklist --> Edit["Candidate repair"]
+    Edit --> Probes["Agent-authored JSON probes"]
+    Probes --> Worker["Isolated worker compares expected/actual"]
+    Worker --> Receipt["Diagnostic result and source hash"]
+    Receipt --> Edit
+    Receipt --> Readback["Requested final source review<br/>Final smoke and syntax checks"]
+    Readback --> Grader["Fresh independent six-task grader"]
+```
+
+### Worker isolation
+
+The check worker has its own PID namespace, `--network=none`, a read-only root,
+128 MiB of memory, one CPU and a 64-process limit. It receives only read-only
+candidate and runtime mounts, with no Docker socket, reference checkout or
+private grader. It refuses to start without its PID, network and mount controls.
+Smoke files run sequentially within that memory limit. Candidate code cannot
+read the SDK sidecar's process environment.
+
+The worker uses the compiler's existing digest-pinned `gh-aw-node` image. The
+pinned gateway requires a tag-form image name; trusted setup pulls the recorded
+digest and creates its local alias, and `--pull=never` prevents a tag lookup
+during worker startup. The authoring compiler also requires a nonempty network
+list for container MCP servers. `[local]` records the loopback addresses already
+on its proxy-bypass list; it adds no external domain. The worker remains
+network-disabled.
+The pinned SDK reports server-prefixed MCP tool names in permission requests.
+The driver maps only the three declared `public-checks` names to the leaf names
+in the compiled grants. Other names still go through the unchanged deny policy.
+
+Diagnostics carry an explicit untrusted-data envelope. JSON encoding preserves
+assertion details and real exit status while escaping envelope delimiters.
+Framing is a reminder to the model, not a guarantee against prompt injection.
+File restrictions, worker isolation and the independent grader enforce the
+boundaries. Host-side `mcp-scripts` must not execute candidate code.
+
+The native Copilot 1.0.87 CLI rejected the original argument-qualified
+`node --test:*` / `node --check:*` grants, even without `cd`; exact-rule
+alternatives failed too. SDK transport repaired that mismatch, but a live agent
+still composed `2>&1 | tail -100` despite explicit instructions. The fixed
+interface removes that composition entirely instead of widening shell
+permissions, accepting pipelines that can obscure status, or adding another
+prompt-only reminder.
+
+The evaluation sets `max-tool-denials: 1` and `engine.harness.max-retries: 0`.
+The supported SDK guard emits `guard.tool_denials_exceeded` on the first
+permission refusal, disconnects the session and forces its pending wait to
+settle after a bounded 15-second grace period if necessary. The standalone
+driver exits nonzero; the harness cannot start another attempt. The retry
+setting also intentionally disables transient-error retries for this evaluation,
+without changing the shared bug-repair workflow. The native CLI transport has
+no equivalent in-attempt guard in this pinned harness: retry settings alone
+would not stop its model from repeatedly attempting denied commands.
+
+| Failure class | Meaning and outcome |
+| --- | --- |
+| Permission denial | A command was not authorized to execute. Stop and block grading; this is not a failed task assertion. |
+| Invocation/credit exhaustion | The run exceeded its existing budget. `429 Maximum LLM invocations exceeded (60 / 60)` is a hard invocation cap, not transient throttling. |
+| Assertion failure | Checks actually executed. Broken starters should fail public assertions before repair; independent assertion failures after repair are failed tasks. |
+| Agent did not complete | The grader's prerequisite failed. Six `agent-did-not-complete` results mean six blocked tasks, not six assertion failures. |
+
 The gate compares against fixed acceptance criteria, not an automatically
 changing historical average. `coding-agent-eval-report` contains sanitized
 JSON and Markdown with per-task results, pass rate, threshold, tested commit,
@@ -286,33 +421,40 @@ request bodies or credentials. GH-AW retains its own framework diagnostics.
 With `auto`, the report records that requested selector rather than inventing
 the resolved model; consult the native run diagnostics for engine details.
 
-### Fixed-tool runtime pending in PR #14
+### Isolated coding-agent runtime
 
-[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14) contains the
-verified repair at commit `8615c8a`. It is pending merge and has not been brought
-into this branch. The
-[pinned workflow](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/blob/8615c8a7cfe0b5713e1379e46ec853a4bc115f79/.github/workflows/coding-agent-evals.md)
-and its [runtime documentation](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/blob/8615c8a7cfe0b5713e1379e46ec853a4bc115f79/docs/agentic-workflows.md#execution-and-the-gate)
-describe the implementation shown here.
+This branch includes the runtime repair merged in
+[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14).
+The [authored workflow](../.github/workflows/coding-agent-evals.md)
+and [runtime modules](../.github/aw/coding-agent-runtime) define the boundaries
+shown below. Model-facing file operations and candidate execution run in
+different processes and containers.
 
 ```mermaid
 flowchart TB
     Start["Relevant trusted PR, daily or manual"] --> Prepare["Trusted preparation<br/>Exact commit + protected-input manifest"]
-    Prepare --> Stage["Verify and stage runtime,<br/>configuration and SDK dependencies"]
+    Prepare --> Stage["Verify and stage<br/>trusted runtimes and configuration"]
 
-    subgraph AgentSandbox["Agent sandbox: fixed-tool design pending in PR #14"]
-        Kit["Six frozen tasks<br/>and public smoke tests"] --> Agent["Copilot SDK agent<br/>Read and edit candidate modules"]
-        Runtime["Read-only runtime bind mount"] --> Tools["Two parameterless tools<br/>run_public_smoke_tests<br/>check_candidate_syntax"]
-        Agent <-->|"Fixed call and test result"| Tools
-        Agent -->|"Edit"| Candidates["Candidate modules"]
-        Tools -->|"Fixed Node arguments<br/>Bounded output and real exit status"| Candidates
+    subgraph AgentSandbox["Copilot agent sandbox"]
+        Agent["Copilot SDK session"] <-->|"Listed files and exact edits"| FileTools["read_task_file<br/>edit_candidate"]
+        Runtime["Read-only SDK runtime"] --> FileTools
+        FileTools -->|"Scoped access"| Kit["Public contracts and smoke tests<br/>Six candidate modules"]
+    end
+
+    subgraph Worker["Separate check worker: no network or credentials"]
+        CheckRuntime["Read-only check runtime"] --> Tools["Fixed smoke and syntax checks<br/>Bounded JSON self-probes"]
+        Inputs["Read-only candidate mount<br/>Per-probe source snapshots"] --> Tools
     end
 
     Prepare --> Kit
     Prepare -.->|"Protected-input manifest"| Collector
-    Stage -->|"Read-only mount"| Runtime
+    Stage -->|"Read-only mounts"| Runtime
+    Stage --> CheckRuntime
     Agent <-->|"Approved inference transport"| Model["Copilot model"]
-    Candidates --> Collector["Trusted collector<br/>Verify protected inputs and bounded files"]
+    Agent <-->|"Declared operation only"| Gateway["MCP gateway"]
+    Gateway <-->|"Bounded results; real exit status"| Tools
+    Kit -.->|"Read-only mount"| Inputs
+    Kit --> Collector["Trusted collector<br/>Verify protected inputs and bounded files"]
     Collector --> Artifact["This run's candidate artifact"]
 
     subgraph Grader["Independent grading job: same tested commit"]
@@ -330,24 +472,16 @@ flowchart TB
     Blocked --> Report
 ```
 
-The fixed tools run inside the existing agent sandbox. They accept no command
-strings, paths, flags, or other arguments. The agent retains editing tools, but
-free-form shell execution and task/subagent launching are not exposed. Candidate
-checks use a credential-free child environment; they do not run through
-host-side MCP Scripts. Copilot inference is a separate permitted connection, not
-network access granted to candidate code.
+Only the scoped file operations run beside the model-bearing SDK session.
+Smoke, syntax, and probe execution use the separate worker described above.
+Its read-only mounts and private PID namespace keep candidate execution apart
+from the model process and its credentials. The collected candidates then go
+to a fresh grading job; agent-authored probe results cannot set that grade.
 
-The staged runtime is read-only. The agent workspace contains no production
-implementations, Git history, or private grading checks. Public tests and other
-protected inputs are checked against the preparation manifest; the independent
-grader owns the final score.
-
-In this pending runtime, the first permission denial stops the SDK session and
-the harness cannot start another attempt. A failing smoke assertion is still a
-completed test with a nonzero exit code, as expected before a repair. Permission
-failures, missing inputs, cancellation, or exhausted budgets produce blocked
-results instead. None of these paths lowers the six-task pass requirement or
-changes deployment controls.
+The three check operations never accept arbitrary shell text or file paths.
+Only self-probes accept caller-supplied JSON arguments and predictions. The
+runtime's denial stop, protected-input checks, and independent grader remain
+authoritative even when the model misinterprets diagnostic text.
 
 ### Activation, cost and extension
 
@@ -358,7 +492,7 @@ schedule detects model/default drift even without a configuration commit, and
 not emit a PR event: dispatch an eval when changing model selection rather than
 waiting for the next daily run.
 
-The agent is bounded to 60 turns, 300 AI Credits/run, 900/day and 20 minutes.
+The agent is bounded to 60 turns, 1,000 AI Credits/run, 10,000/day and 20 minutes.
 The independent grading job has a ten-minute limit. Framework detection and
 Actions compute remain separate costs. Budget exhaustion is not a pass. No
 automatic issues, comments, draft PRs, merge, deployment or application-model
@@ -368,6 +502,49 @@ noop-only workflows. Safe outputs are therefore explicitly **staged**, and
 failure/incomplete tracking is disabled where supported, so those framework
 tools cannot publish an issue. Staging does not soften the independent CI gate
 or prevent its deterministic artifact uploads.
+
+Opening a repair PR that changes these workflow and tooling-test files can
+activate both **Coding Agent Evals** and **PR Conversation QA**, in addition to
+ordinary CI. The latter has its own 15-turn/500-credit ceiling. Obtain explicit
+approval for opening the PR and its normal live CI; local compilation and
+offline permission probes do not authorize those runs.
+
+For agent-quality changes, predeclare a two-run acceptance protocol before
+publishing. Keep one immutable head, the same requested/resolved model and the
+same suite, grader and agent configuration. The current baseline requests
+`auto` and resolves to `claude-sonnet-5` (`copilot/claude-sonnet-5` in the SDK
+route). Verify that resolution in both runs; stop on drift rather than
+silently changing the model.
+
+The PR update's normal evaluation can be run 1. Only if it succeeds, an
+explicitly approved manual evaluation at that unchanged branch commit can be
+run 2. Record both execution SHAs: a PR run normally uses a synthetic merge
+commit, while a manual ref run uses the branch commit. Compare their Git tree
+IDs, suite/configuration hashes, grader revision and pinned images. Stop if a
+main-branch change makes the trees differ.
+
+Both runs must show self-probe use for all six final candidate hashes, final
+source rereads and 6/6 independent task passes. Preserve both reports and
+candidate artifacts. Stop on the first failed, blocked or mismatched run; do
+not retry until green. Two successes are a bounded acceptance check, not a
+guarantee against future model drift.
+
+For the initial repair, [run 1](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/actions/runs/44462196980)
+and [run 2](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/actions/runs/44463495652)
+each passed all six tasks and 87 checks, with successful probes tied to every
+final candidate hash. Run 2 omitted the required final source rereads, so its
+full protocol audit remains a procedural failure. The coordinating agent
+accepted that specific omission as a documented exception, based on the
+matched probe and grading evidence. It was not an explicit user-selected
+waiver, and neither the audit nor the acceptance criteria were rewritten.
+No third run was used. This exception does not automatically apply to future
+evaluations.
+
+This protocol needs new approval before the push or dispatch. Its coding-agent
+ceiling is 1,000 AI Credits per run, with a 10,000/day limit. The PR
+update may also activate PR Conversation QA (500/run); framework work and
+Actions compute have separate costs. The second evaluation is not authorized
+by an earlier, consumed PR cycle approval.
 
 After the workflow is merged and a live trial is reviewed, require
 **BC Gov Agents - Coding Agent Eval Gate** in the repository's merge rules if
@@ -392,6 +569,67 @@ gh aw compile --strict --validate --no-check-update
 Compilation and local harness checks do not prove a live agent run or hosted
 container grading succeeded. Do not dispatch billable trials as part of ordinary
 authoring validation.
+
+### Offline runtime permission regression
+
+The ordinary tooling suite checks the compiled contract, fixed operations and
+independent grader; it does **not** simulate the CLI's permission matcher. The
+opt-in `pinned runtime` test in `scripts/tests/coding-agent-evals.test.mjs`
+uses the actual preparation/staging helper, then launches a disposable task-only
+container with the pinned CLI, SDK and complete harness. Only the synthetic
+workspace, verifier and read-only runtime are mounted; there is no repository
+checkout, private grader, Docker socket or inherited host environment.
+A fixed loopback provider supplies tool calls without model inference.
+
+The regression checks the actual SDK tool set, allowed input reads and candidate
+edits, and denied outside paths, `/proc` reads and symlink access. It also forces
+calls to excluded built-in file tools. A second check feeds the compiled worker
+configuration to the pinned gateway and captures its Docker arguments, then
+executes that generated launch with local fixture paths and the compiler's
+recorded image digest. Container inspection checks its mounts, environment,
+PID and network modes. Synthetic candidate code attempts outside-file,
+ancestor-environment, network and runtime-write access. Smoke assertions still
+fail before repair and pass afterward. No real secrets or model inference are
+used; the live six-task gate supplies the quality result.
+The SDK also invokes the real gateway-backed worker through an internal Docker
+network with no external route. That check covers the MCP permission-name
+conversion, all declared operations, rejected extra arguments and an
+undeclared operation. Candidate execution stays in the worker's separate
+network-disabled container.
+The structured-probe regression adds a smoke-passing incomplete diagnostic
+function, a counterexample from its public contract, and a corrected diagnostic
+copy. It exercises JSON/undefined/throw outcomes across function shapes, rejects
+selectors and excessive data, and checks hash binding across edits. Cancellation,
+deadline, missing-result and truncation tests remain blocked outcomes.
+The connected SDK/gateway/worker path also checks self-probes against the
+ancestor-environment, network and read/write canaries. None of these diagnostic
+fixtures adds a private grader case to the frozen public suite.
+
+Prepare an external scratch bundle before running it; do not commit the runtime
+or install these dependencies into the application:
+
+| Bundle path | Pinned contents |
+| --- | --- |
+| `copilot` | Linux x64 executable from [Copilot v1.0.87](https://github.com/github/copilot-cli/releases/tag/v1.0.87). Verify `copilot-linux-x64.tar.gz` SHA256 `49d81b184f1a1b358af676155fe97e341b9d9f0bc8dd25190dfe17087669b5b9` before extraction. |
+| `gh-aw\` | Unmodified files from `setup/js` and `setup/md` in [the compiled setup-action revision](https://github.com/github/gh-aw-actions/tree/924af5fdc64061cfbf66fb584c8b07e2ac230c60/setup), flattened into this directory. |
+| `node_modules\` | `@github/copilot-sdk@1.0.13` and `undici@6.28.0`, the compiler's pinned dependencies, installed with `--ignore-scripts` and Linux x64 native dependencies. |
+| `bin\node` | Linux x64 Node 24 executable from the digest-pinned image in `data/evaluations/coding-agent/suite.json`. |
+
+Pull the pinned firewall, gateway and `gh-aw-node` images recorded in the lock
+file during preparation. Set the bundle's absolute
+path and run from a host with Node and Docker available; the test itself starts
+the network-disabled Linux/Node-24 container:
+
+```powershell
+$env:CODING_AGENT_RUNTIME_ROOT = 'C:\path\to\prepared-runtime'
+node --test --test-name-pattern="pinned runtime" scripts\tests\coding-agent-evals.test.mjs
+```
+
+The verifier requires Linux and Node 24, keeps the worker network-disabled,
+and does not inherit GitHub/Azure credentials. Without
+`CODING_AGENT_RUNTIME_ROOT`, it is explicitly skipped, not reported as runtime
+authorization evidence. Review the live run's tested SHA and independent results
+for **all six tasks** after separately approving the repair PR's normal CI.
 
 ## Source watchdog and automatic bug repair
 

@@ -439,10 +439,10 @@ grade; none of these replaces the application's ordinary CI.
 The [evaluation architecture](docs/architecture.md#evaluation-workflows-outside-the-resident-request-path)
 shows how app-answer grading, coding-agent grading, and deployment stay separate.
 Foundry Evals is part of this branch. The
-[fixed-tool coding-agent repair](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14)
-is verified in PR #14 but still pending merge; its
-[diagram](docs/agentic-workflows.md#fixed-tool-runtime-pending-in-pr-14) is labelled
-accordingly.
+[coding-agent runtime repair](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14)
+is merged and included here. Its
+[diagram](docs/agentic-workflows.md#isolated-coding-agent-runtime) shows scoped
+file access, the separate check worker, and independent grading.
 
 GitHub-managed **CodeQL**, **CodeQL - Code Quality**, **Security Risk Assessment**,
 **GitHub Advanced Security**, **Dependabot Updates**, and **Dependency Graph**

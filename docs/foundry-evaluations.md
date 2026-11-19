@@ -23,9 +23,10 @@ answers.
 
 The separate [coding-agent evaluation](agentic-workflows.md#coding-agent-evaluations-in-ci)
 asks Copilot to repair six synthetic code tasks and uses a deterministic grader.
-It does not grade the BC Gov App's answers. Its fixed-tool runtime is verified in
-[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14), pending merge;
-that repair is not yet part of this branch.
+It does not grade the BC Gov App's answers. Its isolated runtime was merged in
+[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14) and is
+included in this branch. The [diagram](agentic-workflows.md#isolated-coding-agent-runtime)
+separates the model's file access from candidate execution and private grading.
 
 ## The 16 messages
 
