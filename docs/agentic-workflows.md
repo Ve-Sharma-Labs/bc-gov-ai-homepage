@@ -11,6 +11,11 @@ differ: the QA and coding-evaluation workflows use
 `copilot-requests: write`; the watchdog and automatic repair use
 `COPILOT_GITHUB_TOKEN`. See each setup section before activation.
 
+For grading the application's replies, use the separate
+[Foundry Evals guide](foundry-evaluations.md). That manual Actions workflow uses
+Foundry judges; the coding-agent workflow here evaluates synthetic code repairs
+with an independent deterministic grader.
+
 ## Workflows
 
 | Workflow | Activation | Write surface |
@@ -64,11 +69,17 @@ flowchart LR
         LABEL[Maintainer adds agentic-fix]
     end
 
-    subgraph Agentic["GitHub Agentic Workflows - bounded and advisory"]
+    subgraph Agentic["Advisory QA and repair proposals"]
         PRQA[Conversation regression<br/>PR profile]
         LIVEQA[Conversation regression<br/>deployed-live profile]
         SOURCE[Source-change<br/>impact triage]
         FIX[Bug to regression<br/>test and fix]
+    end
+
+    subgraph CodingEval["Coding-agent evaluation"]
+        CODING["Copilot repairs six frozen tasks<br/>Scoped file tools + isolated checks"]
+        GRADE["Independent deterministic grader"]
+        EVALRESULT["Task results + CI gate"]
     end
 
     subgraph Evidence["Deterministic evidence and controlled targets"]
@@ -78,6 +89,7 @@ flowchart LR
         SCENARIOS[Synthetic scenario catalog<br/>12 submitted-turn limit]
         PROVENANCE[Provenance, rights, catalogue<br/>and grounding metadata]
         TESTS[Repository tests, type checks<br/>and builds]
+        KIT["Task-only workspace<br/>Public smoke tests"]
     end
 
     subgraph SafeOutputs["Validated safe outputs"]
@@ -96,6 +108,9 @@ flowchart LR
     TIMER --> SOURCE
     MANUAL --> SOURCE
     LABEL --> FIX
+    PR -->|"Relevant trusted changes"| CODING
+    TIMER -->|"Daily"| CODING
+    MANUAL --> CODING
 
     PRQA --> BUILD
     PRQA --> FIXTURES
@@ -103,6 +118,9 @@ flowchart LR
     LIVEQA --> SCENARIOS
     SOURCE --> PROVENANCE
     FIX --> TESTS
+    KIT --> CODING
+    CODING -->|"Bounded candidate files"| GRADE
+    GRADE --> EVALRESULT
 
     PRQA --> PRCOMMENT
     PRQA --> ARTIFACTS
@@ -115,7 +133,14 @@ flowchart LR
     CONTROLS[Deterministic authority:<br/>CI, source rights, admission budgets,<br/>deployment gates, rollback and Azure alerts]
     CONTROLS -. supplies evidence and gates activation .-> Agentic
     Agentic -. cannot weaken or replace .-> CONTROLS
+    CONTROLS -. defines limits and grading rules .-> CodingEval
 ```
+
+The coding-agent gate is a trusted CI job, separate from advisory comments and
+safe-output write jobs. A failing gate blocks merging only when repository rules
+require it. The [isolated runtime](#isolated-coding-agent-runtime) shown above
+includes the repair merged through
+[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14).
 
 The agent jobs receive read-only repository permissions. GitHub applies issue,
 comment, artifact, and draft-PR writes in separate safe-output jobs with explicit
@@ -258,7 +283,7 @@ session; grading executes each solution separately.
    boundary and negative checks**. Missing submissions, altered protected
    files, failed/skipped inference, unavailable grading infrastructure or
    cleanup failures produce a blocked/incomplete result and a failing gate.
-   There is no automatic retry or success-shaped fallback.
+   A blocked or incomplete submission cannot count as a pass.
 
 Call `run_public_smoke_tests({})` before and after repairs.
 `check_candidate_syntax({})` checks every candidate. Neither accepts command
@@ -273,11 +298,12 @@ refusal. Unsafe/mutated inputs, cancellation and timeouts are blocked outcomes.
 
 ### Structured self-checks
 
-Public smoke examples do not cover every contract clause. For each task, the
-agent derives a checklist from the public contract, establishes baseline smoke
-results, repairs the candidate, and chooses its own valid, negative, boundary
-and inter-input probes. After its last edit, it rereads the candidate against
-every clause and finishes with public smoke and syntax checks.
+Public smoke examples do not cover every contract clause. The evaluation
+instructs the agent to derive a checklist from the public contract, establish
+baseline smoke results, repair the candidate, and choose valid, negative,
+boundary and inter-input probes. It also calls for a final source reread after
+the last edit, followed by public smoke and syntax checks. These are instructions
+to the model; inspect recorded tool use rather than assuming every step happened.
 
 `probe_candidate` accepts a manifest `caseId` and one to eight `probes`. Each
 probe has an `args` array and exactly one expected outcome:
@@ -330,7 +356,7 @@ flowchart LR
     Probes --> Worker["Isolated worker compares expected/actual"]
     Worker --> Receipt["Diagnostic result and source hash"]
     Receipt --> Edit
-    Receipt --> Readback["Reread every clause; final smoke/syntax"]
+    Receipt --> Readback["Requested final source review<br/>Final smoke and syntax checks"]
     Readback --> Grader["Fresh independent six-task grader"]
 ```
 
@@ -395,6 +421,68 @@ request bodies or credentials. GH-AW retains its own framework diagnostics.
 With `auto`, the report records that requested selector rather than inventing
 the resolved model; consult the native run diagnostics for engine details.
 
+### Isolated coding-agent runtime
+
+This branch includes the runtime repair merged in
+[PR #14](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14).
+The [authored workflow](../.github/workflows/coding-agent-evals.md)
+and [runtime modules](../.github/aw/coding-agent-runtime) define the boundaries
+shown below. Model-facing file operations and candidate execution run in
+different processes and containers.
+
+```mermaid
+flowchart TB
+    Start["Relevant trusted PR, daily or manual"] --> Prepare["Trusted preparation<br/>Exact commit + protected-input manifest"]
+    Prepare --> Stage["Verify and stage<br/>trusted runtimes and configuration"]
+
+    subgraph AgentSandbox["Copilot agent sandbox"]
+        Agent["Copilot SDK session"] <-->|"Listed files and exact edits"| FileTools["read_task_file<br/>edit_candidate"]
+        Runtime["Read-only SDK runtime"] --> FileTools
+        FileTools -->|"Scoped access"| Kit["Public contracts and smoke tests<br/>Six candidate modules"]
+    end
+
+    subgraph Worker["Separate check worker: no network or credentials"]
+        CheckRuntime["Read-only check runtime"] --> Tools["Fixed smoke and syntax checks<br/>Bounded JSON self-probes"]
+        Inputs["Read-only candidate mount<br/>Per-probe source snapshots"] --> Tools
+    end
+
+    Prepare --> Kit
+    Prepare -.->|"Protected-input manifest"| Collector
+    Stage -->|"Read-only mounts"| Runtime
+    Stage --> CheckRuntime
+    Agent <-->|"Approved inference transport"| Model["Copilot model"]
+    Agent <-->|"Declared operation only"| Gateway["MCP gateway"]
+    Gateway <-->|"Bounded results; real exit status"| Tools
+    Kit -.->|"Read-only mount"| Inputs
+    Kit --> Collector["Trusted collector<br/>Verify protected inputs and bounded files"]
+    Collector --> Artifact["This run's candidate artifact"]
+
+    subgraph Grader["Independent grading job: same tested commit"]
+        Execute["Digest-pinned Node container<br/>Candidate only; no network,<br/>credentials or repository mount"]
+        Expected["Private expected results<br/>Outside the candidate container"]
+        Compare["Compare actual outcomes<br/>All six tasks must pass"]
+        Execute -->|"Return values and exceptions"| Compare
+        Expected --> Compare
+    end
+
+    Artifact --> Execute
+    Compare --> Report["Sanitized report + CI gate<br/>Passed, failed or blocked"]
+    Collector -->|"Invalid or incomplete submission"| Blocked["Blocked; not graded"]
+    Agent -->|"Permission denial or noncompletion"| Blocked
+    Blocked --> Report
+```
+
+Only the scoped file operations run beside the model-bearing SDK session.
+Smoke, syntax, and probe execution use the separate worker described above.
+Its read-only mounts and private PID namespace keep candidate execution apart
+from the model process and its credentials. The collected candidates then go
+to a fresh grading job; agent-authored probe results cannot set that grade.
+
+The three check operations never accept arbitrary shell text or file paths.
+Only self-probes accept caller-supplied JSON arguments and predictions. The
+runtime's denial stop, protected-input checks, and independent grader remain
+authoritative even when the model misinterprets diagnostic text.
+
 ### Activation, cost and extension
 
 Use the existing Copilot inference permission setup. Same-repository,
@@ -440,6 +528,17 @@ source rereads and 6/6 independent task passes. Preserve both reports and
 candidate artifacts. Stop on the first failed, blocked or mismatched run; do
 not retry until green. Two successes are a bounded acceptance check, not a
 guarantee against future model drift.
+
+For the initial repair, [run 1](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/actions/runs/44462196980)
+and [run 2](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/actions/runs/44463495652)
+each passed all six tasks and 87 checks, with successful probes tied to every
+final candidate hash. Run 2 omitted the required final source rereads, so its
+full protocol audit remains a procedural failure. The coordinating agent
+accepted that specific omission as a documented exception, based on the
+matched probe and grading evidence. It was not an explicit user-selected
+waiver, and neither the audit nor the acceptance criteria were rewritten.
+No third run was used. This exception does not automatically apply to future
+evaluations.
 
 This protocol needs new approval before the push or dispatch. Its coding-agent
 ceiling is 1,000 AI Credits per run, with a 10,000/day limit. The PR
