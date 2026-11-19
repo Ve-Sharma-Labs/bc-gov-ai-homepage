@@ -7,6 +7,9 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "pyrit:ready": "pwsh -NoProfile -File scripts/pyrit-local.ps1",
+    "pyrit:status": "pwsh -NoProfile -File scripts/pyrit-local.ps1 -Mode Check",
+    "pyrit:stop": "pwsh -NoProfile -File scripts/pyrit-local.ps1 -Mode Stop",
     "dev": "node scripts/dev.mjs",
     "start": "node scripts/dev.mjs --production",
     "dev:web": "npm --prefix apps/web run dev",

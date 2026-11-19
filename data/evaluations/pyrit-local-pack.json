@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "pyrit_version": "1.2.0",
+  "pyrit_source_commit": "5398ad19e364659f9b7d686fb1eb398045a63273",
+  "suite_file": "pyrit-conversation-cases.json",
+  "suite_sha256": "ca4adda22bde3bfbe2662fe4c8bd850bffb0bbb13925a93063e56fa4844f15be",
+  "xstest": {
+    "url": "https://raw.githubusercontent.com/paul-rottger/exaggerated-safety/a3bb396ddc1939c6f264f17b7cf5b7a5d82833de/xstest_v2_prompts.csv",
+    "sha256": "e15832490045469ea1d6f6d3ee5674398fae2ed95962f35f5c90c4f557a86509",
+    "rows": 450,
+    "license": "CC-BY-4.0",
+    "attribution": "Paul Rottger, Hannah Rose Kirk, Bertie Vidgen, Giuseppe Attanasio, Federico Bianchi, Dirk Hovy",
+    "license_source": "https://github.com/paul-rottger/exaggerated-safety/blob/a3bb396ddc1939c6f264f17b7cf5b7a5d82833de/readme.md#license"
+  },
+  "templates": [
+    {"file": "jailbreak_1.yaml", "sha256": "66998ae2e354c3ba703716f22f44ee01635533878c1ede99f08fb60fca532766"},
+    {"file": "prefix_injection.yaml", "sha256": "3906c2fac67c8287ed0df2c39e95796c22d73eff89e850399defcbf44f0d37ed"},
+    {"file": "role_play.yaml", "sha256": "f0a910273cb4ee1e5ce29191bdf348f3ac6324e7ff836ba3e55450b16f75c899"}
+  ],
+  "template_license": "MIT; Copyright (c) Microsoft Corporation",
+  "converters": ["base64", "rot13", "char_swap", "leetspeak"]
+}

@@ -52,6 +52,16 @@ class ManualSettings(Contract):
             attacker=disabled, judge=disabled,
         )
 
+    def identity(self) -> dict[str, object]:
+        value: dict[str, object] = {
+            "origin": self.origin,
+            "commit": self.release_commit,
+            "deployment": self.deployment_id,
+        }
+        if self.authentication:
+            value["authentication"] = self.authentication.model_dump()
+        return value
+
 
 def load_settings(path: Path) -> ManualSettings:
     try:
@@ -155,14 +165,9 @@ class ManualAppTarget(PromptTarget):
 
 async def create_manual_target(path: Path) -> ManualAppTarget:
     settings = load_settings(path)
-    identity: dict[str, object] = {
-        "origin": settings.origin,
-        "commit": settings.release_commit,
-        "deployment": settings.deployment_id,
-    }
+    identity = settings.identity()
     auth = None
     if settings.authentication:
-        identity["authentication"] = settings.authentication.model_dump()
         auth = AzureCliAuth(
             origin=settings.origin,
             subscription_id=settings.authentication.subscription_id,

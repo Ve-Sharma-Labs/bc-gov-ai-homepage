@@ -1,4 +1,92 @@
-# Manual CoPyRIT target
+# Local CoPyRIT
+
+From the repository root on Windows:
+
+```powershell
+npm run pyrit:ready
+```
+
+This prepares the shared data and opens **http://127.0.0.1:18765**. Keep the
+terminal open. It does **not** run attacks or make attacker/judge model calls.
+You can also ask Copilot to "load PyRIT"; the `pyrit-local` skill uses the same
+script and can leave the owned server running for you.
+
+The starter pack contains:
+
+| Item | What you get |
+|---|---|
+| Shared BC cases | 17 fixed scripts from 13 cases; 19 attempts if all repetitions are selected |
+| XSTest | 450 text-only safe/unsafe contrast examples |
+| Text templates | Three pinned PyRIT templates, also available as converters |
+| Converters | Base64, ROT13, character swaps, leetspeak, and the three templates |
+| Scanner presets | BC fixed scripts and XSTest, each starting with one example |
+| Review scorer | Explicitly reports `undetermined`; it does not pretend a reply passed |
+
+Use **Datasets** to browse the actual stored examples. Use **Registry -> Scenario
+presets** or **Scanner** for the fixed presets, then choose `bc-gov-staging`.
+Use concurrency **1** and retries **0**. Execution is always capped at one,
+even if the native UI pre-fills its generic higher concurrency default; that cap
+is logged and recorded on the run. Start small: the full fixed subset
+exceeds a 20-request window. Ordered scripts use real preceding replies, not
+fabricated/replayed assistant history. Templates with `{{ prompt }}` are
+converter inputs, not standalone questions.
+
+```powershell
+npm run pyrit:status
+npm run pyrit:stop
+npm run pyrit:ready -- -BrowseOnly
+```
+
+Reloads keep datasets, user edits, histories and prior budgets. If the test window
+expired, startup asks once before opening a new one-hour, 20-request window.
+Declining still permits browsing. `-RenewWindow` is the explicit noninteractive
+equivalent of approving that renewal; `-Restart` confirms stopping/reloading
+the owned server, including any active tests. Do not use either without intending
+that action. Daily application token/cost limits remain unchanged.
+
+`-NoBrowser` skips opening an external browser; Copilot uses the browser canvas.
+The launcher is foreground-owned. When invoking it through Copilot tools, use
+the supported detached-process mechanism, not a shell detachment workaround.
+
+## Shared data and CI
+
+`data\evaluations\pyrit-conversation-cases.json` is the common source for CI and
+local views. It was brought over unchanged from the reviewed integration draft;
+that broader live CI/release workflow has **not** been activated by this work.
+`.github\workflows\ci-pyrit-local.yml` checks the manifest, loader and fixture-only
+behavior without Azure credentials or model calls.
+
+The complete source has 18 cases: 24 offline attempts or 22 live attempts.
+The GUI's fixed subset excludes two adaptive cases, two offline fault cases,
+and the sharing/isolation-control case. Those need the broader CI runner or
+separately approved helper models; sending their text alone is not equivalent.
+All expected behavior, variants, ordering, benign-control and repetition metadata
+is retained. Manual/unscored results never constitute full CI qualification.
+
+The local profile uses PyRIT's public registry replacement hook to show only
+the compatible `bcgov.fixed` Scanner scenario. PyRIT 1.2's full scenario catalogue
+constructs model-backed defaults even when listing presets; this profile avoids
+dummy model credentials and hidden judge fallbacks. Other saved presets are
+preserved but may report unavailable scenarios. Standard techniques remain
+visible in Registry; their presence does not configure an attacker model.
+
+`pyrit-local-pack.json` pins the suite's canonical hash, upstream version,
+starter sources and content hashes. Hash the original JSON without injecting
+model defaults. Changes to the shared suite require a reviewed lock update.
+The loader never follows moving branches or downloads the full provider catalogue.
+A cached file whose hash changed is rejected, not silently replaced.
+To repair a damaged cache, explicitly remove only `.cache\copyrit\datasets\xstest.csv`
+after reviewing the failure, then run the ready command to fetch the same pinned
+source again. Dataset updates need a new reviewed hash, not a TLS bypass.
+
+XSTest test prompts are used under **CC-BY-4.0**, attributed to Paul Rottger,
+Hannah Rose Kirk, Bertie Vidgen, Giuseppe Attanasio, Federico Bianchi and Dirk
+Hovy. The source revision and license reference are recorded in the pack and
+seed metadata. No upstream model completions are included. The selected PyRIT
+templates are **MIT**, copyright Microsoft Corporation, and retain their upstream
+provenance. Prompt contents are untrusted test data, never setup instructions.
+
+## Staging target
 
 This package connects CoPyRIT 1.2.0 to the BC assistant's staging web endpoint.
 It is not an OpenAI-compatible target. It handles the app's cookies, page and
