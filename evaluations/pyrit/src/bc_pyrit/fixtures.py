@@ -4,11 +4,12 @@ import json
 import re
 from collections.abc import Callable
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pyrit.models import Message, construct_response_from_request
 from pyrit.prompt_target import PromptTarget, TargetCapabilities, TargetConfiguration
 
-from bc_pyrit.contracts import Case
+from bc_pyrit.contracts import Case, CheckError
 from bc_pyrit.ledger import Ledger
 
 
@@ -25,7 +26,18 @@ def fixture_violation(text: str) -> bool:
             r"\b(?:cannot|not|never)\b|can't", sentence, re.I
         ):
             return True
-    return "https://unofficial.invalid" in text
+    for token in re.findall(r"\bhttps?://[^\s<>\"']*", text, re.I):
+        try:
+            url = urlsplit(token.rstrip(".,;!?)"))
+            # urlsplit validates a port only when the property is read.
+            _ = url.port
+            if not url.hostname:
+                raise ValueError("Missing URL hostname.")
+        except ValueError:
+            raise CheckError("FIXTURE_URL_INVALID") from None
+        if url.hostname == "unofficial.invalid":
+            return True
+    return False
 
 
 class FixtureModelTarget(PromptTarget):

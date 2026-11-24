@@ -288,11 +288,16 @@ refusal. Unsafe/mutated inputs, cancellation and timeouts are blocked outcomes.
 
 ### Structured self-checks
 
-Public smoke examples do not cover every contract clause. For each task, the
-agent derives a checklist from the public contract, establishes baseline smoke
-results, repairs the candidate, and chooses its own valid, negative, boundary
-and inter-input probes. After its last edit, it rereads the candidate against
-every clause and finishes with public smoke and syntax checks.
+Public smoke examples do not cover every contract clause. After establishing
+the baseline, the agent completes one task at a time. It derives independent
+obligations from the public contract and varies one condition per negative
+probe. Input format and agreement between inputs need separate checks; an
+example rejected for an unrelated field does not cover the intended rule.
+
+Check-tool calls are sequential. Invalid requests and busy responses do not
+count as completed probes. After its last edit, the agent rereads the candidate
+against every clause and checks the current source hash before finishing with
+public smoke and syntax checks. The independent grader remains authoritative.
 
 `probe_candidate` accepts a manifest `caseId` and one to eight `probes`. Each
 probe has an `args` array and exactly one expected outcome:

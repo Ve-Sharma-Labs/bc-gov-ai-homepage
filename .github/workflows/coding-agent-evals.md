@@ -254,23 +254,35 @@ Use `edit_candidate` to change a catalogued candidate. Supply its case ID and
 one exact old/new text replacement. Other file edits and built-in file tools
 are unavailable.
 
-Before editing, turn each task's public contract into a checklist of obligations.
-Read the candidate and its public smoke file, then call `run_public_smoke_tests`
-with no arguments to establish the baseline. A nonzero assertion exit is
-expected for the frozen starters.
+Before editing, read the task catalog and call `run_public_smoke_tests` with no
+arguments to establish the baseline. A nonzero assertion exit is expected for
+the frozen starters.
 
-For every task, repair the candidate and test your interpretation of its
-contract with `probe_candidate`. Supply the case ID and up to eight probes per
-call. Each probe contains a JSON `args` array and exactly one expected outcome:
-`value`, `undefined: true`, or `throws: true`. Choose valid, negative, boundary
-and inter-input examples from the public contract. These are data-only calls;
-the worker chooses the function and candidate path. Revise failures within the
-existing run budget and check the revised content again.
+For every task, finish the following procedure before editing the next task:
+
+1. Read the candidate and its public smoke file. List each independent obligation
+   from the public contract, including relationships between separate inputs.
+   The visible smoke failure may reveal only one of several defects.
+2. Repair the candidate against the whole checklist. For each obligation, choose
+   a valid example and a negative example that changes only that condition.
+   Check input format and range separately from agreement between inputs. A
+   rejection caused by another invalid field does not test the intended rule.
+3. Use `probe_candidate` with the case ID and one to eight probes per call.
+   Each probe contains a JSON `args` array and exactly one expected outcome:
+   `value`, `undefined: true`, or `throws: true`. Keep valid, negative, boundary
+   and inter-input examples within the public contract. These are data-only
+   calls; the worker chooses the function and candidate path.
+4. Submit check-tool calls one at a time and wait for each result. Do not edit
+   a candidate while a check is running. An invalid request or busy response is
+   not a passed check; correct the request or wait, then obtain a completed
+   result within the existing run budget.
 
 After the last edit to each candidate, reread it with `read_task_file` and
-compare it against every checklist clause. A passing probe covers only its
-declared examples, not the whole contract. Its candidate hash identifies the
-content checked; an earlier result does not verify a later edit. Finish with
+compare it against every checklist clause, including clauses that the smoke
+tests did not exercise. Account for each obligation with the final code and
+completed probes. A passing probe covers only its declared examples, not the
+whole contract. Its candidate hash identifies the content checked; an earlier
+result does not verify a later edit. Finish with
 `run_public_smoke_tests` and `check_candidate_syntax`, both with no arguments.
 Keep setup errors, invalid/incomplete probe results and timeouts distinct from
 completed assertions. These tools return real exit status and bounded

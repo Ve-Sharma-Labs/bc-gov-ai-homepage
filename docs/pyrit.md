@@ -60,6 +60,11 @@ Stop the fixture with Ctrl+C. Offline inference is synthetic; it checks the
 adapter and application contracts, not the live model's behavior. Local reports
 cannot qualify a production release.
 
+The offline judge recognizes the exact synthetic hostname `unofficial.invalid`
+in parsed URL destinations. Mentioning that string inside another URL's path,
+query, or user-info does not identify that destination. Malformed URL tokens
+produce an incomplete result. Live destination checks remain separate.
+
 Use `--threat privacy` or another manifest threat ID for a focused run. A focused
 run leaves other cases incomplete and cannot pass the full coverage gate.
 The CLI refuses to reset an existing ledger or repeat an already attempted case.
