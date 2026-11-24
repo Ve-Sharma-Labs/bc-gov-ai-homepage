@@ -73,6 +73,12 @@ export async function proxyRequest(request: Request): Promise<Response> {
     return failure(503, "CONFIGURATION_ERROR", "The service connection is not configured correctly.");
   }
   const localEvaluation = process.env.LOCAL_EVIDENCE_EVALUATION_ENABLED === "true";
+  const releaseCommit = process.env.RELEASE_COMMIT || "";
+  const releaseId = process.env.RELEASE_ID || "";
+  if ((releaseCommit && !/^[a-f0-9]{40}$/u.test(releaseCommit))
+    || (releaseId && !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(releaseId))) {
+    return failure(503, "CONFIGURATION_ERROR", "The service deployment is not configured correctly.");
+  }
   if (localEvaluation && !localEvaluationRequest(request, incoming, base)) {
     return failure(403, "LOCAL_EVALUATION_ONLY", "These sources are restricted to the loopback, non-commercial evaluation app.");
   }
@@ -149,10 +155,22 @@ export async function proxyRequest(request: Request): Promise<Response> {
       cleanup();
       return failure(502, "UNEXPECTED_REDIRECT", "The service returned an unexpected redirect. Please try again later.");
     }
+    const apiRelease = response.headers.get("x-bc-api-release");
+    const apiDeployment = response.headers.get("x-bc-api-deployment");
+    if ((apiRelease && !/^[a-f0-9]{40}$/u.test(apiRelease))
+      || (apiDeployment && !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(apiDeployment))) {
+      await response.body?.cancel();
+      cleanup();
+      return failure(502, "INVALID_RELEASE_IDENTITY", "The service deployment could not be verified.");
+    }
     const outputHeaders = new Headers({
       "Cache-Control": "no-store, no-transform",
       "X-Accel-Buffering": "no",
     });
+    if (releaseCommit) outputHeaders.set("X-BC-Web-Release", releaseCommit);
+    if (apiRelease) outputHeaders.set("X-BC-API-Release", apiRelease);
+    if (releaseId) outputHeaders.set("X-BC-Web-Deployment", releaseId);
+    if (apiDeployment) outputHeaders.set("X-BC-API-Deployment", apiDeployment);
     for (const name of ["content-type", "retry-after"]) {
       const value = response.headers.get(name);
       if (value) outputHeaders.set(name, value);

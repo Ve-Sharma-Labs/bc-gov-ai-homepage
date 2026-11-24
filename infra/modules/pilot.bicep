@@ -3,6 +3,8 @@ targetScope = 'resourceGroup'
 param name string
 param location string
 param tags object
+param releaseCommit string = ''
+param releaseProbeEnabled bool = false
 param modelDeployments array
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
@@ -99,6 +101,8 @@ module hosting './hosting.bicep' = {
     name: name
     location: location
     tags: tags
+    releaseCommit: releaseCommit
+    releaseProbeEnabled: releaseProbeEnabled
     foundryProjectEndpoint: ai.outputs.projectEndpoint
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
@@ -168,3 +172,6 @@ output publisherClientId string = publisherIdentity.properties.clientId
 output webUrl string = edge.outputs.origin
 output frontDoorProfileName string = edge.outputs.profileName
 output frontDoorEndpointName string = edge.outputs.endpointName
+output releaseProbeId string = hosting.outputs.releaseProbeId
+output foundryAccountId string = ai.outputs.accountResourceId
+output wafPolicyId string = edge.outputs.wafPolicyId
