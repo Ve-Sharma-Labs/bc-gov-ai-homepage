@@ -1,8 +1,14 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { CSSProperties } from "react";
-import { siteTitle, siteUrl } from "./site-metadata";
+import { siteTitle } from "./site-metadata";
 
 export const socialImageSize = { width: 1200, height: 630 };
 export const socialImageContentType = "image/png";
+
+// Next runs from the app root, with public copied beside the standalone server.
+const logo = await readFile(join(process.cwd(), "public", "brand", "bc-logo-horizontal-transparent.png"));
+const logoSrc = `data:image/png;base64,${logo.toString("base64")}`;
 
 const cardStyle: CSSProperties = {
   width: "100%",
@@ -22,7 +28,7 @@ export function SocialCard() {
       <div style={{ display: "flex", alignItems: "center", background: "#ffffff", padding: "26px 34px", width: 530 }}>
         <img
           alt="Government of British Columbia"
-          src={new URL("/brand/bc-logo-horizontal-transparent.png", siteUrl).toString()}
+          src={logoSrc}
           style={{ width: 361, height: 120 }}
         />
       </div>

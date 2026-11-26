@@ -1,0 +1,90 @@
+name: BC Gov App - Foundry Evals (Relevance & Task Outcomes)
+run-name: >-
+  BC Gov App - Foundry Evals (Relevance & Task Outcomes) | ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: foundry-evals
+  cancel-in-progress: false
+
+jobs:
+  foundry-evals:
+    name: BC Gov App - Foundry Evals - Synthetic Conversations & Judge Scoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: pilot
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_LIVE_EVALUATION_APPROVED: ${{ vars.AZURE_LIVE_EVALUATION_APPROVED }}
+      AZURE_FOUNDRY_EVALUATION_APPROVED: ${{ vars.AZURE_FOUNDRY_EVALUATION_APPROVED }}
+      FOUNDRY_EVALUATION_MODEL_DEPLOYMENT: ${{ vars.FOUNDRY_EVALUATION_MODEL_DEPLOYMENT }}
+    steps:
+      - name: Foundry Evals - Check out the candidate
+        uses: actions/checkout@v4
+      - name: Foundry Evals - Check inference, storage approval, and target configuration
+        shell: bash
+        run: |
+          if [ "$AZURE_LIVE_EVALUATION_APPROVED" != "1" ] \
+            || [ "$AZURE_FOUNDRY_EVALUATION_APPROVED" != "1" ]; then
+            echo "Foundry Evals requires approved synthetic inference and Foundry evaluation storage."
+            exit 1
+          fi
+          for key in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_ENV_NAME AZURE_LOCATION FOUNDRY_EVALUATION_MODEL_DEPLOYMENT; do
+            if [ -z "${!key}" ]; then
+              echo "Foundry Evals requires the protected pilot variable $key."
+              exit 1
+            fi
+          done
+      - name: Foundry Evals - Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Foundry Evals - Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Foundry Evals - Install the candidate API and locked evaluation SDK
+        run: python -m pip install -r apps/api/requirements.lock -e apps/api
+      - name: Foundry Evals - Set up azd for existing environment lookup
+        uses: Azure/setup-azd@v2
+      - name: Foundry Evals - Authenticate to Azure using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: Foundry Evals - Authenticate azd for target lookup
+        run: azd auth login --client-id "$AZURE_CLIENT_ID" --tenant-id "$AZURE_TENANT_ID" --federated-credential-provider github
+      - name: Foundry Evals - Resolve the existing application environment
+        run: |
+          azd env new "$AZURE_ENV_NAME" --no-prompt
+          azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
+          azd env set AZURE_LOCATION "$AZURE_LOCATION"
+          azd env refresh --no-prompt
+      - name: Foundry Evals - Run synthetic conversations and relevance and task-outcome judges
+        id: foundry_evaluation
+        run: |
+          python -m bc_api.foundry_evaluation \
+            --execute --approved --storage-approved \
+            --resource-group "$(azd env get-value AZURE_RESOURCE_GROUP)" \
+            --app-name "$(azd env get-value AZURE_API_APP_NAME)" \
+            --candidate-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/foundry-evaluation.json"
+      - name: Foundry Evals - Publish content-free scores and report metadata
+        if: always() && (steps.foundry_evaluation.outcome == 'success' || steps.foundry_evaluation.outcome == 'failure')
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundry-evaluation
+          path: ${{ runner.temp }}/foundry-evaluation.json
+          if-no-files-found: error
+          retention-days: 7
