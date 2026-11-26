@@ -8,6 +8,11 @@ param environmentName string
 @description('User-confirmed Azure location. No region is selected automatically.')
 @minLength(1)
 param location string
+@description('Source commit stamped on the reviewed application images.')
+@maxLength(40)
+param releaseCommit string = ''
+@description('Create the idle managed-identity readiness job only after its scope and costs are reviewed.')
+param releaseProbeEnabled bool = false
 
 @description('Explicitly selected model names, versions, SKUs and capacity; no moving defaults.')
 param modelDeploymentsJson string
@@ -78,6 +83,8 @@ module pilot './modules/pilot.bicep' = {
     name: 'bcassist-${suffix}'
     location: location
     tags: tags
+    releaseCommit: releaseCommit
+    releaseProbeEnabled: releaseProbeEnabled
     modelDeployments: json(modelDeploymentsJson)
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
@@ -124,3 +131,14 @@ output PUBLISHER_IDENTITY_CLIENT_ID string = pilot.outputs.publisherClientId
 output WEB_URL string = pilot.outputs.webUrl
 output AZURE_FRONT_DOOR_PROFILE_NAME string = pilot.outputs.frontDoorProfileName
 output AZURE_FRONT_DOOR_ENDPOINT_NAME string = pilot.outputs.frontDoorEndpointName
+output PYRIT_CONTEXT object = {
+  subscriptionId: subscription().subscriptionId
+  apiId: resourceId(resourceGroup.name, 'Microsoft.App/containerApps', pilot.outputs.apiName)
+  webId: resourceId(resourceGroup.name, 'Microsoft.App/containerApps', pilot.outputs.webName)
+  probeJobId: pilot.outputs.releaseProbeId
+  foundryAccountId: pilot.outputs.foundryAccountId
+  frontDoorEndpointId: resourceId(resourceGroup.name, 'Microsoft.Cdn/profiles/afdEndpoints', pilot.outputs.frontDoorProfileName, pilot.outputs.frontDoorEndpointName)
+  wafPolicyId: pilot.outputs.wafPolicyId
+  registryName: pilot.outputs.registryName
+  origin: pilot.outputs.webUrl
+}

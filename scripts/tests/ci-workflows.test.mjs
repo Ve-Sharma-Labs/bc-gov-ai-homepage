@@ -14,11 +14,13 @@ const ci = {
   "ci-e2e.yml": "BC Gov App - E2E Tests",
   "ci-containers.yml": "BC Gov App - Container Build & Smoke Tests",
   "automation-validation.yml": "BC Gov Automation - Tooling & Workflow Validation",
+  "ci-pyrit.yml": "PyRIT - Offline red-teaming checks",
 };
 const operations = {
   "azure-pilot.yml": "BC Gov App - Azure Deployment",
   "foundry-evals.yml": "BC Gov App - Foundry Evals (Relevance & Task Outcomes)",
   "official-source-collection.yml": "BC Gov Sources - Collection",
+  "pyrit-ai-red-teaming.yml": "PyRIT - AI red teaming",
 };
 const agents = {
   "conversation-regression.md": "BC Gov Agents - PR Conversation QA",
@@ -62,12 +64,16 @@ test("every repository workflow has a unique, descriptive name and contextual ru
 test("ordinary CI runs once per PR update and on main pushes with read-only permissions", () => {
   for (const file of Object.keys(ci)) {
     const text = source(file);
-    assert.equal(section(text, "on"), "on:\n  push:\n    branches: [main]\n  pull_request:", file);
+    if (file === "ci-pyrit.yml") {
+      assert.match(section(text, "on"), /^on:\n  push:\n    branches: \[main\]\n  pull_request:\n  workflow_call:/);
+    } else {
+      assert.equal(section(text, "on"), "on:\n  push:\n    branches: [main]\n  pull_request:", file);
+    }
     assert.equal(section(text, "permissions"), "permissions:\n  contents: read", file);
     const jobs = section(text, "jobs");
     const count = [...jobs.matchAll(/^  [\w-]+:\n/gm)].length;
     assert.ok(count > 0, file);
-    assert.equal([...jobs.matchAll(/^    name: BC Gov .+$/gm)].length, count, file);
+    assert.equal([...jobs.matchAll(/^    name: (?:BC Gov|PyRIT -) .+$/gm)].length, count, file);
   }
 });
 
@@ -91,6 +97,7 @@ test("expanded CI check names identify components instead of matrix commands and
     "BC Gov App - Web Container",
     "BC Gov App - Ingestion Container",
     "BC Gov Automation - Compile & Validate Workflows",
+    "PyRIT - Offline threat checks",
   ].sort());
 });
 
@@ -200,12 +207,13 @@ test("renamed producers and compiled downstream triggers still match", () => {
     ["official-source-collection.yml", "official-source-watchdog"],
   ]) {
     const name = workflowName(source(producer));
-    assert.ok(source(`${consumer}.md`).includes(`workflows: ["${name}"]`));
+    const expected = consumer === "live-conversation-regression" ? [name, "PyRIT - AI red teaming"] : [name];
+    assert.ok(source(`${consumer}.md`).includes(`workflows: [${expected.map((value) => `"${value}"`).join(", ")}]`));
     const downstream = section(source(`${consumer}.lock.yml`), "on")
       .match(/^    workflows:\n((?:      - .+\n?)+)/m);
     assert.ok(downstream, consumer);
     assert.deepEqual([...downstream[1].matchAll(/^      - "?([^"\n]+)"?$/gm)].map(([, value]) => value),
-      [name]);
+      expected);
   }
   assert.equal(workflowName(source("official-source-collection.yml")), collectorName);
   assert.equal(collectorPath, ".github/workflows/official-source-collection.yml");
@@ -218,11 +226,15 @@ test("deployment remains manual with separate provision, deploy and reviewed ver
   assert.doesNotMatch(triggers, /^  (?:push|pull_request|schedule|workflow_run):/m);
   assert.ok(triggers.includes("options: [provision, deploy, verify]"));
   assert.match(triggers, /live_checks:\n        type: boolean\n        default: false/);
-  assert.ok(deploy.includes("if: inputs.operation != 'verify'"));
   assert.ok(deploy.includes("if: inputs.operation == 'verify'"));
   assert.ok(deploy.includes("if: inputs.operation == 'provision'"));
   assert.ok(deploy.includes("if: inputs.operation == 'deploy'"));
-  assert.ok(deploy.includes('if [ "$state" != "Disabled" ]; then'));
+  assert.ok(deploy.includes("node scripts/validate-staging-provision.mjs"));
+  assert.ok(deploy.includes("uses: ./.github/workflows/ci-pyrit.yml"));
+  assert.ok(deploy.includes("uses: ./.github/workflows/pyrit-ai-red-teaming.yml"));
+  assert.ok(deploy.includes("if: needs.red-team.result == 'success' && needs.red-team.outputs.qualified == 'true'"));
+  assert.ok(deploy.includes("node scripts/pyrit-release.mjs promote"));
+  assert.doesNotMatch(deploy, /run: azd deploy|Close the actual Front Door endpoint/);
   assert.ok(deploy.includes('if [ "$AZURE_LIVE_EVALUATION_APPROVED" != "1" ]; then'));
   assert.equal([...deploy.matchAll(/^    environment: pilot$/gm)].length, 2);
   assert.ok(deploy.includes("name: deployment-marker"));
@@ -268,17 +280,14 @@ test("Foundry Evals is a protected, independent manual workflow with complete sc
   assert.doesNotMatch(foundry, /path:.*synthetic|workflow_call|workflow_run|needs:|azure-pilot\.yml|gh workflow run/);
 });
 
-test("app deployment keeps exposure safeguards without depending on Foundry Evals", () => {
+test("app deployment stays independent of Foundry Evals", () => {
   const deploy = source("azure-pilot.yml");
-  const closedEdge = deploy.indexOf("name: Refuse image replacement while traffic is enabled");
-  const images = deploy.indexOf("name: Deploy candidate images");
-  assert.ok(closedEdge > 0 && images > closedEdge);
-  assert.match(deploy.slice(images), /name: Deploy candidate images\n        if: inputs.operation == 'deploy'\n        run: azd deploy --no-prompt/);
-  assert.ok(deploy.includes("run: node scripts/azure-preflight.mjs"));
+  assert.ok(deploy.includes("node scripts/azure-preflight.mjs --operation=provision"));
   assert.ok(deploy.includes("run: azd provision --no-prompt"));
   assert.doesNotMatch(deploy,
     /foundry_evaluation|foundry-evals\.yml|foundry-evaluation\.json|FOUNDRY_EVALUATION_MODEL_DEPLOYMENT|AZURE_FOUNDRY_EVALUATION_APPROVED|setup-python|pip install|inputs\.operation == 'evaluate'/);
-  assert.doesNotMatch(deploy, /workflow_call|workflow_run|needs:|gh workflow run/);
+  assert.doesNotMatch(section(deploy, "on"), /workflow_call|workflow_run/);
+  assert.doesNotMatch(deploy, /gh workflow run/);
   assert.equal(section(deploy, "concurrency"),
     "concurrency:\n  group: azure-pilot\n  cancel-in-progress: false");
 });

@@ -7,6 +7,8 @@ var vectorDimensions = readEnvironmentVariable('AZURE_OPENAI_EMBEDDING_DIMENSION
 
 param environmentName = readEnvironmentVariable('AZURE_ENV_NAME')
 param location = readEnvironmentVariable('AZURE_LOCATION')
+param releaseCommit = readEnvironmentVariable('AZURE_RELEASE_COMMIT', '')
+param releaseProbeEnabled = readEnvironmentVariable('AZURE_RELEASE_PROBE_ENABLED', 'false') == 'true'
 param modelDeploymentsJson = readEnvironmentVariable('AZURE_MODEL_DEPLOYMENTS')
 param foundryAgentsJson = empty(agents) ? '[]' : agents
 param foundryGeneralAgentJson = readEnvironmentVariable('FOUNDRY_GENERAL_AGENT', '')

@@ -26,7 +26,7 @@ services:
 hooks:
   preprovision:
     shell: sh
-    run: node scripts/azure-preflight.mjs
+    run: node scripts/azure-preflight.mjs --operation=provision
   predeploy:
     shell: sh
-    run: node scripts/azure-preflight.mjs
+    run: node scripts/azure-preflight.mjs --operation=deploy

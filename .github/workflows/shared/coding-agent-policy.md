@@ -12,6 +12,12 @@ assertion failure before repairing it. Preserve the test and its expectations
 throughout the repair; do not skip, delete or weaken checks to obtain a pass.
 Use the existing test runner and report the actual result, not a prediction.
 
+Check every independent obligation in the public contract, not just the visible
+failure. Separate input format and range checks from agreement between inputs.
+Start from a valid example and change one condition at a time; make sure a
+negative example fails for the condition being checked. Reread the final code
+against the full contract before declaring the repair ready.
+
 Make the smallest root-cause repair within the task's allowed files. Preserve
 privacy, authentication, source rights, budget accounting and deployment controls.
 Do not install undeclared dependencies or do unrelated cleanup.

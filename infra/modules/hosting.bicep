@@ -3,6 +3,8 @@ targetScope = 'resourceGroup'
 param name string
 param location string
 param tags object
+param releaseCommit string = ''
+param releaseProbeEnabled bool = false
 param foundryProjectEndpoint string
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
@@ -138,6 +140,7 @@ module api 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
     enableTelemetry: false
     env: [
       { name: 'APP_ENV', value: 'production' }
+      { name: 'RELEASE_COMMIT', value: releaseCommit }
       { name: 'CONTENT_CATALOG_PATH', value: '/app/data/pilot-catalog.json' }
       { name: 'API_ALLOWED_ORIGINS', value: publicOrigin }
       { name: 'API_ALLOWED_HOSTS', value: 'localhost,127.0.0.1,api,${apiName},${apiName}.internal.${stack.outputs.defaultDomain}' }
@@ -233,6 +236,7 @@ module web 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
     secrets: [{ name: 'client-hash-key', value: clientHashKey }]
     env: [
       { name: 'NODE_ENV', value: 'production' }
+      { name: 'RELEASE_COMMIT', value: releaseCommit }
       { name: 'NEXT_TELEMETRY_DISABLED', value: '1' }
       { name: 'AI_CONVERSATION_ENABLED', value: aiConversationEnabled }
       { name: 'TASK_ASSISTANCE_ENABLED', value: taskAssistanceEnabled }
@@ -243,6 +247,23 @@ module web 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
       { name: 'FRONT_DOOR_ID', value: frontDoorId }
       { name: 'CLIENT_HASH_KEY', secretRef: 'client-hash-key' }
     ]
+  }
+}
+
+module releaseProbe '../release-probe.bicep' = if (releaseProbeEnabled) {
+  name: 'release-probe'
+  params: {
+    name: 'job-${name}-release-check'
+    location: location
+    tags: tags
+    environmentId: stack.outputs.environmentResourceId
+    webIdentityId: webIdentityId
+    webClientId: webClientId
+    registryHost: stack.outputs.registryLoginServer
+    webImage: webImageName
+    apiUrl: api.outputs.uri
+    apiAuthScope: 'api://${apiApplicationClientId}/.default'
+    publicOrigin: publicOrigin
   }
 }
 
@@ -269,3 +290,4 @@ output apiIdentity string = api.outputs.identityPrincipalId
 output webUrl string = web.outputs.uri
 output insightsResourceId string = insights.outputs.resourceId
 output logsResourceId string = logs.outputs.resourceId
+output releaseProbeId string = releaseProbeEnabled ? releaseProbe!.outputs.probeJobId : ''

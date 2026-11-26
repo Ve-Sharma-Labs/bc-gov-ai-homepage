@@ -446,14 +446,18 @@ Container App configuration, so changing a GitHub variable alone will not update
 the binding used by the app.
 
 The Azure Deployment workflow keeps its `provision`, `deploy`, and `verify`
-operations. It does not check Foundry Evals results. Its existing approvals and
-preflight still apply, and the actual Front Door endpoint must be disabled before
-`azd deploy`. The `live_checks` input belongs only to its verify operation and
-retains its own live-inference approval requirement.
+operations and does not check Foundry Evals results. Provisioning is restricted
+to reviewed staging. Deployment requires the [PyRIT release checks](pyrit.md),
+then protected production approval and verification of a zero-traffic revision
+pair before switching web traffic. Generic `azd deploy` is blocked; the qualified
+promotion path does not disable Front Door. Existing approvals and preflight
+still apply. The `live_checks` input belongs only to the verify operation and
+retains its separate live-inference approval requirement.
 
-Foundry Evals and Azure Deployment share the protected environment and Azure
-identity. Their concurrency groups are separate, so an evaluation does not queue
-or cancel an application deployment.
+Foundry Evals uses the protected `pilot` environment and its Azure identity.
+Azure Deployment also uses `pilot-staging` for staging work. Their workflow
+concurrency groups are separate, so an evaluation does not queue or cancel an
+application deployment.
 
 ### If an evaluation fails
 
