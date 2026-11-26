@@ -3,6 +3,7 @@
 from contextlib import redirect_stderr, redirect_stdout
 from copy import deepcopy
 from datetime import datetime, timezone
+from functools import partial
 import io
 import json
 from pathlib import Path
@@ -679,7 +680,9 @@ class ProgrammeFixtures(unittest.TestCase):
         review_file, rights_file = self.root / "synthetic-review.json", self.root / "synthetic-rights.json"
         review_file.write_text(json.dumps(review), encoding="utf-8")
         rights_file.write_text(json.dumps(rights_for(self.programme)), encoding="utf-8")
-        with patch("bc_ingestion.fetch.transport", side_effect=AssertionError("No network")), \
+        with patch("bc_ingestion.programme_policy.ProgrammePolicy",
+                   new=partial(ProgrammePolicy, clock=self.clock.datetime)), \
+                patch("bc_ingestion.fetch.transport", side_effect=AssertionError("No network")), \
                 patch("bc_ingestion.azure_publish._execute", side_effect=AssertionError("No Azure")), \
                 redirect_stdout(io.StringIO()) as output:
             result = main([
@@ -692,6 +695,34 @@ class ProgrammeFixtures(unittest.TestCase):
         self.assertEqual(report["publishedDocuments"], 0)
         self.assertEqual(report["publication"]["mode"], "dry-run")
         self.assertTrue((ROOT / report["reviewPlan"]).exists())
+
+    def test_cli_rejects_expired_rights_before_acquisition_or_publication(self):
+        self.run_once(Network(self.clock))
+        rights = rights_for(self.programme)
+        rights_file = self.root / "synthetic-rights.json"
+        rights_file.write_text(json.dumps(rights), encoding="utf-8")
+        before = self.path.read_bytes()
+        expires_at = datetime.fromisoformat(rights["expiresAt"].replace("Z", "+00:00")).timestamp()
+        for seconds_after_expiry in (0, 1):
+            self.clock.now = expires_at + seconds_after_expiry
+            for command in (["programme", "--acquire", "--resume"], ["publish", "--execute", "--approved"]):
+                with self.subTest(seconds_after_expiry=seconds_after_expiry, command=command[0]), \
+                        patch("bc_ingestion.programme_policy.ProgrammePolicy",
+                              new=partial(ProgrammePolicy, clock=self.clock.datetime)), \
+                        patch("bc_ingestion.fetch.transport",
+                              side_effect=AssertionError("No network")) as network, \
+                        patch("bc_ingestion.azure_publish._execute",
+                              side_effect=AssertionError("No Azure")) as execute, \
+                        redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as errors:
+                    result = main([
+                        *command, "--programme-manifest", str(self.path),
+                        "--rights-review", str(rights_file),
+                    ])
+                    self.assertEqual(result, 2)
+                    self.assertIn("rights-review-expired", json.loads(errors.getvalue())["error"])
+                    network.assert_not_called()
+                    execute.assert_not_called()
+                    self.assertEqual(self.path.read_bytes(), before)
 
     def test_programme_publish_without_rights_is_not_an_implicit_withdrawal(self):
         self.run_once(Network(self.clock))

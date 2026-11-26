@@ -193,8 +193,10 @@ review flag solely to satisfy preflight.
    identity and publication permissions. Complete Azure validation and review
    the real provision preview before authorizing resource creation.
 2. Provision with `closed` stage: Front Door is disabled. Bootstrap placeholder
-   images are allowed only while closed. Deploy the real application images,
-   publish reviewed agent versions/content, and apply their actual bindings.
+   images are allowed only while closed. Publish reviewed agent versions/content
+   and apply their actual bindings and conversation flags to the closed app.
+   Run Foundry Evals separately to review candidate response quality. Its result
+   does not automatically block image deployment.
 3. Resolve the approved application image digests in ACR. Set both image inputs
    before any subsequent exposure/configuration provision operation. This keeps
    an IaC update from resetting a deployed application to AVM's hello-world image.
@@ -225,9 +227,9 @@ to its matching API revision; failed public verification restores the prior
 traffic mapping. It preserves identities, secret references, WAF settings, and
 production limits.
 
-Configure protected `pilot-staging` and `pilot` environments and a reviewed
-fixed-egress Linux runner. The new idle private-readiness job can be included in
-staging with `AZURE_RELEASE_PROBE_ENABLED=true`; use
+Configure protected `pilot-staging` and `pilot` environments, OIDC identities
+and a reviewed fixed-egress Linux runner. The idle private-readiness job can be
+included in staging with `AZURE_RELEASE_PROBE_ENABLED=true`; use
 `infra/release-probe.bicep` to prepare it in existing production without
 reprovisioning the apps. Review its identity, image, and costs first.
 The [PyRIT guide](../docs/pyrit.md) covers variables, permissions, retained
@@ -240,6 +242,18 @@ preparation guides without a model call by default. `live_checks=true` also
 requires `AZURE_LIVE_EVALUATION_APPROVED=1` and performs at most 18 synthetic
 turns, clearing its own conversation sessions. It does not create approvals,
 publish agents or content, or enable Web IQ.
+
+Azure Deployment does not run Foundry Evals or depend on its results.
+[BC Gov App - Foundry Evals (Relevance & Task Outcomes)](../.github/workflows/foundry-evals.yml)
+is a separate, manual workflow. It evaluates the checked-out candidate using the
+existing API Container App's bindings and publishes content-free scores and report
+metadata. It reuses the protected `pilot` environment and OIDC identity, with its
+own concurrency group. It requires `AZURE_LIVE_EVALUATION_APPROVED=1`,
+`AZURE_FOUNDRY_EVALUATION_APPROVED=1`, and an explicit
+`FOUNDRY_EVALUATION_MODEL_DEPLOYMENT`. Evaluation failures fail that run without
+blocking or triggering deployment. It does not provision resources, replace
+images, or emit a deployment marker. See the
+[Foundry evaluation guide](../docs/foundry-evaluations.md) for setup and scoring.
 
 For a focused diagnosis, run `scripts/verify-pilot-chat.mjs` with the exact
 `--url`, `--live-approved` and a supported `--case` such as `--case=job-loss`.

@@ -9,6 +9,11 @@ chat/cancellation flow, reviewed-content lifecycle and current release boundarie
 The [agentic workflows guide](docs/agentic-workflows.md) covers coding-agent
 evaluations, the official-source freshness watchdog, and automatic bug-report
 regression tests and draft fixes.
+The [Foundry evaluation walkthrough](docs/foundry-evaluations.md) explains the
+synthetic application suite and cloud judge results. Run the separate
+[BC Gov App - Foundry Evals (Relevance & Task Outcomes)](.github/workflows/foundry-evals.yml)
+workflow from Actions. App deployment remains independent and does not wait for
+evaluation results.
 
 The reference-led interface includes locally hosted Unsplash BC photography,
 editorial serif/BC Sans typography, a compact adaptive composer, a persistent
@@ -422,6 +427,7 @@ identify the failing component without exposing matrix commands or file paths.
 | [BC Gov App - Container Build & Smoke Tests](.github/workflows/ci-containers.yml) | API, web, and ingestion `linux/amd64` builds and disconnected runtime checks; no publication or deployment | PRs and pushes to `main` |
 | [BC Gov Automation - Tooling & Workflow Validation](.github/workflows/automation-validation.yml) | Tooling tests and pinned GH-AW compilation/drift checks for all seven generated workflows, in independent jobs | PRs and pushes to `main` |
 | [BC Gov Agents - Coding Agent Evals](.github/workflows/coding-agent-evals.md) | Coding agent repairs six frozen tasks; an independent isolated grader fails CI below 100% | Relevant trusted PRs, daily or manual; unrelated PRs skip inference |
+| [BC Gov App - Foundry Evals (Relevance & Task Outcomes)](.github/workflows/foundry-evals.yml) | Code checks and Foundry judges evaluate 16 synthetic app turns; results do not trigger or block deployment | Manual only, with inference and storage approvals |
 | [PyRIT - Offline red-teaming checks](.github/workflows/ci-pyrit.yml) | Named threat/approach checks using the real API with fixture inference; no model calls | PRs, main pushes, and release calls |
 | [PyRIT - AI red teaming](.github/workflows/pyrit-ai-red-teaming.yml) | Fixed and adaptive staging scans with one approved budget and a complete-coverage gate | Approved release calls, manual, or enabled daily schedule |
 | [BC Gov App - Azure Deployment](.github/workflows/azure-pilot.yml) | Reviewed staging provisioning, PyRIT-qualified revision promotion, or verification | Manual only |
@@ -442,6 +448,14 @@ The seven **BC Gov Agents** workflows are listed in the
 check the approved live app, assess sources, propose draft bug fixes, or evaluate
 the coding agent itself. The coding-agent eval has a blocking deterministic
 grade; none of these replaces the application's ordinary CI.
+
+The [evaluation architecture](docs/architecture.md#evaluation-workflows-outside-the-resident-request-path)
+shows how app-answer grading, coding-agent grading, and deployment stay separate.
+Foundry Evals is part of this branch. The
+[coding-agent runtime repair](https://github.com/Ve-Sharma-Labs/bc-gov-ai-homepage/pull/14)
+is merged and included here. Its
+[diagram](docs/agentic-workflows.md#isolated-coding-agent-runtime) shows scoped
+file access, the separate check worker, and independent grading.
 
 GitHub-managed **CodeQL**, **CodeQL - Code Quality**, **Security Risk Assessment**,
 **GitHub Advanced Security**, **Dependabot Updates**, and **Dependency Graph**
