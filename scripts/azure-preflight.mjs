@@ -11,7 +11,7 @@ const journeys = new Set([
   "primary-care",
   "service-bc",
 ]);
-const pinnedImage = /^[a-z0-9][a-z0-9.-]*\.azurecr\.io\/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$/;
+export const pinnedImage = /^[a-z0-9][a-z0-9.-]*\.azurecr\.io\/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$/;
 
 function jsonValue(env, key, blockers) {
   try {
@@ -31,8 +31,31 @@ function cidr(value) {
   return number % size === 0n ? { first: number, last: number + size - 1n } : null;
 }
 
-export function deploymentBlockers(env) {
+export function deploymentBlockers(env, operation = "prepare") {
   const blockers = [];
+  if (!["prepare", "provision", "deploy"].includes(operation)) {
+    blockers.push("Select a supported preflight operation.");
+  }
+  if (operation === "deploy") {
+    blockers.push("Generic azd image deployment cannot bypass PyRIT qualification. Use the protected Azure Deployment workflow.");
+  }
+  if (operation === "provision" && (!env.AZURE_PRODUCTION_ENV_NAME
+      || env.AZURE_ENV_NAME === env.AZURE_PRODUCTION_ENV_NAME
+      || env.AZURE_DEPLOYMENT_STAGE === "public")) {
+    blockers.push("Generic provisioning is restricted to staging; supply the distinct production environment name.");
+  }
+  if (!["", "true", "false"].includes(env.AZURE_RELEASE_PROBE_ENABLED || "")) {
+    blockers.push("AZURE_RELEASE_PROBE_ENABLED must be true or false.");
+  }
+  if (env.AZURE_RELEASE_PROBE_ENABLED === "true" && !pinnedImage.test(env.AZURE_WEB_IMAGE_NAME || "")) {
+    blockers.push("The private release probe requires a reviewed web image digest.");
+  }
+  if (env.AZURE_RELEASE_COMMIT && !/^[a-f0-9]{40}$/.test(env.AZURE_RELEASE_COMMIT)) {
+    blockers.push("AZURE_RELEASE_COMMIT must be the full source commit.");
+  }
+  if (env.AZURE_RELEASE_COMMIT && env.RELEASE_COMMIT && env.AZURE_RELEASE_COMMIT !== env.RELEASE_COMMIT) {
+    blockers.push("AZURE_RELEASE_COMMIT and RELEASE_COMMIT must identify the same source commit.");
+  }
   if (env.AZURE_PROVISIONING_APPROVED !== "1") {
     blockers.push("Azure provisioning is not approved. No resources will be created from guessed context.");
   }
@@ -237,7 +260,8 @@ export function deploymentBlockers(env) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const blockers = deploymentBlockers(process.env);
+  const operation = process.argv.find((arg) => arg.startsWith("--operation="))?.slice(12) || "prepare";
+  const blockers = deploymentBlockers(process.env, operation);
   if (blockers.length) {
     console.error(blockers.map((message) => `- ${message}`).join("\n"));
     process.exitCode = 1;

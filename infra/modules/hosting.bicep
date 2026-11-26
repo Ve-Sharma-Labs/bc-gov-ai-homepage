@@ -5,6 +5,7 @@ param location string
 param tags object
 param releaseCommit string = ''
 param releaseId string = ''
+param releaseProbeEnabled bool = false
 param foundryProjectEndpoint string
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
@@ -252,6 +253,23 @@ module web 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
   }
 }
 
+module releaseProbe '../release-probe.bicep' = if (releaseProbeEnabled) {
+  name: 'release-probe'
+  params: {
+    name: 'job-${name}-release-check'
+    location: location
+    tags: tags
+    environmentId: stack.outputs.environmentResourceId
+    webIdentityId: webIdentityId
+    webClientId: webClientId
+    registryHost: stack.outputs.registryLoginServer
+    webImage: webImageName
+    apiUrl: api.outputs.uri
+    apiAuthScope: 'api://${apiApplicationClientId}/.default'
+    publicOrigin: publicOrigin
+  }
+}
+
 resource insightsResource 'Microsoft.Insights/components@2020-02-02' existing = {
   name: 'appi-${name}'
 }
@@ -275,3 +293,4 @@ output apiIdentity string = api.outputs.identityPrincipalId
 output webUrl string = web.outputs.uri
 output insightsResourceId string = insights.outputs.resourceId
 output logsResourceId string = logs.outputs.resourceId
+output releaseProbeId string = releaseProbeEnabled ? releaseProbe!.outputs.probeJobId : ''

@@ -4,6 +4,7 @@ var agents = readEnvironmentVariable('FOUNDRY_AGENTS', '[]')
 var stageName = readEnvironmentVariable('AZURE_DEPLOYMENT_STAGE', 'closed')
 var validationRanges = readEnvironmentVariable('AZURE_VALIDATION_CIDRS', '[]')
 var vectorDimensions = readEnvironmentVariable('AZURE_OPENAI_EMBEDDING_DIMENSIONS', '0')
+var azureReleaseCommit = readEnvironmentVariable('AZURE_RELEASE_COMMIT', '')
 
 param environmentName = readEnvironmentVariable('AZURE_ENV_NAME')
 param location = readEnvironmentVariable('AZURE_LOCATION')
@@ -12,8 +13,9 @@ param sharedFrontDoorProfileName = readEnvironmentVariable('AZURE_SHARED_FRONT_D
 param sharedFrontDoorResourceGroup = readEnvironmentVariable('AZURE_SHARED_FRONT_DOOR_RESOURCE_GROUP', '')
 param frontDoorPrivateLinkLocation = readEnvironmentVariable('AZURE_FRONT_DOOR_PRIVATE_LINK_LOCATION', '')
 param stagingIdentities = json(readEnvironmentVariable('AZURE_STAGING_IDENTITIES_JSON', '{}'))
-param releaseCommit = readEnvironmentVariable('RELEASE_COMMIT', '')
+param releaseCommit = empty(azureReleaseCommit) ? readEnvironmentVariable('RELEASE_COMMIT', '') : azureReleaseCommit
 param releaseId = readEnvironmentVariable('RELEASE_ID', '')
+param releaseProbeEnabled = readEnvironmentVariable('AZURE_RELEASE_PROBE_ENABLED', 'false') == 'true'
 param modelDeploymentsJson = readEnvironmentVariable('AZURE_MODEL_DEPLOYMENTS')
 param foundryAgentsJson = empty(agents) ? '[]' : agents
 param foundryGeneralAgentJson = readEnvironmentVariable('FOUNDRY_GENERAL_AGENT', '')

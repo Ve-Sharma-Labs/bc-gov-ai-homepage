@@ -21,6 +21,8 @@ param stagingIdentities object = {}
 param releaseCommit string = ''
 @maxLength(64)
 param releaseId string = ''
+@description('Create the idle managed-identity readiness job only after its scope and costs are reviewed.')
+param releaseProbeEnabled bool = false
 
 @description('Explicitly selected model names, versions, SKUs and capacity; no moving defaults.')
 param modelDeploymentsJson string
@@ -98,6 +100,7 @@ module pilot './modules/pilot.bicep' = {
     stagingIdentities: stagingIdentities
     releaseCommit: releaseCommit
     releaseId: releaseId
+    releaseProbeEnabled: releaseProbeEnabled
     modelDeployments: json(modelDeploymentsJson)
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
@@ -145,3 +148,14 @@ output WEB_URL string = pilot.outputs.webUrl
 output AZURE_FRONT_DOOR_PROFILE_NAME string = pilot.outputs.frontDoorProfileName
 output AZURE_FRONT_DOOR_ENDPOINT_NAME string = pilot.outputs.frontDoorEndpointName
 output AZURE_FRONT_DOOR_RESOURCE_GROUP string = empty(sharedFrontDoorProfileName) ? resourceGroup.name : sharedFrontDoorResourceGroup
+output PYRIT_CONTEXT object = {
+  subscriptionId: subscription().subscriptionId
+  apiId: resourceId(resourceGroup.name, 'Microsoft.App/containerApps', pilot.outputs.apiName)
+  webId: resourceId(resourceGroup.name, 'Microsoft.App/containerApps', pilot.outputs.webName)
+  probeJobId: pilot.outputs.releaseProbeId
+  foundryAccountId: pilot.outputs.foundryAccountId
+  frontDoorEndpointId: resourceId(empty(sharedFrontDoorProfileName) ? resourceGroup.name : sharedFrontDoorResourceGroup, 'Microsoft.Cdn/profiles/afdEndpoints', pilot.outputs.frontDoorProfileName, pilot.outputs.frontDoorEndpointName)
+  wafPolicyId: pilot.outputs.wafPolicyId
+  registryName: pilot.outputs.registryName
+  origin: pilot.outputs.webUrl
+}

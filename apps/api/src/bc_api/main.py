@@ -636,6 +636,11 @@ def create_app(
                 else None
             ),
         )
+        if settings.release_commit:
+            response.headers["X-BC-API-Release"] = settings.release_commit
+        if settings.release_id:
+            response.headers["X-BC-API-Deployment"] = settings.release_id
+        return response
 
         if settings.release_commit:
             response.headers["X-BC-API-Release"] = settings.release_commit

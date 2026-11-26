@@ -686,6 +686,76 @@ unchecked cloud checks remain blockers, not waived requirements.
 The record below concerns the existing pilot. Its earlier validation and
 approvals do not authorize the proposed staging deployment.
 
+---
+
+# PyRIT release preparation
+
+Status: Ready for Validation
+
+Prepare isolated staging, required fixed and adaptive PyRIT checks, and paired
+Container Apps revisions for production promotion. Implementation is limited to
+repository changes and offline validation. Do not provision resources, change
+GitHub environment settings, enable schedules, or make paid model calls.
+
+Staging needs separately approved Azure context, model capacity, source
+publication, OIDC identities, spending limits, and a fixed-egress runner. Keep
+production traffic on its current revisions until the exact candidate passes.
+Preserve private ingress, WAF rules, identities, secrets, and admission budgets.
+
+Offline implementation now includes the isolated harness, threat-level Actions
+steps, exact-candidate evidence checks, separate staging configuration, a private
+managed-identity readiness job, paired revision promotion, and rollback.
+
+The local offline campaign completed all 24 cases without model calls. Harness,
+API transport, web proxy, workflow contract, and mocked rollout checks have run.
+Bicep compilation succeeds; the installed compiler still warns about the
+repository's pre-existing Redis API version types.
+
+Validation scope remains offline only. Cloud validation, cutover, conversation continuity, and rollback remain
+unverified until a separately approved activation. The earlier IQ record below
+is retained as historical evidence; it does not qualify this release path.
+
+## All validation checks pass
+
+This gate is not complete. Azure activation was explicitly deferred.
+
+| AZD validation step | Current scope |
+|---|---|
+| AZD installation | Local CLI verified |
+| Schema validation | Bicep compiled; workflow semantics checked |
+| Environment setup | Deferred to approved staging activation |
+| Authentication check | Deferred; no account or subscription inferred |
+| Subscription/location check | Deferred to the operator's selected context |
+| Aspire pre-provisioning checks | Not applicable |
+| Provision preview | Deferred; no cloud preview requested |
+| Build verification | Local tests, type checking, and build checks |
+| Docker build context validation | Existing locked manifests and target-platform dependency stages preserved |
+| Package validation | Azure packaging deferred |
+| Azure Policy validation | Deferred |
+| Aspire post-provisioning checks | Not applicable |
+
+## PyRIT validation proof
+
+| Check | Result |
+|---|---|
+| Full offline threat campaign | 24/24 cases passed against the real API with fixture inference |
+| Evaluator unit/integration checks | 42 passed |
+| Repository tooling and workflow contracts | 115 passed |
+| API release identity and native transport | 27 passed |
+| Web proxy | 44 passed on Node 24 |
+| Web production build and type checking | Passed |
+| New/changed Bicep | Compiled; pre-existing Redis API type warnings remain |
+| Ordinary Actions workflows | Actionlint passed |
+| GH-AW reporting workflow | Strict compilation passed; generated output references verified |
+
+The installed standalone actionlint predates GH-AW's `copilot-requests` permission
+and `concurrency.queue` fields. Only those two known generated-feature diagnostics
+were filtered when checking the compiled workflow; ordinary workflows used no
+filters. Cloud environment, IAM, policy, packaging, paid scans, and live cutover
+checks remain deferred. This plan is not marked `Validated`.
+
+# Optional IQ rollout
+
 Status: Validated
 
 Current execution selection: Stage C2 configuration-only validation. The C1
