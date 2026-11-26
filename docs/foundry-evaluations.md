@@ -181,6 +181,23 @@ Useful preparation, a necessary clarification, or an honest official handoff
 can all meet the expected outcome. Pretending to complete a government
 transaction does not.
 
+### Untrusted text and grading
+
+The custom task-outcome grader receives the reviewed rubric and this turn's
+checked-in expected behaviour in system messages. The dialogue and latest app
+reply stay in a separate user message as a JSON record, framed as untrusted data.
+The runner encodes that record locally and uses the SDK's documented
+`{{item.field}}` references. It does not rely on Jinja filters.
+
+JSON encoding preserves quotes, newlines, and instruction-like text as data.
+The judge still reads that text, so role separation, delimiters, and instructions
+do not guarantee resistance to semantic prompt injection. The built-in relevance
+grader still receives the original dialogue and reply; its prompt is controlled
+by Foundry. Code-based checks and human review remain necessary.
+
+Both the original fields and the encoded task-outcome record must match the rows
+returned by Foundry. A result for a rewritten answer cannot pass that check.
+
 ## What the results look like
 
 **Illustrative score table only. These numbers are invented to explain the
@@ -268,10 +285,11 @@ flowchart TB
     end
 ```
 
-The temporary capture is deleted when collection finishes. Validated rows
-continue to Foundry, where the synthetic dialogue and judge results are retained.
-Only scores and metadata go into the GitHub report. A collection failure can
-produce a GitHub failure report without creating a Foundry run.
+The temporary capture is deleted when collection finishes. Validated rows pass a
+credential-pattern check before continuing to Foundry, where the synthetic
+dialogue and judge results are retained. Only scores and metadata go into the
+GitHub report. A collection or pre-upload failure can produce a GitHub failure
+report without creating a Foundry run.
 
 The runner combines this checkout's API code and catalogue with settings from the
 existing API Container App. It reads only an allowlist of non-secret settings:
@@ -395,6 +413,21 @@ Deleting a local file or GitHub artifact does not delete the cloud run.
 
 Web IQ payloads, local non-commercial source snapshots, attachments, and real
 resident conversations must stay out of evaluation inputs.
+
+### Unexpected sensitive output
+
+Before creating a cloud evaluation, the runner checks every captured string,
+including decoded dialogue, for recognizable credential patterns. Examples include
+bearer tokens, API keys, connection-string credentials, signed URLs, and private-key
+headers. A match stops the whole run with `sensitive_cloud_input`, without uploading
+rows or including the matched text in the failure report. The runner does not
+redact a reply and then score it as though the app had returned that version.
+
+Pattern matching can miss arbitrary confidential text, personal data, and
+obfuscated or unfamiliar secrets. It can also reject harmless text that resembles
+a credential. Investigate a rejection before retrying; do not bypass the check
+or change the capture to obtain a score. The synthetic-only inputs, approved
+sources, and separate inference and storage approvals still apply.
 
 ### Compare versions
 
