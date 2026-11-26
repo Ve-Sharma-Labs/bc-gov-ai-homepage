@@ -1,0 +1,189 @@
+name: PyRIT - AI red teaming
+run-name: >-
+  PyRIT - AI red teaming | live staging | ${{ github.event_name }} | ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "31 7 * * *"
+  workflow_call:
+    inputs:
+      candidate_artifact:
+        type: string
+        required: true
+    outputs:
+      qualified:
+        description: True only after complete fixed and adaptive coverage
+        value: ${{ jobs.live.outputs.qualified }}
+      report_artifact:
+        description: Sanitized report from this run attempt
+        value: ${{ jobs.live.outputs.report_artifact }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pyrit-live-scans
+  cancel-in-progress: false
+
+jobs:
+  configuration:
+    name: PyRIT - Check live activation
+    if: github.event_name != 'schedule' || vars.PYRIT_LIVE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.reviewed.outputs.runner }}
+    steps:
+      - name: Require reviewed activation and a fixed-egress runner
+        id: reviewed
+        env:
+          ENABLED: ${{ vars.PYRIT_LIVE_ENABLED }}
+          RUNNER: ${{ vars.PYRIT_RUNNER_LABEL }}
+          REF: ${{ github.ref }}
+        run: |
+          [[ "$REF" == "refs/heads/main" ]]
+          [[ "$ENABLED" == "true" ]] || { echo "Live red teaming has not been activated."; exit 1; }
+          [[ "$RUNNER" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || { echo "A reviewed fixed-egress runner label is required."; exit 1; }
+          echo "runner=$RUNNER" >> "$GITHUB_OUTPUT"
+  live:
+    name: PyRIT - Live threat checks
+    needs: configuration
+    runs-on: ${{ needs.configuration.outputs.runner }}
+    environment: pilot-staging
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      qualified: ${{ steps.qualified.outputs.qualified }}
+      report_artifact: pyrit-live-${{ github.run_attempt }}
+    env:
+      PYRIT_PYTHON: ${{ github.workspace }}/evaluations/pyrit/.venv/bin/python
+      PYRIT_LIVE_APPROVED: ${{ vars.PYRIT_LIVE_APPROVED }}
+      PYRIT_LIMITS_JSON: ${{ vars.PYRIT_LIMITS_JSON }}
+      PYRIT_MODELS_JSON: ${{ vars.PYRIT_MODELS_JSON }}
+      PYRIT_ALLOWED_ORIGIN: ${{ vars.PYRIT_ALLOWED_ORIGIN }}
+      PYRIT_STAGING_CONTEXT_JSON: ${{ vars.PYRIT_STAGING_CONTEXT_JSON }}
+      PYRIT_PRODUCTION_CONTEXT_JSON: ${{ vars.PYRIT_PRODUCTION_CONTEXT_JSON }}
+    steps:
+      - name: Check the runner and set the private evidence directory
+        shell: bash
+        run: |
+          [[ "$RUNNER_OS" == "Linux" ]] || { echo "A reviewed Linux runner is required."; exit 1; }
+          echo "PYRIT_DIRECTORY=$RUNNER_TEMP/pyrit-live-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: evaluations/pyrit/requirements-dev.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install the pinned evaluator
+        run: |
+          python -m venv evaluations/pyrit/.venv
+          "$PYRIT_PYTHON" -m pip install -r evaluations/pyrit/requirements-dev.lock
+          "$PYRIT_PYTHON" -m pip install --no-deps -e evaluations/pyrit
+          mkdir -p "$PYRIT_DIRECTORY"
+      - name: Sign in with the scoped evaluation identity
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.PYRIT_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Load this release's candidate
+        if: inputs.candidate_artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.candidate_artifact }}
+          path: ${{ env.PYRIT_DIRECTORY }}
+      - name: Capture the current staging candidate for a standalone scan
+        if: inputs.candidate_artifact == ''
+        run: node scripts/pyrit-release.mjs capture --output "$PYRIT_DIRECTORY/candidate.json"
+      - name: Verify the exact candidate before any model calls
+        run: node scripts/pyrit-release.mjs check-candidate --candidate "$PYRIT_DIRECTORY/candidate.json"
+      - name: Initialize one approved budget for all threat steps
+        id: prepare
+        env:
+          TESTED_COMMIT: ${{ github.sha }}
+        run: |
+          "$PYRIT_PYTHON" -m bc_pyrit.cli estimate --profile live
+          "$PYRIT_PYTHON" -m bc_pyrit.cli init --profile live --target "$PYRIT_ALLOWED_ORIGIN" \
+            --commit "$TESTED_COMMIT" --candidate "$PYRIT_DIRECTORY/candidate.json" \
+            --state "$PYRIT_DIRECTORY/run.sqlite"
+      - name: Direct prompt injection / jailbreak - Fixed single-turn
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat direct-injection --approach fixed-single-turn'
+      - name: Direct prompt injection / jailbreak - Adaptive multi-turn
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat direct-injection --approach adaptive-multi-turn'
+      - name: Direct prompt injection / jailbreak - Prompt variations
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat direct-injection --approach prompt-variations'
+      - name: False completion - Fixed single-turn and benign control
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat false-completion --approach fixed-single-turn'
+      - name: False completion - Repeated attempts
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat false-completion --approach repeated-attempts'
+      - name: High-stakes overreach - Fixed single-turn
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat high-stakes --approach fixed-single-turn'
+      - name: High-stakes overreach - Fixed multi-turn benign control
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat high-stakes --approach fixed-multi-turn'
+      - name: High-stakes overreach - Adaptive multi-turn
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat high-stakes --approach adaptive-multi-turn'
+      - name: Grounding manipulation - Fixed single-turn
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat grounding --approach fixed-single-turn'
+      - name: Grounding manipulation - Prompt variations
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat grounding --approach prompt-variations'
+      - name: Privacy / session isolation - Fixed single-turn
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat privacy --approach fixed-single-turn'
+      - name: Privacy / session isolation - Consent and multi-turn isolation
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat privacy --approach fixed-multi-turn'
+      - name: Conversation manipulation - Fixed multi-turn
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat conversation --approach fixed-multi-turn'
+      - name: Conversation manipulation - Short-answer variations
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: '"$PYRIT_PYTHON" -m bc_pyrit.cli run --state "$PYRIT_DIRECTORY/run.sqlite" --threat conversation --approach prompt-variations'
+      - name: Verify source, model, image, and configuration identity after scanning
+        id: identity_after
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: node scripts/pyrit-release.mjs check-candidate --candidate "$PYRIT_DIRECTORY/candidate.json"
+      - name: Require complete threat coverage
+        id: qualified
+        if: always()
+        env:
+          IDENTITY_OUTCOME: ${{ steps.identity_after.outcome }}
+        run: |
+          if [[ "$IDENTITY_OUTCOME" != "success" ]] && [ -f "$PYRIT_DIRECTORY/run.sqlite" ]; then
+            "$PYRIT_PYTHON" -m bc_pyrit.cli stop --state "$PYRIT_DIRECTORY/run.sqlite" \
+              --code CANDIDATE_IDENTITY_NOT_VERIFIED
+          fi
+          "$PYRIT_PYTHON" -m bc_pyrit.cli report --state "$PYRIT_DIRECTORY/run.sqlite" \
+            --output "$PYRIT_DIRECTORY/report.json" --summary "$GITHUB_STEP_SUMMARY" --require-pass
+          [[ "$IDENTITY_OUTCOME" == "success" ]] || { echo "Candidate identity was not reverified."; exit 1; }
+          node scripts/pyrit-release.mjs qualify --candidate "$PYRIT_DIRECTORY/candidate.json" \
+            --report "$PYRIT_DIRECTORY/report.json" --output "$PYRIT_DIRECTORY/qualification.json"
+          echo "qualified=true" >> "$GITHUB_OUTPUT"
+      - name: Publish sanitized live evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyrit-live-${{ github.run_attempt }}
+          path: |
+            ${{ env.PYRIT_DIRECTORY }}/candidate.json
+            ${{ env.PYRIT_DIRECTORY }}/report.json
+            ${{ env.PYRIT_DIRECTORY }}/qualification.json
+          if-no-files-found: warn
+          retention-days: 7

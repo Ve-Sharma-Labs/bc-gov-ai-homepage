@@ -16,7 +16,7 @@ differ: the QA and coding-evaluation workflows use
 | Workflow | Activation | Write surface |
 |---|---|---|
 | BC Gov Agents - PR Conversation QA | Trusted same-repository pull requests and manual runs | One advisory PR comment and sanitized artifacts; fixture-only, no live model |
-| BC Gov Agents - Live Conversation QA | Approved successful deployment, daily, or manual | Up to three deduplicated issues/comments and sanitized artifacts from bounded live synthetic QA |
+| BC Gov Agents - Live Conversation QA | Approved deployment, trusted PyRIT reports, daily, or manual | Up to three deduplicated issues/comments; report-only runs make no additional app calls |
 | BC Gov Agents - Source Impact Review | Source-related pull requests, weekly, or manual | One PR comment or up to three deduplicated issues mapping source changes to user-facing claims |
 | BC Gov Agents - Conversation Bug Fix (Opt-in) | Maintainer applies `agentic-fix` to an issue | One draft conversation/browser fix PR or one issue comment |
 | BC Gov Agents - Source Freshness Triage | Successful default-branch source collection | Up to twelve source issues created or updated from the trusted report; no publisher fetches |
@@ -51,6 +51,21 @@ deployment review, rollback, and Azure alerts are not delegated to agents.
 Each workflow also has explicit agent-turn, per-run AI-credit, and per-user daily
 AI-credit limits. These are separate from the application's Foundry token and cost
 admission controls.
+
+### PyRIT reports
+
+`PyRIT - AI red teaming` is a conventional Actions workflow with named threat
+steps. Its exit status and the release controller decide qualification.
+The GH-AW agent only reviews sanitized findings; it cannot change a verdict or
+approve a release.
+
+Pre-activation verifies the producer and exact run attempt, reads the suite from
+the tested commit, and forwards only permitted finding fields. Unknown reason
+text is withheld. Deterministic failures can become issues; model-only flags need
+review, and missing evidence remains incomplete. The existing browser QA path
+and its 12-turn budget stay separate.
+
+See [the PyRIT guide](pyrit.md) for setup, limits, and staged activation.
 
 ## Architecture
 
@@ -273,11 +288,16 @@ refusal. Unsafe/mutated inputs, cancellation and timeouts are blocked outcomes.
 
 ### Structured self-checks
 
-Public smoke examples do not cover every contract clause. For each task, the
-agent derives a checklist from the public contract, establishes baseline smoke
-results, repairs the candidate, and chooses its own valid, negative, boundary
-and inter-input probes. After its last edit, it rereads the candidate against
-every clause and finishes with public smoke and syntax checks.
+Public smoke examples do not cover every contract clause. After establishing
+the baseline, the agent completes one task at a time. It derives independent
+obligations from the public contract and varies one condition per negative
+probe. Input format and agreement between inputs need separate checks; an
+example rejected for an unrelated field does not cover the intended rule.
+
+Check-tool calls are sequential. Invalid requests and busy responses do not
+count as completed probes. After its last edit, the agent rereads the candidate
+against every clause and checks the current source hash before finishing with
+public smoke and syntax checks. The independent grader remains authoritative.
 
 `probe_candidate` accepts a manifest `caseId` and one to eight `probes`. Each
 probe has an `args` array and exactly one expected outcome:

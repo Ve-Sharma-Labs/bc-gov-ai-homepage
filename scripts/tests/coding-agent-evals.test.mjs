@@ -288,6 +288,7 @@ test("compiled activation references real outputs and safe outputs cannot publis
 
 test("static SDK contract keeps narrow permissions, a single denial limit and no harness retries", () => {
   const source = readFileSync(path.join(root, ".github/workflows/coding-agent-evals.md"), "utf8");
+  const policy = readFileSync(path.join(root, ".github/workflows/shared/coding-agent-policy.md"), "utf8");
   const compiled = readFileSync(path.join(root, ".github/workflows/coding-agent-evals.lock.yml"), "utf8");
   const config = JSON.parse(compiled.match(/GH_AW_COPILOT_SDK_TOOL_CONFIG: '([^'\r\n]+)'/)[1]);
   const args = JSON.parse(compiled.match(/GH_AW_COPILOT_SDK_SERVER_ARGS: '([^'\r\n]+)'/)[1]);
@@ -326,8 +327,12 @@ test("static SDK contract keeps narrow permissions, a single denial limit and no
   assert.equal(network.isolation, true);
   assert.deepEqual(network.allowDomains, ["127.0.0.1", "::1", "localhost"]);
   assert.match(source, /For every task[\s\S]*probe_candidate/);
+  assert.match(source, /finish the following procedure before editing the next task/);
+  assert.match(source, /Submit check-tool calls one at a time and wait for each result/);
+  assert.match(source, /negative example that changes only that condition/);
+  assert.match(policy, /Separate input format and range checks from agreement between inputs/);
   assert.match(source, /After the last edit[\s\S]*reread it with `read_task_file`/);
-  assert.doesNotMatch(source, /invalid-evidence-4|evidence\.baseSha\s*!==|context\.baseSha/);
+  assert.doesNotMatch(`${source}\n${policy}`, /invalid-evidence-4|evidence\.baseSha\s*!==|context\.baseSha/);
 });
 
 test("public smoke checks fail before and pass after test-owned repairs, independently of authorization", (t) => {

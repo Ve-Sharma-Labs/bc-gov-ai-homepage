@@ -400,7 +400,8 @@ real government records. See the
 
 ## Checks
 
-Repository-owned Actions use `BC Gov <Area> - <Purpose>`. Workflow names identify
+Repository-owned Actions use `BC Gov <Area> - <Purpose>`, with dedicated `PyRIT`
+names for AI red teaming. Workflow names identify
 the suite, run titles identify the PR/ref or manual operation, and job names
 identify the failing component without exposing matrix commands or file paths.
 **Web**, **API**, and **Ingestion** identify component-specific validation;
@@ -416,13 +417,20 @@ identify the failing component without exposing matrix commands or file paths.
 | [BC Gov App - Container Build & Smoke Tests](.github/workflows/ci-containers.yml) | API, web, and ingestion `linux/amd64` builds and disconnected runtime checks; no publication or deployment | PRs and pushes to `main` |
 | [BC Gov Automation - Tooling & Workflow Validation](.github/workflows/automation-validation.yml) | Tooling tests and pinned GH-AW compilation/drift checks for all seven generated workflows, in independent jobs | PRs and pushes to `main` |
 | [BC Gov Agents - Coding Agent Evals](.github/workflows/coding-agent-evals.md) | Coding agent repairs six frozen tasks; an independent isolated grader fails CI below 100% | Relevant trusted PRs, daily or manual; unrelated PRs skip inference |
-| [BC Gov App - Azure Deployment](.github/workflows/azure-pilot.yml) | Reviewed `provision`, `deploy`, or `verify` operations; live verification requires separate approval | Manual only |
+| [PyRIT - Offline red-teaming checks](.github/workflows/ci-pyrit.yml) | Named threat/approach checks using the real API with fixture inference; no model calls | PRs, main pushes, and release calls |
+| [PyRIT - AI red teaming](.github/workflows/pyrit-ai-red-teaming.yml) | Fixed and adaptive staging scans with one approved budget and a complete-coverage gate | Approved release calls, manual, or enabled daily schedule |
+| [BC Gov App - Azure Deployment](.github/workflows/azure-pilot.yml) | Reviewed staging provisioning, PyRIT-qualified revision promotion, or verification | Manual only |
 | [BC Gov Sources - Collection](.github/workflows/official-source-collection.yml) | Source metadata, authorized bounded refreshes, and durable charged checkpoints | Daily or manual, default branch only |
 
 For example, API failures appear under **BC Gov API - Unit & Integration
 Tests**, not a generic `python` check. Container jobs identify **API Container**,
 **Web Container**, and **Ingestion Container**. Build and container checks do not
 deploy; the Azure workflow retains its manual approval and exposure controls.
+
+See [PyRIT setup and release checks](docs/pyrit.md) for all eight threats, local
+offline commands, and activation requirements. Live scans and Azure activation
+remain disabled until their target, identities, network access, and budgets are
+reviewed. A green offline check is not a live safety assessment.
 
 The seven **BC Gov Agents** workflows are listed in the
 [agentic workflows guide](docs/agentic-workflows.md#workflows). They explore PRs,
@@ -464,7 +472,7 @@ The separate [coding-agent eval gate](docs/agentic-workflows.md#coding-agent-eva
 fails when the coding agent misses its task threshold; merge rules must explicitly
 require that check to prevent merging.
 
-The seven ordinary CI workflows run on PRs and pushes to `main`, not every
+The eight ordinary CI workflows run on PRs and pushes to `main`, not every
 feature-branch push. Open a PR to get branch CI; updating that PR does not
 launch a duplicate push run. Merging still runs CI against `main`. The component
 split retains the same ten logical CI checks; it makes suites easier to find

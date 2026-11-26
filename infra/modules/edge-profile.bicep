@@ -87,3 +87,4 @@ output profileName string = profile.name
 output endpointName string = endpoint.name
 output origin string = 'https://${endpoint.properties.hostName}'
 output frontDoorId string = profile.properties.frontDoorId
+output wafPolicyId string = waf.id

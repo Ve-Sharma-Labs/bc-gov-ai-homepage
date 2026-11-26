@@ -166,19 +166,34 @@ be trusted, restore the reviewed bindings/images, and reverify before reopening.
 Do not delete source or shared-control resources as an automatic rollback.
 
 **BC Gov App - Azure Deployment** (`.github/workflows/azure-pilot.yml`) is
-**manual only**. Its run title and check name identify the selected provision,
-deploy, or verify operation. It needs an explicitly
-configured/protected `pilot` GitHub environment, OIDC deployment identity and
-the reviewed variables above. Provision and image deployment are separate
-operations. The separate `verify` operation requires an exact `public_url`;
+manual only. `provision` is restricted to reviewed staging and rejects production
+changes in a structured what-if. `AZURE_PRODUCTION_ENV_NAME` must identify the
+distinct production environment. Generic `azd deploy` is blocked so it cannot
+bypass qualification.
+
+`deploy` requires offline PyRIT checks, builds immutable images, deploys them to
+staging, and requires complete fixed and adaptive live results. Protected
+production approval follows. The controller probes a zero-traffic API/web pair
+and switches web traffic without disabling Front Door. The web revision points
+to its matching API revision; failed public verification restores the prior
+traffic mapping. It preserves identities, secret references, WAF settings, and
+production limits.
+
+Configure protected `pilot-staging` and `pilot` environments and a reviewed
+fixed-egress Linux runner. The new idle private-readiness job can be included in
+staging with `AZURE_RELEASE_PROBE_ENABLED=true`; use
+`infra/release-probe.bicep` to prepare it in existing production without
+reprovisioning the apps. Review its identity, image, and costs first.
+The [PyRIT guide](../docs/pyrit.md) covers variables, permissions, retained
+revisions, and activation checks. These definitions are not evidence of Azure
+activation or a verified live cutover.
+
+The separate `verify` operation requires an exact `public_url`;
 it checks version-5/task readiness, current baseline evidence, and all seven
 preparation guides without a model call by default. `live_checks=true` also
 requires `AZURE_LIVE_EVALUATION_APPROVED=1` and performs at most 18 synthetic
-turns, clearing its own conversation sessions. It does not create its own GitHub approvals, publish unreviewed
-content/agents, or enable Web IQ. Before image replacement it checks the actual
-Front Door endpoint is disabled, rather than trusting a stage variable. New
-images must pass validation before their immutable digests are promoted and
-traffic reopened. No workflow has been run.
+turns, clearing its own conversation sessions. It does not create approvals,
+publish agents or content, or enable Web IQ.
 
 For a focused diagnosis, run `scripts/verify-pilot-chat.mjs` with the exact
 `--url`, `--live-approved` and a supported `--case` such as `--case=job-loss`.
