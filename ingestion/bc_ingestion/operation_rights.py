@@ -155,7 +155,8 @@ class OperationRightsProvider:
                 raise AcquisitionError("Terms/robots presence alone cannot grant AI or acquisition operations")
             relative = Path(item["file"])
             path = (self.path.parent / relative).resolve()
-            if relative.is_absolute() or ".." in relative.parts or not path.is_relative_to(self.path.parent):
+            if ("\\" in item["file"] or relative.is_absolute() or ".." in relative.parts
+                    or not path.is_relative_to(self.path.parent)):
                 raise AcquisitionError("Operation evidence must remain inside the supplied review directory")
             _sha(item["sha256"])
             evidence_body = _read(path, MAX_EVIDENCE_BYTES)

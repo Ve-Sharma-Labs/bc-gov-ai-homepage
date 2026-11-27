@@ -1,13 +1,11 @@
-"""Keep offline candidate-policy tests independent of the operator's live SK pack."""
+"""Synthetic pending policy for offline tests, independent of the live SK pack."""
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
-import pytest
 
-
-@pytest.fixture(autouse=True)
-def pending_saskatchewan_pack(monkeypatch):
+def pending_saskatchewan_pack():
     root = Path(__file__).resolve().parents[2] / "jurisdictions" / "sk"
     manifest_path = root / "jurisdiction.json"
     programme_path = root / "content" / "source-programme.json"
@@ -31,4 +29,4 @@ def pending_saskatchewan_pack(monkeypatch):
             return json.dumps(value)
         return text
 
-    monkeypatch.setattr(Path, "read_text", read)
+    return patch.object(Path, "read_text", read)

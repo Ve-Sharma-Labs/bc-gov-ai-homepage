@@ -18,6 +18,11 @@ def packaging_tree():
                 repository / "jurisdictions" / selected,
                 source / "jurisdictions" / selected,
             )
+        sk_manifest_path = source / "jurisdictions" / "sk" / "jurisdiction.json"
+        sk_manifest = json.loads(sk_manifest_path.read_text(encoding="utf-8"))
+        sk_manifest["sourcePolicy"]["approvalStatus"] = "pending-rag-permission"
+        sk_manifest["sourcePolicy"].pop("operationReview", None)
+        sk_manifest_path.write_text(json.dumps(sk_manifest), encoding="utf-8")
         (source / "data").mkdir()
         for key in CONTENT_KEYS:
             path = load_jurisdiction("bc", repository).path(key)

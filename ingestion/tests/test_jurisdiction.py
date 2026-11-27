@@ -11,6 +11,8 @@ import unittest
 import uuid
 from unittest.mock import Mock, patch
 
+from pending_pack_fixture import pending_saskatchewan_pack
+
 from bc_ingestion.azure_publish import publish
 from bc_ingestion.cli import main
 from bc_ingestion.fetch import Response
@@ -30,6 +32,9 @@ SK_URL = "https://www.saskatchewan.ca/residents/synthetic-guidance"
 
 class JurisdictionTests(unittest.TestCase):
     def setUp(self):
+        fixture = pending_saskatchewan_pack()
+        fixture.start()
+        self.addCleanup(fixture.stop)
         self.env = patch.dict("os.environ", {}, clear=True)
         self.env.start()
         self.pack = replace(load_pack("sk"), approval_status="pending-rag-permission",

@@ -17,6 +17,8 @@ import unittest
 import uuid
 from unittest.mock import Mock, patch
 
+from pending_pack_fixture import pending_saskatchewan_pack
+
 from bc_ingestion.cli import main
 from bc_ingestion.fetch import Response
 from bc_ingestion.jurisdiction import load_pack
@@ -42,6 +44,9 @@ NETWORK_GUARDS = (
 
 class OperationRightsTests(unittest.TestCase):
     def setUp(self):
+        fixture = pending_saskatchewan_pack()
+        fixture.start()
+        self.addCleanup(fixture.stop)
         for target in NETWORK_GUARDS:
             guard = patch(target, side_effect=AssertionError("Synthetic tests prohibit live DNS/HTTP"))
             guard.start()
@@ -271,10 +276,13 @@ class OperationRightsTests(unittest.TestCase):
             review[field] = value
             with self.subTest(field=field), self.assertRaises(AcquisitionError):
                 self.provider(review)
-        review = deepcopy(self.review)
-        review["evidence"][-1]["file"] = "..\\outside.txt"
-        with self.assertRaisesRegex(AcquisitionError, "review directory"):
-            self.provider(review)
+        for invalid_path in ("..\\outside.txt", "nested\\permission.txt"):
+            review = deepcopy(self.review)
+            review["evidence"][-1]["file"] = invalid_path
+            with self.subTest(path=invalid_path), self.assertRaisesRegex(
+                AcquisitionError, "review directory"
+            ):
+                self.provider(review)
         review = deepcopy(self.review)
         del review["grants"][0]["decisions"]["rag"]
         with self.assertRaisesRegex(AcquisitionError, "Every operation"):
