@@ -31,6 +31,44 @@ only an explicit Send or retry starts another run.
 
 ## Run locally
 
+### Shared government platform
+
+This repository hosts one shared web/API/ingestion implementation with government
+configuration in `jurisdictions\bc` and `jurisdictions\sk`. The default remains BC;
+existing BC deployment workflows are unchanged. Select Saskatchewan before
+starting or building:
+
+```powershell
+$env:JURISDICTION = "sk"
+npm run dev
+```
+
+Use a separate build, API deployment, reviewed Search index, agent set and
+operational state for each government. Never point Saskatchewan at BC's corpus
+or reuse BC deployment credentials/configuration. Saskatchewan uses user-attested
+publisher authorization and a pinned operation review. Its isolated knowledge
+base contains 42 documents in 157 lexical chunks, including government guidance,
+rendered SGI licensing/registration pages and
+eHealth health-card/certificate guidance. New snapshots use explicit automated
+source review, not purported human approval; unsupported tables remain withheld.
+The local experience remains an independent pilot and must not invent sourced answers.
+
+The configured Saskatchewan preview uses web port 3100 and API port 8100. The
+operator-local `.env.sk.local` is ignored by Git and can be loaded explicitly:
+
+```powershell
+node --env-file=.env.sk.local scripts\dev.mjs
+```
+
+Do not start a second copy while these ports are occupied. Changing the
+jurisdiction manifest or source programme requires rebinding the rights review,
+updating its byte pin in the local environment, and republishing affected chunks.
+Restart the API afterwards; verify `/api/capabilities` reports retrieval ready,
+all three source IDs covered, and zero rejected chunks.
+
+See [jurisdiction packs and source gates](jurisdictions/README.md) for the pack
+contract, development/build selection and the broad Saskatchewan indexing plan.
+
 For manual red-team testing, see the
 [CoPyRIT staging target](evaluations/pyrit/README.md). Its Python environment is
 separate from the app. Installing the UI does not connect a target or authorize

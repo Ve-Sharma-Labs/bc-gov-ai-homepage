@@ -11,6 +11,24 @@ class AcquisitionError(ValueError):
     pass
 
 
+class ProgrammeGate(AcquisitionError):
+    def __init__(self, code: str, message: str):
+        self.code = code
+        super().__init__(f"{code}: {message}")
+
+
+def beneath(path: str, prefix: str) -> bool:
+    return prefix == "/" or path == prefix or path.startswith(prefix.rstrip("/") + "/")
+
+
+def private_reference(value) -> bool:
+    return (
+        isinstance(value, str)
+        and re.fullmatch(r"[A-Za-z][A-Za-z0-9+.-]*:[^\s]{1,512}", value) is not None
+        and all(ord(character) >= 32 for character in value)
+    )
+
+
 SERVICE_BC = (
     "/gov/content/governments/organizational-structure/ministries-organizations/"
     "ministries/citizens-services/servicebc"

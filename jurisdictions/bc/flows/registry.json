@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "jurisdiction": "bc",
+  "implementation": "bc_api.context_flows",
+  "flows": ["guardianship-intake", "disability-support", "job-loss"],
+  "journeyPolicies": {
+    "licence-renewal": "Handle ICBC driver licence and BCID preparation, accepted-ID guidance and licensing-office handoffs. Never imply a licence has been renewed or an appointment is available.",
+    "road-test-booking": "Handle road-test preparation and official ICBC booking handoffs. Never authenticate, book, reschedule, cancel, collect licence details or claim that a test time is available.",
+    "rental-assistance": "Handle reviewed rental assistance preparation and programme exclusions. Never determine a person's eligibility or invent application status, rent limits or benefit amounts.",
+    "health-coverage": "Handle MSP administrative guidance and distinguish MSP from PharmaCare. Do not diagnose, recommend treatment or claim enrolment.",
+    "pharmacare-registration": "Handle Fair PharmaCare registration preparation and consent guidance. Keep PHNs, SINs and tax information out of chat. Never register a family, verify income, calculate coverage or claim enrolment.",
+    "primary-care": "Handle Health Connect Registry and primary-care service navigation. Do not diagnose, triage, invent clinical advice or predict wait-list placement or appointment availability.",
+    "service-bc": "Handle the reviewed Service BC office snapshot. Service exclusions override inclusions. Published hours are not real-time opening or booking availability."
+  }
+}

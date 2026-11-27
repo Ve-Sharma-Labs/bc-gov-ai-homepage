@@ -6,12 +6,13 @@ import { retainComposerFocus } from "@/lib/utils";
 import { useAssistant } from "./assistant-provider";
 import { OfficialLink } from "./official-link";
 import { Button } from "./ui/button";
+import { jurisdiction, presentation } from "@/lib/jurisdiction";
 
 export function ResearchSupplement({ offer, renderText }: {
   offer: ResearchOffer; renderText: (text: string) => ReactNode;
 }) {
   const assistant = useAssistant();
-  const [geography, setGeography] = useState<ResearchGeography>("british-columbia");
+  const [geography, setGeography] = useState<ResearchGeography>(researchGeographySchema.options[0]);
   const [controlError, setControlError] = useState("");
   const capabilities = assistant.capabilities.research;
   const actions = offer.actions.filter((action) => action === "corpus-explore"
@@ -22,7 +23,7 @@ export function ResearchSupplement({ offer, renderText }: {
   });
   const active = Object.values(assistant.research.items).some((entry) =>
     entry.phase === "retrieving" || entry.phase === "summarizing");
-  if ((!actions.length && !entries.length) || assistant.contextActive) return null;
+  if (!jurisdiction.features.guidedJourneys || (!actions.length && !entries.length) || assistant.contextActive) return null;
   return <aside className="research-supplement" aria-label="Optional research">
     {!!actions.length && <details>
       <summary onMouseDown={retainComposerFocus}>Optional research</summary>
@@ -35,7 +36,7 @@ export function ResearchSupplement({ offer, renderText }: {
           if (parsed.success) setGeography(parsed.data);
         }}>
           {researchGeographySchema.options.map((value) => <option key={value} value={value}>
-            {value === "british-columbia" ? "British Columbia" : value.split("-").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ")}
+            {value === presentation.regionValue ? jurisdiction.shortName : value.split("-").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ")}
           </option>)}
         </select>
       </label>

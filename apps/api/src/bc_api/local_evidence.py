@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from bc_api.catalog import CatalogRepository
 from bc_api.conversation_grounding import AnswerTopic, ProgrammeId, public_queries
 from bc_api.errors import ApiError
+from bc_api.jurisdiction import current_pack
 from bc_api.models import (
     CalendarDate,
     Evidence,
@@ -162,6 +163,11 @@ class SnapshotFile(BaseModel):
 
 
 def load_snapshots(path: Path | None, expected_hash: str | None) -> dict[str, SnapshotDocument]:
+    if current_pack().id != "bc":
+        raise ApiError(
+            503, "JURISDICTION_CAPABILITY_UNAVAILABLE",
+            "The local-evidence registry is BC-only; it cannot supply another jurisdiction.",
+        )
     if path is None and expected_hash is None:
         return {}
     if path is None or not expected_hash:
@@ -268,6 +274,11 @@ async def _fetch_named_source(url: str, read_timeout: float) -> bytes:
 
 
 async def fetch_named_source(url: str, read_timeout: float = 15) -> bytes:
+    if current_pack().id != "bc":
+        raise ApiError(
+            503, "JURISDICTION_CAPABILITY_UNAVAILABLE",
+            "Named local-evidence source acquisition is not registered for this jurisdiction.",
+        )
     try:
         return await _fetch_named_source(url, read_timeout)
     except TimeoutError, httpcore.TimeoutException:
@@ -529,6 +540,11 @@ class LocalEvidenceProvider:
         snapshot_path: Path | None = None,
         snapshot_sha256: str | None = None,
     ):
+        if catalog.pack.id != "bc":
+            raise ApiError(
+                503, "JURISDICTION_CAPABILITY_UNAVAILABLE",
+                "The BC local-evidence provider cannot serve another jurisdiction.",
+            )
         self.catalog, self.timeout, self.fetcher = catalog, timeout, fetcher
         self.snapshots = load_snapshots(snapshot_path, snapshot_sha256)
         self.cache: dict[str, tuple[float, EvidenceBundle]] = {}

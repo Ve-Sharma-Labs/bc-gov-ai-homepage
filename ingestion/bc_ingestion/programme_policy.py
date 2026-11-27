@@ -8,13 +8,7 @@ from urllib.parse import urlsplit
 
 from .catalog import SOURCE_IDS
 from .metadata import digest, iso_datetime
-from .policy import AcquisitionError, PUBLISHERS, SENSITIVE_PATH, canonicalize
-
-
-class ProgrammeGate(AcquisitionError):
-    def __init__(self, code: str, message: str):
-        self.code = code
-        super().__init__(f"{code}: {message}")
+from .policy import AcquisitionError, PUBLISHERS, SENSITIVE_PATH, canonicalize, ProgrammeGate, beneath, private_reference
 
 
 PROGRAMME_SENSITIVE = re.compile(
@@ -48,18 +42,6 @@ HOLD_CLEARING_ROUTES = {
 }
 PRIVATE_REFERENCE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:[^\s]{1,512}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
-
-
-def beneath(path: str, prefix: str) -> bool:
-    return prefix == "/" or path == prefix or path.startswith(prefix.rstrip("/") + "/")
-
-
-def private_reference(value) -> bool:
-    return (
-        isinstance(value, str)
-        and PRIVATE_REFERENCE.fullmatch(value) is not None
-        and all(ord(character) >= 32 for character in value)
-    )
 
 
 def checked_prefix(host: str, prefix: str) -> str:

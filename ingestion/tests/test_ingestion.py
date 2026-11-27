@@ -100,6 +100,17 @@ class PolicyTests(unittest.TestCase):
         )
         self.assertFalse(policy.allows(URL))
 
+    def test_unrelated_nonstandard_agents_do_not_hide_wildcard_policy(self):
+        policy = parse_robots(
+            b"User-agent: *\nCrawl-delay: 10\nDisallow: /private\n"
+            b"User-agent: Other Bot\nDisallow: /\n"
+            b"User-agent: Firefox/7.0\nDisallow: /\n",
+            "text/plain",
+        )
+        self.assertEqual(policy.delay, 10)
+        self.assertFalse(policy.allows("https://example.test/private"))
+        self.assertTrue(policy.allows("https://example.test/public"))
+
     def test_unparseable_or_html_robots_fails_closed(self):
         for body, mime in (
             (b"<html>Maintenance</html>", "text/html"), (b"<html>Maintenance</html>", "text/plain"),
@@ -109,6 +120,10 @@ class PolicyTests(unittest.TestCase):
             (b"User-agent: *\nCrawl-delay: NaN", "text/plain"),
             (b"User-agent: *\nCrawl-delay: -5", "text/plain"),
             (b"User-agent: *\nRequest-rate: 1/100", "text/plain"),
+            (b"User-agent: BCPilotIngest/1.0\nDisallow: /\n", "text/plain"),
+            (b"User-agent: BCPilot Bot\nDisallow: /\n", "text/plain"),
+            (b"User-agent: Other BCPilot\nDisallow: /\n", "text/plain"),
+            (b"User-agent: Other * Bot\nDisallow: /\n", "text/plain"),
         ):
             with self.subTest(body=body), self.assertRaises(AcquisitionError):
                 parse_robots(body, mime)

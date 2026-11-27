@@ -1,6 +1,7 @@
 targetScope = 'resourceGroup'
 
 param name string
+param jurisdiction string = 'bc'
 param location string
 param tags object
 param deploymentKind string = 'pilot'
@@ -22,6 +23,7 @@ param taskAssistanceEnabled string
 param aiConversationPrivacyReviewed string
 param syntheticContextEnabled string
 param searchIndex string
+param searchSemanticConfig string = '${jurisdiction}-public-guidance'
 param searchMetadataEnabled string
 param searchMetadataReviewed string
 param searchSku string
@@ -151,6 +153,7 @@ module hosting './hosting.bicep' = {
   name: 'hosting'
   params: {
     name: name
+    jurisdiction: jurisdiction
     location: location
     tags: tags
     releaseCommit: releaseCommit
@@ -168,6 +171,7 @@ module hosting './hosting.bicep' = {
     syntheticContextEnabled: syntheticContextEnabled
     searchEndpoint: ai.outputs.searchEndpoint
     searchIndex: searchIndex
+    searchSemanticConfig: searchSemanticConfig
     searchMetadataEnabled: searchMetadataEnabled
     searchMetadataReviewed: searchMetadataReviewed
     modelEndpoint: ai.outputs.modelEndpoint

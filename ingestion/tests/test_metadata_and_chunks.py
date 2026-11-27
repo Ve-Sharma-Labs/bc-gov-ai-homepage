@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from bc_ingestion.azure_publish import _execute, build_index, merge_index_schema, migrate_index
 from bc_ingestion.catalog import load_catalog
-from bc_ingestion.extract import ChunkingError, chunk_document, extract
+from bc_ingestion.extract import ChunkingError, chunk_document, complete_section_excerpt, extract
 from bc_ingestion.fetch import Response
 from bc_ingestion.metadata import legal_effective_on, validate_legal
 from bc_ingestion.pipeline import Ledger, build_publish_plan, document_id, published_ids, restore_document
@@ -33,6 +33,27 @@ def response(body=None, *, status=200):
 
 
 class MetadataTests(unittest.TestCase):
+    def test_complete_prose_excerpt_keeps_full_table_snapshot_quarantined(self):
+        document = extract(response(
+            f"<h1>Guide</h1><h2>Apply</h2><p>{PROSE}</p><h2>Rates</h2>"
+            '<table><tr><td rowspan="2">Group</td><td>Rate</td></tr>'
+            '<tr><td>Other rate</td></tr></table>'
+        ))
+        heading = next(section.heading for section in document.sections if section.heading.endswith("Apply"))
+        excerpt = complete_section_excerpt(document, [heading])
+        self.assertEqual(excerpt.response_hash, document.response_hash)
+        self.assertNotEqual(excerpt.content_hash, document.content_hash)
+        self.assertFalse(excerpt.flags)
+        self.assertEqual(document.quality, "quarantined")
+        self.assertIn("complex-table-review-required", document.flags)
+        self.assertNotIn("Other rate", str(excerpt.sections))
+        table_heading = next(section.heading for section in document.sections if section.heading.endswith("Rates"))
+        with self.assertRaisesRegex(AcquisitionError, "non-table sections"):
+            complete_section_excerpt(document, [table_heading])
+        document.flags.append("prompt-like-content")
+        with self.assertRaisesRegex(AcquisitionError, "unrelated source-quality"):
+            complete_section_excerpt(document, [heading])
+
     def setUp(self):
         self.catalog = load_catalog(ROOT / "data" / "pilot-catalog.json")
         self.ledger = Ledger()
@@ -410,6 +431,31 @@ class SchemaMigrationTests(unittest.TestCase):
                          create_index=True, stage_blob=False)
         search.delete_documents.assert_called_once_with([{"id": "old-key"}])
         search.upload_documents.assert_not_called()
+
+    def test_explicit_azure_developer_cli_credential_is_used_for_publication(self):
+        from types import SimpleNamespace
+        credential = Mock()
+        selected = Mock()
+        selected.__enter__ = Mock(return_value=credential)
+        selected.__exit__ = Mock(return_value=False)
+        search = Mock()
+        search.delete_documents.return_value = [SimpleNamespace(key="old-key", succeeded=True)]
+        search_context = Mock()
+        search_context.__enter__ = Mock(return_value=search)
+        search_context.__exit__ = Mock(return_value=False)
+        with patch("azure.identity.AzureDeveloperCliCredential", return_value=selected) as azd, \
+                patch("azure.identity.ManagedIdentityCredential") as managed, \
+                patch("azure.search.documents.SearchClient", return_value=search_context) as client:
+            _execute({"deleteIds": ["old-key"], "uploads": []},
+                     "https://synthetic.search.windows.net", "synthetic-index",
+                     create_index=False, stage_blob=False, credential_mode="azure-developer-cli")
+        azd.assert_called_once_with(process_timeout=30)
+        managed.assert_not_called()
+        client.assert_called_once_with(
+            "https://synthetic.search.windows.net", "synthetic-index", credential,
+            retry_total=2, connection_timeout=15, read_timeout=30,
+        )
+        search.delete_documents.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,7 @@
 """Section-preserving extraction with conservative publication quality flags."""
 
 from dataclasses import asdict, dataclass, field
+from copy import deepcopy
 from datetime import datetime
 import hashlib
 import re
@@ -9,7 +10,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 from bs4 import BeautifulSoup, Comment
 
 from .fetch import Response
-from .metadata import EXTRACTION_METHOD, MAX_CHUNK_CHARS, extraction_digest, iso_datetime, legal_date, validate_metadata
+from .metadata import EXTRACTION_METHOD, MAX_CHUNK_CHARS, SECTION_EXCERPT_EXTRACTION_METHOD, extraction_digest, iso_datetime, legal_date, validate_metadata
 from .policy import AcquisitionError, canonicalize, validate_url
 
 
@@ -45,6 +46,31 @@ class Document:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def complete_section_excerpt(document: Document, headings: list[str]) -> Document:
+    """Derive separately reviewed prose sections, never truncate or flatten a table."""
+    if not headings or len(set(headings)) != len(headings):
+        raise AcquisitionError("A section excerpt requires distinct explicit headings")
+    if set(document.flags) - {"complex-table-review-required"}:
+        raise AcquisitionError("A section excerpt cannot clear unrelated source-quality holds")
+    selected = [section for section in document.sections if section.heading in headings]
+    if (
+        len(selected) != len(headings)
+        or any(block["kind"] == "table" for section in selected for block in section.blocks)
+    ):
+        raise AcquisitionError("Only complete, existing non-table sections may be excerpted")
+    result = deepcopy(document)
+    result.sections = selected
+    result.title = document.title + " (selected guidance; fee and rate tables withheld)"
+    result.extraction_method = SECTION_EXCERPT_EXTRACTION_METHOD
+    result.flags = []
+    result.quality = "review-required"
+    rendered = "\n".join(section.heading + "\n" + section.text for section in selected)
+    result.content_hash = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+    result.extraction_hash = extraction_digest(result)
+    chunk_document(result)
+    return result
 
 
 MAINTENANCE = re.compile(
@@ -200,6 +226,9 @@ def extract(response: Response, *, url_validator=validate_url, canonical_validat
             metadata: dict | None = None, quality_flags=()) -> Document:
     if response.status != 200:
         raise AcquisitionError(f"HTTP {response.status} is not extractable guidance")
+    if response.headers.get("content-type", "").split(";")[0].strip().lower() == "application/pdf":
+        from .pdf import extract_pdf
+        return extract_pdf(response, metadata=metadata, quality_flags=quality_flags)
     if response.headers.get("content-type", "").split(";")[0].lower() not in (
         "text/html", "application/xhtml+xml",
     ):

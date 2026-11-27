@@ -1,11 +1,13 @@
 import ipaddress
+import os
 from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic import AliasChoices, Field, PrivateAttr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from bc_api.jurisdiction import JurisdictionPack, load_jurisdiction
 from bc_api.models import JOURNEY_IDS, LEGACY_JOURNEY_IDS, AgentBinding
 from bc_api.research_contract import WebResearchPermission
 from bc_api.urls import azure_endpoint
@@ -24,14 +26,11 @@ def is_loopback_host(host: str) -> bool:
 
 
 def default_catalog_path() -> Path:
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "data" / "pilot-catalog.json"
-        if candidate.is_file() or (parent / "PRODUCT.md").is_file():
-            return candidate
-    return Path("/app/data/pilot-catalog.json")
+    return load_jurisdiction().path("catalog")
 
 
 class Settings(BaseSettings):
+    _jurisdiction_pack: JurisdictionPack | None = PrivateAttr(default=None)
     model_config = SettingsConfigDict(
         env_file=None,
         extra="ignore",
@@ -41,6 +40,7 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
     )
     app_env: Literal["development", "production"] = "development"
+    jurisdiction: str = "bc"
     release_commit: str = Field(default="", pattern=r"^(?:|[a-f0-9]{40})$")
     release_id: str = Field(default="", pattern=r"^(?:|[a-z0-9][a-z0-9-]{0,63})$")
     content_catalog_path: Path | None = Field(
@@ -144,6 +144,97 @@ class Settings(BaseSettings):
     research_daily_run_limit: int = Field(default=0, ge=0, le=100000)
     research_max_concurrent_runs: int = Field(default=1, ge=1, le=7)
 
+    @model_validator(mode="before")
+    @classmethod
+    def select_pack_defaults(cls, values):
+        values = dict(values)
+        pack = load_jurisdiction(values.get("jurisdiction", os.environ.get("JURISDICTION", "bc")))
+        values["jurisdiction"] = pack.id
+        if pack.id != "bc":
+            values.setdefault("api_control_namespace", f"{pack.id}-pilot")
+            values.setdefault("azure_search_metadata_index", f"{pack.id}-pilot-public")
+            values.setdefault("azure_search_index", f"{pack.id}-pilot-public")
+            values.setdefault("azure_search_semantic_config", f"{pack.id}-public-guidance")
+        return values
+
+    @property
+    def pack(self) -> JurisdictionPack:
+        if self._jurisdiction_pack is None or self._jurisdiction_pack.id != self.jurisdiction:
+            self._jurisdiction_pack = load_jurisdiction(self.jurisdiction)
+        return self._jurisdiction_pack
+
+    @model_validator(mode="after")
+    def jurisdiction_isolation(self) -> Self:
+        pack = self.pack
+        if pack.id == "bc":
+            return self
+        if self.catalog_path.resolve() != pack.path("catalog"):
+            raise ValueError(
+                "CONTENT_CATALOG_PATH must match the selected jurisdiction manifest; "
+                "foreign or arbitrary catalogues are not permitted."
+            )
+        prefixes = (f"{pack.id}-", f"{pack.id}assist-")
+        if not self.api_control_namespace.startswith(prefixes):
+            raise ValueError("API_CONTROL_NAMESPACE must be isolated to the selected jurisdiction.")
+        for name in (
+            self.azure_search_index, self.azure_search_metadata_index,
+            self.foundry_iq_knowledge_base, self.foundry_iq_knowledge_source,
+        ):
+            if name and not name.startswith(f"{pack.id}-"):
+                raise ValueError("Search indexes and knowledge resources must match JURISDICTION.")
+        bindings = [
+            *self.foundry_agents, self.foundry_general_agent, self.foundry_contextual_agent,
+            self.foundry_conversation_agent, self.foundry_grounded_conversation_agent,
+            self.foundry_grounded_answer_agent, self.foundry_research_agent,
+        ]
+        for name in [self.foundry_agent_name, *(b.name for b in bindings if b is not None)]:
+            if name and not name.startswith(prefixes):
+                raise ValueError("Foundry agents must match the selected jurisdiction namespace.")
+        for endpoint, service_prefix in (
+            (self.foundry_project_endpoint, "ai-"),
+            (self.azure_search_endpoint, "srch-"),
+            (self.azure_openai_endpoint, "ai-"),
+        ):
+            allowed = prefixes + tuple(service_prefix + prefix for prefix in prefixes)
+            if endpoint and not (urlsplit(endpoint).hostname or "").startswith(allowed):
+                raise ValueError("Azure resource endpoints must match the jurisdiction namespace.")
+        if any((
+            self.foundry_agents, self.foundry_agent_name, self.foundry_contextual_agent,
+            self.foundry_conversation_agent, self.foundry_grounded_conversation_agent,
+            self.foundry_grounded_answer_agent, self.conversation_discovery_enabled,
+            self.ai_conversation_enabled, self.task_assistance_enabled,
+            self.grounded_conversation_enabled,
+        )):
+            raise ValueError(
+                "This jurisdiction has no registered advanced/guided flows; "
+                "disable journey, discovery, contextual and grounded-conversation settings."
+            )
+        if self.synthetic_context_enabled:
+            raise ValueError("Synthetic context is not registered for the selected jurisdiction.")
+        if pack.rag_pending and any((
+            self.foundry_project_endpoint, self.foundry_general_agent,
+            self.foundry_research_agent, self.azure_search_endpoint,
+            self.azure_search_index not in ("", f"{pack.id}-pilot-public"),
+            self.azure_openai_endpoint, self.azure_openai_embedding_deployment,
+            self.azure_search_vector_enabled, self.azure_search_metadata_enabled,
+            self.azure_search_metadata_reviewed, self.foundry_iq_enabled, self.webiq_enabled,
+            self.webiq_sources, self.local_evidence_evaluation_enabled,
+            self.local_evidence_snapshot_path, self.local_evidence_snapshot_sha256,
+            self.foundry_iq_model_deployment, self.foundry_iq_model_name,
+        )):
+            raise ValueError(
+                "pending-rag-permission: model/index, embeddings, local evidence and research "
+                "activation are blocked. Record approved publisher RAG/embedding rights in "
+                "the jurisdiction source policy before configuring factual services."
+            )
+        if not pack.rag_pending:
+            from bc_api.catalog import CatalogRepository
+
+            for source in CatalogRepository(self.catalog_path, pack).get().sources:
+                if source.status in ("available", "limited"):
+                    pack.authorize_source(source.url, embedding=self.azure_search_vector_enabled)
+        return self
+
     @property
     def research_requested(self) -> bool:
         return self.foundry_iq_enabled or self.webiq_enabled
@@ -237,6 +328,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def reviewed_metadata_index(self) -> Self:
+        if self.jurisdiction != "bc" and not (
+            self.azure_search_metadata_enabled or self.azure_search_metadata_reviewed
+        ):
+            return self
         if self.azure_search_metadata_index == "bc-pilot-public":
             raise ValueError("The live legacy index cannot be a metadata experiment target.")
         selected = self.azure_search_index == self.azure_search_metadata_index
@@ -366,7 +461,7 @@ class Settings(BaseSettings):
 
     @property
     def catalog_path(self) -> Path:
-        return self.content_catalog_path or default_catalog_path()
+        return self.content_catalog_path or self.pack.path("catalog")
 
     @property
     def origins(self) -> tuple[str, ...]:

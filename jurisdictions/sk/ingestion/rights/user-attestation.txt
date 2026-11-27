@@ -1,0 +1,8 @@
+User statements:
+
+"I have written AI/RAG permission."
+"I have rights"
+"please begin indexing - you have the full authorization"
+"YOu have authorization, full budget of what you need and continue - dont be blocked by anything and stop asking me for permission and scope"
+
+The user explicitly authorized indexing Saskatchewan services, including SGI and eHealth, and further budget. This is a user attestation, not independently verified publisher evidence. Public evidence capture timestamps below are original local file modification times, not asserted server-response times.

@@ -1,0 +1,81 @@
+{
+  "scope": "local non-official assistant pilot only",
+  "approvalStatus": "user-reference-use-permitted-public-release-unapproved",
+  "publisher": null,
+  "licence": null,
+  "endorsement": false,
+  "restrictions": "Preserve all original pixels and aspect ratios. No recolour, redraw, crop, tracing or extraction of symbols. Not authorized for public release.",
+  "assets": [
+    {
+      "file": "sk-wordmark.png",
+      "source": "user-uploaded clipboard reference 5f3476f2-d1dd-46ef-84b0-56c46eb6ee04-f6be9448-c9b3-447b-8a37-447e822f51fa-clipboard.png",
+      "sha256": "802b25633d1a364cd918078f31d42076d597a573307abe4839814609d02f14db",
+      "width": 373,
+      "height": 79,
+      "alt": "Saskatchewan",
+      "placement": "White-backed header identity in both themes"
+    },
+    {
+      "file": "sk-flag.png",
+      "source": "user-uploaded clipboard reference c92cc850-f004-4d34-a382-a089872a9b6a-31f16e83-1c24-40c8-b0b9-c810d766ed83-clipboard.png",
+      "sha256": "8bc196ce1fc97ca365f4220a750c34c1054820569d51183a99ed238b8325820e",
+      "width": 1600,
+      "height": 800,
+      "alt": "Flag of Saskatchewan",
+      "placement": "Credits supporting image only"
+    },
+    {
+      "file": "pilot-icon.svg",
+      "source": "Original text-only P pilot icon created for this project",
+      "placement": "Pilot favicon; no provincial symbols"
+    }
+  ],
+  "photography": {
+    "source": "Unsplash",
+    "licence": "https://unsplash.com/license",
+    "scope": "Local responsive images for the non-official Saskatchewan assistant pilot",
+    "publicReleaseApproval": "Not implied by the Unsplash licence; pilot release approval remains separate",
+    "assets": [
+      {
+        "id": "saskatchewan-fields",
+        "photographer": "Ruvim Kerimov",
+        "photographerUrl": "https://unsplash.com/@ruvimkerimov",
+        "sourceUrl": "https://unsplash.com/photos/an-aerial-view-of-a-green-field-with-a-white-line-GuCNRdpemxc",
+        "place": "Saskatchewan farmland",
+        "files": ["/images/sk/saskatchewan-fields-1600.webp", "/images/sk/saskatchewan-fields-800.webp"]
+      },
+      {
+        "id": "saskatoon-river",
+        "photographer": "Kaz Vogel",
+        "photographerUrl": "https://unsplash.com/@kazev",
+        "sourceUrl": "https://unsplash.com/photos/a-body-of-water-with-a-bridge-in-the-background-jWGKI_oEG30",
+        "place": "South Saskatchewan River, Saskatoon",
+        "files": ["/images/sk/saskatoon-river-1600.webp", "/images/sk/saskatoon-river-800.webp"]
+      },
+      {
+        "id": "regina-sunset",
+        "photographer": "Tandem X Visuals",
+        "photographerUrl": "https://unsplash.com/@tandemxvisuals",
+        "sourceUrl": "https://unsplash.com/photos/sunset-silhouettes-the-buildings-dome-and-horizon-DdRCJgdpHPo",
+        "place": "Regina, Saskatchewan",
+        "files": ["/images/sk/regina-sunset-1600.webp", "/images/sk/regina-sunset-800.webp"]
+      },
+      {
+        "id": "grasslands",
+        "photographer": "Andrew Darlington",
+        "photographerUrl": "https://unsplash.com/@andrewdarlington",
+        "sourceUrl": "https://unsplash.com/photos/rolling-hills-with-dry-grass-d6JfGN6k0Ac",
+        "place": "Grasslands National Park, Saskatchewan",
+        "files": ["/images/sk/grasslands-1600.webp", "/images/sk/grasslands-800.webp"]
+      },
+      {
+        "id": "pinehouse-aurora",
+        "photographer": "Dre Erwin",
+        "photographerUrl": "https://unsplash.com/@dreerwin",
+        "sourceUrl": "https://unsplash.com/photos/the-aurora-bore-is-reflected-in-the-water-at-night-mGY-pzwunLs",
+        "place": "Pinehouse Lake, Saskatchewan",
+        "files": ["/images/sk/pinehouse-aurora-1600.webp", "/images/sk/pinehouse-aurora-800.webp"]
+      }
+    ]
+  }
+}

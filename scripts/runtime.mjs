@@ -32,6 +32,14 @@ export function localSettings(env = process.env) {
   };
 }
 
+export function webDistDirectory(env = process.env) {
+  const directory = env.NEXT_DIST_DIR || ".next";
+  if (!/^\.next(?:-[a-z0-9-]+)?$/u.test(directory)) {
+    throw new Error("NEXT_DIST_DIR must be a local .next or .next-* directory.");
+  }
+  return directory;
+}
+
 export function pythonFor(component) {
   const executable = process.platform === "win32"
     ? path.join(root, component, ".venv", "Scripts", "python.exe")

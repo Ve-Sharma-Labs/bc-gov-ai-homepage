@@ -346,6 +346,7 @@ class SecurityMiddleware:
         except ApiError as exc:
             response = JSONResponse(exc.payload(), status_code=exc.status)
             response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Jurisdiction"] = self.settings.jurisdiction
             if exc.status == 429:
                 response.headers["Retry-After"] = "60"
             await response(scope, receive, send)
@@ -363,6 +364,7 @@ class SecurityMiddleware:
         async def guarded_send(message: Message) -> None:
             if message["type"] == "http.response.start":
                 output_headers = MutableHeaders(scope=message)
+                output_headers["X-Jurisdiction"] = self.settings.jurisdiction
                 output_headers["Cache-Control"] = "no-store"
                 output_headers["X-Content-Type-Options"] = "nosniff"
                 output_headers["Referrer-Policy"] = "no-referrer"

@@ -1,4 +1,5 @@
-FROM python:3.14.0-slim-bookworm
+ARG JURISDICTION=bc
+FROM python:3.14.10-slim-bookworm AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -9,14 +10,28 @@ RUN --mount=type=secret,id=pip_config,target=/etc/pip.conf \
     python -m pip install --no-cache-dir -r /app/requirements.lock
 COPY apps/api/pyproject.toml /app/apps/api/pyproject.toml
 COPY apps/api/src /app/apps/api/src
+COPY ingestion/bc_ingestion/__init__.py ingestion/bc_ingestion/operation_rights.py ingestion/bc_ingestion/metadata.py ingestion/bc_ingestion/policy.py ingestion/bc_ingestion/pack_policy.py ingestion/bc_ingestion/robots.py /app/ingestion/bc_ingestion/
 RUN --mount=type=secret,id=pip_config,target=/etc/pip.conf \
     python -m pip install --no-cache-dir --no-deps /app/apps/api \
     && groupadd --gid 10001 app \
     && useradd --uid 10001 --gid 10001 --no-create-home app
-COPY data/pilot-catalog.json /app/data/pilot-catalog.json
-COPY data/demo-personas.json /app/data/demo-personas.json
-COPY data/demo-program-rules.json /app/data/demo-program-rules.json
-COPY data/conversation-grounding-packs.json /app/data/conversation-grounding-packs.json
+FROM base AS selected-pack
+ARG JURISDICTION=bc
+ARG OPERATION_RIGHTS_REVIEW_SHA256=""
+ENV JURISDICTION=${JURISDICTION} \
+    OPERATION_RIGHTS_REVIEW_SHA256=${OPERATION_RIGHTS_REVIEW_SHA256}
+COPY jurisdictions /source/jurisdictions
+COPY data /source/data
+RUN python -m bc_api.jurisdiction --root /source --stage /selected
+
+FROM base AS runtime
+ARG JURISDICTION=bc
+ARG OPERATION_RIGHTS_REVIEW_SHA256=""
+ENV JURISDICTION=${JURISDICTION} \
+    BAKED_JURISDICTION=${JURISDICTION} \
+    OPERATION_RIGHTS_REVIEW_SHA256=${OPERATION_RIGHTS_REVIEW_SHA256}
+COPY --from=selected-pack /selected /app
+RUN python -c "from bc_api.main import app; assert app.state.jurisdiction.id"
 USER 10001:10001
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

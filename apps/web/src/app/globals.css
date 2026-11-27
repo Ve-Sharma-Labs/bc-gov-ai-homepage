@@ -11,28 +11,11 @@
 
 :root {
   color-scheme: light dark;
-  --page: light-dark(#ffffff, #0b0d12);
-  --hero: light-dark(#f1f2f0, #171c24);
-  --surface: light-dark(#ffffff, #1a202b);
-  --surface-soft: light-dark(#f5f6f4, #171c24);
-  --surface-hover: light-dark(#e9eceb, #29313d);
-  --text: light-dark(#161c27, #f4f5f7);
   --heading: var(--text);
-  --muted: light-dark(#555d68, #b9c0ca);
-  --faint: light-dark(#626a74, #adb8c5);
-  --line: light-dark(#dde1e4, #313946);
-  --line-strong: light-dark(#8b929a, #8c95a2);
-  --link: light-dark(#174979, #b3d4ff);
-  --action: light-dark(#013366, #d8e8ff);
-  --action-text: light-dark(#ffffff, #132d51);
-  --action-hover: light-dark(#164b7a, #edf4ff);
-  --gold: #fcba19;
-  --gold-text: light-dark(#785900, #f5ce74);
   --notice-bg: light-dark(#f6f2e8, #302b23);
   --notice-text: light-dark(#615337, #e6d7b7);
   --error-bg: light-dark(#fff1ef, #35232a);
   --error-text: light-dark(#982d27, #ffc3bf);
-  --focus: light-dark(#2767ac, #f8d176);
   --positive: light-dark(#246841, #a9ddb9);
   --shadow: light-dark(0 12px 34px #10253a0f, 0 12px 34px #00000030);
   --composer-shadow: light-dark(0 8px 28px #10213817, 0 8px 28px #00000038);
@@ -55,7 +38,7 @@
   --color-input: var(--line-strong);
   --color-ring: var(--focus);
   --color-destructive: var(--error-text);
-  --font-sans: var(--font-bc-sans), Arial, sans-serif;
+  --font-sans: var(--font-body), Arial, sans-serif;
   --font-serif: var(--font-editorial), Georgia, serif;
   --radius-lg: var(--radius);
 }
@@ -64,7 +47,7 @@
 :root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; }
 html { scroll-padding-top: 24px; }
-body { margin: 0; background: var(--page); color: var(--text); font-family: var(--font-bc-sans), "BC Sans", Arial, sans-serif; font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+body { margin: 0; background: var(--page); color: var(--text); font-family: var(--font-body), Arial, sans-serif; font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button, [role="button"] { cursor: pointer; }
 button:disabled, [data-disabled] { cursor: not-allowed; }
@@ -171,7 +154,7 @@ svg { flex-shrink: 0; vertical-align: middle; }
 .scope-positioner { z-index: 70; }
 .scope-picker { width: min(360px, calc(100vw - 32px)); max-height: min(480px, var(--available-height, 80dvh)); overflow-y: auto; overscroll-behavior: contain; padding: 16px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); outline: none; }
 .scope-picker-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.scope-picker-heading h2 { font: 700 18px/1.4 var(--font-bc-sans), Arial, sans-serif; letter-spacing: 0; }
+.scope-picker-heading h2 { font: 700 18px/1.4 var(--font-body), Arial, sans-serif; letter-spacing: 0; }
 .scope-picker-heading [data-slot="button"] { width: 44px; height: 44px; flex-shrink: 0; }
 .scope-picker > p, .scope-availability { color: var(--muted); font-size: 14px; line-height: 1.6; margin-top: 8px; }
 .scope-options { display: grid; margin-top: 16px; }
@@ -190,7 +173,7 @@ svg { flex-shrink: 0; vertical-align: middle; }
 .context-consent-sheet { top: 50%; left: 50%; width: min(640px, calc(100% - 32px)); max-height: min(86dvh, 840px); transform: translate(-50%,-50%); border-radius: 30px; padding: 28px; }
 .context-drawer { inset: 0 0 0 auto; width: min(540px, 100%); padding: 30px; }
 .context-sheet-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-.context-sheet-heading h2 { font: 700 24px/1.3 var(--font-bc-sans), Arial, sans-serif; letter-spacing: -.025em; }
+.context-sheet-heading h2 { font: 700 24px/1.3 var(--font-body), Arial, sans-serif; letter-spacing: -.025em; }
 .context-sheet-heading p { max-width: 55ch; margin-top: 8px; color: var(--muted); line-height: 1.55; }
 .context-sheet-heading [data-slot="button"] { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; }
 .synthetic-notice { display: flex; align-items: flex-start; gap: 9px; margin-top: 20px; padding: 13px 15px; color: var(--notice-text); background: var(--notice-bg); border-radius: 16px; font-size: 14px; line-height: 1.45; }
@@ -379,7 +362,7 @@ svg { flex-shrink: 0; vertical-align: middle; }
 .workspace-grid > .task-panel { grid-row: 1/span 3; grid-column: 2; }
 .task-panel { background: var(--surface-soft); border-radius: 32px; padding: 30px; min-width: 0; }
 .task-panel-heading { display: flex; align-items: flex-start; gap: 12px; }
-.task-panel-heading h2 { font-family: var(--font-bc-sans),Arial,sans-serif; font-size: 21px; font-weight: 700; line-height: 1.4; letter-spacing: -.025em; }
+.task-panel-heading h2 { font-family: var(--font-body),Arial,sans-serif; font-size: 21px; font-weight: 700; line-height: 1.4; letter-spacing: -.025em; }
 .task-panel-heading p { font-size: 14px; color: var(--muted); margin-top: 6px; }
 .task-intro { font-size: 14px; color: var(--muted); margin-block: 22px; }
 .checklist { list-style: none; padding: 0; margin: 0; }
@@ -442,12 +425,12 @@ details[open] > summary > .disclosure-chevron { transform: rotate(180deg); }
 .home-conversation-details .conversation-details-content { max-height: 50dvh; overflow-y: auto; padding-bottom: 16px; }
 .conversation-details { margin-bottom: 32px; padding-block: 20px; border-block: 1px solid var(--line); }
 .conversation-details-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.conversation-details-heading h2 { font: 700 20px/1.4 var(--font-bc-sans), Arial, sans-serif; letter-spacing: -.02em; }
+.conversation-details-heading h2 { font: 700 20px/1.4 var(--font-body), Arial, sans-serif; letter-spacing: -.02em; }
 .conversation-detail-options { display: flex; align-items: flex-start; flex-direction: column; gap: 12px; margin-top: 20px; }
 .conversation-detail-options .composer-scope { box-shadow: none; padding-left: 0; }
 .conversation-details-content .ai-conversation-notice { margin-inline: 0; font-size: 14px; }
 .conversation-starters { max-width: 736px; margin: 28px auto; }
-.conversation-starters h2 { font: 700 22px/1.4 var(--font-bc-sans), Arial, sans-serif; letter-spacing: -.02em; margin-bottom: 8px; }
+.conversation-starters h2 { font: 700 22px/1.4 var(--font-body), Arial, sans-serif; letter-spacing: -.02em; margin-bottom: 8px; }
 .conversation-starters > p { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
 .conversation-starters ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; list-style: none; margin: 0; padding: 0; }
 .conversation-starters li { min-width: 0; border-bottom: 1px solid var(--line); }
@@ -496,7 +479,7 @@ details[open] > summary > .disclosure-chevron { transform: rotate(180deg); }
 .message { margin-block: 20px; padding-block: 22px; border-top: 1px solid var(--line); }
 .message-user { padding: 22px 26px; background: var(--surface-soft); border: 0; border-radius: 26px 26px 4px 26px; }
 .message-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
-.message-heading h2 { font: 700 15px/1.5 var(--font-bc-sans),sans-serif; letter-spacing: 0; }
+.message-heading h2 { font: 700 15px/1.5 var(--font-body),sans-serif; letter-spacing: 0; }
 .message-state { margin-left: auto; font-size: 13px; color: var(--muted); }
 .question-text { white-space: pre-wrap; }
 .answer-content { font-size: 17px; line-height: 1.75; overflow-wrap: anywhere; }
@@ -562,7 +545,7 @@ details[open] > summary > .disclosure-chevron { transform: rotate(180deg); }
 .sources-backdrop { position: fixed; inset: 0; background: #07132152; z-index: 75; }
 .sources-panel { position: fixed; inset: 0 0 0 auto; width: min(480px, 100%); overflow-y: auto; padding: 28px; background: var(--surface); color: var(--text); z-index: 80; box-shadow: -12px 0 48px #00000020; outline: none; }
 .sources-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.sources-panel-heading h2 { font: 700 22px/1.4 var(--font-bc-sans), Arial, sans-serif; letter-spacing: -.02em; }
+.sources-panel-heading h2 { font: 700 22px/1.4 var(--font-body), Arial, sans-serif; letter-spacing: -.02em; }
 .sources-panel > .source-card { margin-top: 20px; }
 .chat-artifacts { margin-block: 24px 32px; }
 .chat-artifact + .chat-artifact { margin-top: 24px; }

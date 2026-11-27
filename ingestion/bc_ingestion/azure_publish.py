@@ -16,7 +16,7 @@ SHADOW_INDEX_NAME = "bc-pilot-public-v2"
 SEMANTIC_CONFIGURATION_NAME = "bc-public-guidance"
 
 
-def build_index(name: str, vector_dimensions: int | None = None):
+def build_index(name: str, vector_dimensions: int | None = None, *, jurisdiction_id="bc"):
     from azure.search.documents.indexes.models import (
         SearchField, SearchFieldDataType, SearchIndex, SearchableField, SimpleField,
         SemanticConfiguration, SemanticField, SemanticPrioritizedFields, SemanticSearch,
@@ -58,6 +58,12 @@ def build_index(name: str, vector_dimensions: int | None = None):
     for field_name in ("isHistorical", "containsExceptions"):
         fields.append(SimpleField(name=field_name, type=SearchFieldDataType.Boolean, filterable=True))
     fields.append(SimpleField(name="fetchedAt", type=SearchFieldDataType.DateTimeOffset, filterable=True))
+    if jurisdiction_id != "bc":
+        fields.extend([
+            SimpleField(name="pageCount", type=SearchFieldDataType.Int32, filterable=True),
+            SimpleField(name="contentHashBasis", type=SearchFieldDataType.String, filterable=True),
+            SimpleField(name="publisherUpdatedDate", type=SearchFieldDataType.String, filterable=True),
+        ])
     vector_search = None
     if vector_dimensions is not None:
         validate_dimensions(vector_dimensions)
@@ -66,19 +72,19 @@ def build_index(name: str, vector_dimensions: int | None = None):
             type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
             searchable=True, hidden=True,
             vector_search_dimensions=vector_dimensions,
-            vector_search_profile_name="bc-vector-profile",
+            vector_search_profile_name=f"{jurisdiction_id}-vector-profile",
         ))
         vector_search = VectorSearch(
-            algorithms=[HnswAlgorithmConfiguration(name="bc-hnsw")],
-            profiles=[VectorSearchProfile(name="bc-vector-profile",
-                                          algorithm_configuration_name="bc-hnsw")],
+            algorithms=[HnswAlgorithmConfiguration(name=f"{jurisdiction_id}-hnsw")],
+            profiles=[VectorSearchProfile(name=f"{jurisdiction_id}-vector-profile",
+                                          algorithm_configuration_name=f"{jurisdiction_id}-hnsw")],
         )
     return SearchIndex(
         name=name, fields=fields,
         vector_search=vector_search,
         semantic_search=SemanticSearch(configurations=[
             SemanticConfiguration(
-                name=SEMANTIC_CONFIGURATION_NAME,
+                name=f"{jurisdiction_id}-public-guidance",
                 prioritized_fields=SemanticPrioritizedFields(
                     title_field=SemanticField(field_name="title"),
                     content_fields=[SemanticField(field_name="content")],
@@ -356,7 +362,8 @@ def shadow_index_operation(
     )
     try:
         with selected as credential:
-            with SearchIndexClient(endpoint, credential) as indexes:
+            with SearchIndexClient(endpoint, credential, retry_total=2,
+                                   connection_timeout=15, read_timeout=30) as indexes:
                 if operation == "create":
                     shadow, created, live_before, _, diff = ensure_shadow_index(
                         indexes, desired, live_index_name
@@ -520,12 +527,20 @@ def verify_results(results, ids: list[str], operation: str) -> None:
 
 def publish(plan: dict, *, execute: bool = False, approved: bool = False,
             create_index: bool = False, stage_blob: bool = False,
-            credential_mode: str = "managed-identity") -> dict:
+            credential_mode: str = "managed-identity", programme_policy=None) -> dict:
+    from .jurisdiction import assert_model_operation
+    candidate_pack = getattr(programme_policy, "jurisdiction_id", "bc") != "bc"
+    if candidate_pack:
+        programme_policy.assert_plan(plan, reviewed=execute)
+        for chunk in plan["uploads"]:
+            for operation in ("publication", "storage", "rag", "generated-summary"):
+                programme_policy.authorize_document(operation, chunk)
+    assert_model_operation("publication", plan["uploads"], programme_policy=programme_policy)
     summary = {"mode": "dry-run", "uploadChunks": len(plan["uploads"]),
                "deleteChunks": len(plan["deleteIds"]), "withheldDocuments": len(plan["withheld"])}
     if not execute:
         return summary
-    if credential_mode not in ("managed-identity", "azure-cli"):
+    if credential_mode not in ("managed-identity", "azure-cli", "azure-developer-cli"):
         raise AcquisitionError("Choose an explicit publishing credential mode")
     if not approved or os.environ.get("INGESTION_PUBLISH_ENABLED") != "true":
         raise AcquisitionError("Publishing requires --approved and INGESTION_PUBLISH_ENABLED=true")
@@ -533,6 +548,12 @@ def publish(plan: dict, *, execute: bool = False, approved: bool = False,
     name = os.environ.get("AZURE_SEARCH_INDEX", "")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,126}[a-z0-9]", name):
         raise AcquisitionError("A valid AZURE_SEARCH_INDEX is required")
+    if candidate_pack:
+        target = plan.get("target") or {}
+        if name != target.get("indexName") or endpoint != target.get("searchEndpoint") or not name.startswith(programme_policy.jurisdiction_id + "-"):
+            raise AcquisitionError("Publication endpoint/index must match the exact isolated plan target")
+        if _vector_configuration()[0] is not None:
+            assert_model_operation("embedding", plan["uploads"], programme_policy=programme_policy)
     if not plan["uploads"] and not plan["deleteIds"]:
         raise AcquisitionError("No reviewed uploads or tombstones; nothing will be published")
     if len({document["id"] for document in plan["uploads"]}) != len(plan["uploads"]):
@@ -543,24 +564,42 @@ def publish(plan: dict, *, execute: bool = False, approved: bool = False,
     from azure.core.exceptions import AzureError
     try:
         _execute(plan, endpoint, name, create_index=create_index, stage_blob=stage_blob,
-                 credential_mode=credential_mode)
+                 credential_mode=credential_mode,
+                 **({"programme_policy": programme_policy} if candidate_pack else {}))
     except AzureError:
         raise AcquisitionError("Azure operation failed; check scoped resource access and diagnostics") from None
     return {**summary, "mode": "published"}
 
 
 def _execute(plan: dict, endpoint: str, name: str, *, create_index: bool, stage_blob: bool,
-             credential_mode: str = "managed-identity") -> None:
-    from azure.identity import AzureCliCredential, ManagedIdentityCredential
+             credential_mode: str = "managed-identity", programme_policy=None) -> None:
+    candidate_pack = getattr(programme_policy, "jurisdiction_id", "bc") != "bc"
+    if candidate_pack:
+        programme_policy.assert_plan(plan)
+        target = plan.get("target") or {}
+        if endpoint != target.get("searchEndpoint") or name != target.get("indexName") or not name.startswith(programme_policy.jurisdiction_id + "-"):
+            raise AcquisitionError("Publication endpoint/index must match the exact isolated plan target")
+        for chunk in plan["uploads"]:
+            for operation in ("publication", "storage", "rag", "generated-summary"):
+                programme_policy.authorize_document(operation, chunk)
     from azure.search.documents import SearchClient
     from azure.search.documents.indexes import SearchIndexClient
 
-    identity = os.environ.get("AZURE_CLIENT_ID")
-    options = {"client_id": identity} if identity else {}
-    selected = (ManagedIdentityCredential(**options) if credential_mode == "managed-identity"
-                else AzureCliCredential(process_timeout=5))
+    if credential_mode == "managed-identity":
+        from azure.identity import ManagedIdentityCredential
+        identity = os.environ.get("AZURE_CLIENT_ID")
+        selected = ManagedIdentityCredential(**({"client_id": identity} if identity else {}))
+    elif credential_mode == "azure-cli":
+        from azure.identity import AzureCliCredential
+        selected = AzureCliCredential(process_timeout=5)
+    elif credential_mode == "azure-developer-cli":
+        from azure.identity import AzureDeveloperCliCredential
+        selected = AzureDeveloperCliCredential(process_timeout=30)
+    else:
+        raise AcquisitionError("Choose an explicit publishing credential mode")
     with selected as credential:
-        with SearchClient(endpoint, name, credential) as search:
+        with SearchClient(endpoint, name, credential, retry_total=2,
+                          connection_timeout=15, read_timeout=30) as search:
             # Apply withdrawals before optional enrichment/staging, so their failure cannot
             # leave already-known withdrawn content active in the search index.
             for start in range(0, len(plan["deleteIds"]), 100):
@@ -572,7 +611,8 @@ def _execute(plan: dict, endpoint: str, name: str, *, create_index: bool, stage_
             dimensions, embedding_endpoint, deployment = _vector_configuration()
             if create_index or dimensions is not None:
                 with SearchIndexClient(endpoint, credential) as indexes:
-                    schema = (migrate_index(indexes, build_index(name, dimensions))
+                    schema = (migrate_index(indexes, build_index(name, dimensions,
+                              **({"jurisdiction_id": programme_policy.jurisdiction_id} if candidate_pack else {})))
                               if create_index else indexes.get_index(name))
                     if dimensions is not None:
                         field = next((field for field in schema.fields if field.name == "contentVector"), None)
@@ -581,15 +621,20 @@ def _execute(plan: dict, endpoint: str, name: str, *, create_index: bool, stage_
             documents = []
             for chunk in plan["uploads"]:
                 doc = dict(chunk)
-                for field in ("checkedAt", "publisherUpdatedAt", "fetchedAt"):
-                    if isinstance(doc.get(field), str) and len(doc[field]) == 10:
-                        doc[field] += "T00:00:00Z"
                 documents.append(doc)
             if dimensions is not None and documents:
                 import requests
                 with requests.Session() as session:
-                    embed = azure_embedder(embedding_endpoint, deployment, dimensions, credential, session)
-                    documents = enrich_documents(documents, embed, dimensions)
+                    options = {"programme_policy": programme_policy} if candidate_pack else {}
+                    embed = azure_embedder(embedding_endpoint, deployment, dimensions, credential, session, **options)
+                    documents = enrich_documents(documents, embed, dimensions, **options)
+            for doc in documents:
+                for field in ("checkedAt", "publisherUpdatedAt", "fetchedAt"):
+                    if isinstance(doc.get(field), str) and len(doc[field]) == 10:
+                        if candidate_pack and field == "publisherUpdatedAt":
+                            doc["publisherUpdatedDate"], doc[field] = doc[field], None
+                        else:
+                            doc[field] += "T00:00:00Z"
             if stage_blob:
                 from azure.storage.blob import BlobServiceClient, ContentSettings
                 blob_url = _endpoint(os.environ.get("AZURE_STORAGE_ACCOUNT_URL"), "blob")
@@ -598,7 +643,12 @@ def _execute(plan: dict, endpoint: str, name: str, *, create_index: bool, stage_
                     raise AcquisitionError("A valid pre-existing AZURE_STORAGE_CONTAINER is required")
                 with BlobServiceClient(blob_url, credential=credential) as blobs:
                     for chunk in documents:
-                        client = blobs.get_blob_client(container, f"reviewed/{chunk['id']}.json")
+                        if candidate_pack:
+                            programme_policy.assert_plan(plan)
+                            programme_policy.assert_operation("storage", chunk["url"],
+                                format=programme_policy.document_format(chunk["url"], chunk.get("mediaType")))
+                        prefix = programme_policy.jurisdiction_id + "/" if candidate_pack else ""
+                        client = blobs.get_blob_client(container, f"{prefix}reviewed/{chunk['id']}.json")
                         client.upload_blob(
                             json.dumps(chunk, ensure_ascii=False).encode("utf-8"), overwrite=True,
                             content_settings=ContentSettings(content_type="application/json"),
@@ -606,5 +656,9 @@ def _execute(plan: dict, endpoint: str, name: str, *, create_index: bool, stage_
                         )
             for start in range(0, len(documents), 100):
                 batch = documents[start:start + 100]
+                if candidate_pack:
+                    programme_policy.assert_plan(plan)
+                    for original in plan["uploads"][start:start + 100]:
+                        programme_policy.authorize_document("publication", original)
                 results = search.upload_documents(batch)
                 verify_results(results, [document["id"] for document in batch], "indexing")

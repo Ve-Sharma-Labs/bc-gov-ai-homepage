@@ -1,4 +1,5 @@
 "use client";
+import { presentation } from "@/lib/jurisdiction";
 
 import {
   CheckCircle2,
@@ -274,7 +275,7 @@ export function ChatArtifacts({ artifacts }: { artifacts: Artifact[] }) {
               <div className="chat-office-results">
                 <h3>Published office matches</h3>
                 <p className="muted">{artifact.notice}</p>
-                {!artifact.locations.length && <p>No matching office was found in the reviewed snapshot. Check the official Service BC directory.</p>}
+                {!artifact.locations.length && <p>{presentation.officeEmpty}</p>}
                 <ul className="location-results">
                   {artifact.locations.map((location) => (
                     <li className="location" key={location.id}>

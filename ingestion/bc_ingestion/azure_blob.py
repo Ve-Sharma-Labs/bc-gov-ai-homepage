@@ -460,6 +460,17 @@ class BlobManifestStore:
                 ):
                     raise CheckpointError("checkpoint-state-or-collection-shape-invalid")
                 stats = core["stats"]
+                if "lifecycle" in stats and (
+                    not isinstance(stats["lifecycle"], dict)
+                    or set(stats["lifecycle"]) != {
+                        "configuredSeeds", "proposedWithheldSeeds", "discovered", "eligible", "fetched",
+                        "extracted", "withheld", "failed", "superseded", "exclusions",
+                    }
+                    or any(type(value) is not int or value < 0 for key, value in stats["lifecycle"].items() if key != "exclusions")
+                    or not isinstance(stats["lifecycle"].get("exclusions"), dict)
+                    or any(type(value) is not int or value < 0 for value in stats["lifecycle"]["exclusions"].values())
+                ):
+                    raise CheckpointError("checkpoint-lifecycle-counts-invalid")
                 candidates = core["collections"].get("candidates", {}).get("length", 0)
                 documents = core["collections"].get("ledger/documents", {}).get("length", 0)
                 if (

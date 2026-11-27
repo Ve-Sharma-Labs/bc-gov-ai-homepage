@@ -7,6 +7,49 @@ or public-release approval is inferred from an authenticated Azure CLI session.
 `scripts/azure-preflight.mjs`. Flags are necessary configuration, not evidence
 that reviews or live verification happened.
 
+## Government selection
+
+`JURISDICTION=bc` preserves the existing BC deployment defaults and resource
+names. A different pack selects a separate environment and resource prefix
+(for example, `rg-skassist-*`), index/semantic defaults and container government
+configuration. Build both application images for that same pack; runtime
+selection must not reuse images, indices, bindings or operational state from
+another government. BC CI/CD workflow definitions remain unchanged.
+
+Saskatchewan's source/brand release approvals are still pending. The preflight
+rejects cross-government index/control configuration, unsupported BC demos
+and AI/traffic activation while the source permission gate remains unresolved.
+The sample `jurisdictions\sk\deployment.env.example` is configuration only,
+not a provisioning or publication approval. Existing staging repair/identity
+workflows remain BC-specific and must not be reused for Saskatchewan.
+
+The Saskatchewan hosting entry point uses private, Entra-only Azure Managed
+Redis in Canada East, with a private endpoint in the Canada Central VNet.
+When redeploying an existing Saskatchewan network, supply
+`privateSubnetNetworkSecurityGroupId` and `appsSubnetNetworkSecurityGroupId`
+for any Azure Policy-assigned NSGs attached to those subnets, so the template
+preserves them.
+
+`sk-source-health-alert.bicep` is a separately scoped Saskatchewan alert
+candidate, not an automatic refresh. It reads only source-health metrics from
+the configured Application Insights resource and the fixed Saskatchewan API
+role. Every five minutes it evaluates the preceding 15 minutes; it alerts if
+checks or metrics are missing, source health is not ready, no documents are
+usable, some documents have expired, source coverage is missing, or the
+earliest expiry is within 72 hours. By default, the two partial-loss metrics
+are required and their absence alerts. The currently deployed API does not emit
+them; `requirePartialLossMetrics=false` permits a temporary baseline rule that
+still detects imminent expiry, missing baseline telemetry, and total loss, but
+cannot detect partial source loss without those metrics. Set it back to `true`
+when the updated API is deployed. An existing action group with a responsible
+operator is required. Validate the rule, notification
+delivery, monitoring cost and deployment scope before enabling it; an alert
+cannot reacquire, review, publish or withdraw source content.
+To test the exact KQL against synthetic metrics, set
+`AZURE_LOG_ANALYTICS_TEST_WORKSPACE` to a workspace customer ID and run
+`python -m unittest discover -s infra\tests -p test_source_health_alert.py`.
+The tests query Azure and are skipped when the workspace is not configured.
+
 The isolated pilot infrastructure and real application images are deployed.
 One general and seven pathway agents, and 12 chunks from four explicitly approved
 source snapshots are configured. The private-origin connection is approved, and
@@ -461,6 +504,19 @@ can initially return the old template. Keep the prior image digests for rollback
 and verify public-edge recovery after restoring Front Door's enabled state.
 Treat snapshot parameters as confidential and remove temporary secret values
 after validation.
+
+`sk-search-private-endpoint.bicep` prepares a private endpoint and private DNS
+zone for the existing Saskatchewan Search service without changing its public
+access setting. Linking the zone can redirect live VNet traffic even while
+public access remains enabled. Do not deploy it until DNS conflicts, client
+and publisher connectivity, rollback, cost, policy and the exact what-if
+have been reviewed and the Azure validation workflow has passed. A private
+zone can also make other Search names return NXDOMAIN when they lack records.
+Azure's [DNS fallback](https://learn.microsoft.com/azure/dns/private-dns-fallback)
+is a possible mitigation, but it can resolve a missing private record to a
+public endpoint, including this Search service while public access is enabled.
+The template does not enable that fallback; assess the exposure and test both
+private and other consumer resolution before selecting a DNS policy.
 
 ## References
 

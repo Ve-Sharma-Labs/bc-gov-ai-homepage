@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "id": "sk",
+  "name": "Government of Saskatchewan",
+  "shortName": "Saskatchewan",
+  "inlineName": "Saskatchewan",
+  "siteTitle": "Saskatchewan service assistant",
+  "description": "Find Saskatchewan government services, understand what you need, and prepare your next steps.",
+  "locale": "en-CA",
+  "timeZone": "America/Regina",
+  "officialDomains": [
+    "saskatchewan.ca",
+    "sgi.sk.ca",
+    "ehealthsask.ca"
+  ],
+  "researchHosts": [
+    "www.saskatchewan.ca",
+    "sgi.sk.ca",
+    "www.ehealthsask.ca"
+  ],
+  "helpChannel": {
+    "name": "Contact Saskatchewan",
+    "url": "https://www.saskatchewan.ca/contact-us"
+  },
+  "brand": {
+    "logo": "/brand/sk-wordmark.png",
+    "logoWidth": 373,
+    "logoHeight": 79,
+    "fontFamily": "Arial",
+    "assetStatus": "user-supplied-reference-public-release-unapproved"
+  },
+  "presentation": {
+    "title": "Saskatchewan assistant pilot",
+    "siteUrl": "http://localhost:3000/",
+    "socialAlt": "Saskatchewan assistant pilot — not an official government service",
+    "banner": "Saskatchewan assistant pilot",
+    "homeLabel": "Saskatchewan assistant pilot home",
+    "greeting": "Saskatchewan.",
+    "serviceIntro": "Find your way through Saskatchewan services.",
+    "chatLabel": "General Saskatchewan chat",
+    "conversationLabel": "Conversation with the Saskatchewan assistant pilot",
+    "assistantName": "Saskatchewan assistant pilot",
+    "scopeDescription": "Ask about Saskatchewan government services. Verify information with official sources.",
+    "clearScopeLabel": "Use general Saskatchewan chat",
+    "helpLabel": "Contact Saskatchewan",
+    "helpInline": "contact Saskatchewan",
+    "credit": "Independent assistant pilot by",
+    "creditsTitle": "Asset credits and approval",
+    "creditsIntro": "User-supplied Saskatchewan wordmark and flag references are displayed unmodified in this local pilot. They do not establish government endorsement or public-release rights.",
+    "creditsNotice": "The user-supplied wordmark and flag are references with unknown publisher rights; public release remains unapproved. Candidate colours are measured from the supplied wordmark, not verified official design tokens.",
+    "aboutLead": "This independent pilot is not an official Government of Saskatchewan service. AI answers may be incomplete or wrong. Check information at saskatchewan.ca.",
+    "aboutIdentity": "The supplied wordmark and flag are unchanged reference assets used for this local, non-official pilot. Their publisher rights and public-release approval remain unverified. The landscape photographs are from Unsplash and do not imply government endorsement. Pilot colours are contrast-tested candidates, not an official design system.",
+    "howIntro": "This independent pilot helps you find Saskatchewan official service links. No account to create. No applications submitted for you. Source acquisition and AI access remain subject to separate approvals.",
+    "sourceScene": "Follow official Saskatchewan service links and verify current information on the destination site.",
+    "sourceNotice": "Limited Government of Saskatchewan, SGI and eHealth guidance is indexed separately for this pilot. New snapshots are reviewed by automation under user-attested authorization; this is not a publisher endorsement. Fee and rate tables that cannot be safely extracted remain withheld.",
+    "pilotNotice": "",
+    "emptyJourneys": "Guided plans aren't available in this pilot. Check current requirements with official Saskatchewan services.",
+    "flag": "/brand/sk-flag.png",
+    "flagAlt": "Flag of Saskatchewan",
+    "starters": [],
+    "identityLabel": "Identity and residency",
+    "identityReason": "Fictional resident context is not available in this pilot.",
+    "licenceNotice": "Source licence notice",
+    "officeEmpty": "No reviewed office snapshot is available. Confirm locations with the official service.",
+    "locationIntro": "Office guidance is not available in this pilot.",
+    "locationEmpty": "No reviewed office guidance is available. Contact the official service to confirm locations.",
+    "serviceLabels": {},
+    "handoffIllustration": "Continue to the official service",
+    "regionValue": "saskatchewan",
+    "socialBackground": "#046A38",
+    "socialAccent": "#FBDD40",
+    "assets": [
+      "sk-wordmark.png",
+      "sk-flag.png",
+      "attribution.json"
+    ],
+    "tokens": {
+      "page": [
+        "#F6F8F5",
+        "#101C15"
+      ],
+      "hero": [
+        "#F6F8F5",
+        "#192A20"
+      ],
+      "surface": [
+        "#FFFFFF",
+        "#192A20"
+      ],
+      "surface-soft": [
+        "#F6F8F5",
+        "#192A20"
+      ],
+      "surface-hover": [
+        "#F6F8F5",
+        "#192A20"
+      ],
+      "text": [
+        "#17251D",
+        "#F4F8F2"
+      ],
+      "muted": [
+        "#4B5E52",
+        "#C0CEC3"
+      ],
+      "faint": [
+        "#4B5E52",
+        "#C0CEC3"
+      ],
+      "line": [
+        "#718078",
+        "#809487"
+      ],
+      "line-strong": [
+        "#718078",
+        "#809487"
+      ],
+      "link": [
+        "#046A38",
+        "#8FD6A5"
+      ],
+      "action": [
+        "#046A38",
+        "#FBDD40"
+      ],
+      "action-text": [
+        "#FFFFFF",
+        "#17251D"
+      ],
+      "action-hover": [
+        "#03542D",
+        "#FBDD40"
+      ],
+      "gold": [
+        "#FBDD40",
+        "#FBDD40"
+      ],
+      "gold-text": [
+        "#17251D",
+        "#17251D"
+      ],
+      "focus": [
+        "#046A38",
+        "#FBDD40"
+      ]
+    },
+    "stream": {
+      "hello": "Hello! What would you like to know about Saskatchewan government services?",
+      "clarify": "Tell me a little more about the Saskatchewan service or topic you need help with. Official service links remain available.",
+      "checking": "Checking official Saskatchewan sources...",
+      "searching": "Searching official Saskatchewan sources…",
+      "unavailable": "Saskatchewan AI chat is not connected in this pilot. Your question has been kept. Use official service links to confirm current requirements."
+    },
+    "services": [
+      {
+        "name": "Government services",
+        "publisher": "Government of Saskatchewan",
+        "description": "Browse official topics and confirm current service requirements on the provincial website.",
+        "url": "https://www.saskatchewan.ca/"
+      },
+      {
+        "name": "Services for residents",
+        "publisher": "Government of Saskatchewan",
+        "description": "Find official information for Saskatchewan residents. These links are handoffs, not reviewed preparation plans.",
+        "url": "https://www.saskatchewan.ca/residents"
+      },
+      {
+        "name": "Contact Saskatchewan",
+        "publisher": "Government of Saskatchewan",
+        "description": "Ask the responsible government service for help and confirm the appropriate contact route.",
+        "url": "https://www.saskatchewan.ca/contact-us"
+      }
+    ]
+  },
+  "content": {
+    "catalog": "jurisdictions/sk/content/pilot-catalog.json",
+    "groundingPacks": "jurisdictions/sk/content/conversation-grounding-packs.json",
+    "personas": "jurisdictions/sk/content/demo-personas.json",
+    "programmeRules": "jurisdictions/sk/content/demo-program-rules.json",
+    "sourceProgramme": "jurisdictions/sk/content/source-programme.json",
+    "provenance": "jurisdictions/sk/content/provenance.json"
+  },
+  "features": {
+    "guidedJourneys": false,
+    "syntheticContext": false
+  },
+  "sourcePolicy": {
+    "approvalStatus": "reviewed-operation-grants",
+    "operationReview": {
+      "path": "jurisdictions/sk/ingestion/rights/review.json"
+    },
+    "trainingAllowed": false,
+    "scopeNotice": "Broad public-site and linked-PDF coverage is planned, not acquired or approved. Search permission does not establish RAG or embedding permission."
+  }
+}

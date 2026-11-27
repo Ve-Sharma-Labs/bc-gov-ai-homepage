@@ -187,6 +187,12 @@ class CheckpointState:
             "canonicalCandidates": 0, "sitemaps": 0, "unexpandedLinks": 0,
             "publishedDocuments": 0, "exactReviewedCurrentDocuments": 0,
         }
+        if stats is None and (state.get("packIdentity") or {}).get("jurisdictionId") not in (None, "bc"):
+            self.stats["lifecycle"] = {key: 0 for key in (
+                "configuredSeeds", "proposedWithheldSeeds", "discovered", "eligible",
+                "fetched", "extracted", "withheld", "failed", "superseded",
+            )}
+            self.stats["lifecycle"]["exclusions"] = {}
         descriptions = descriptions or {}
         for path in MAPS:
             parent, key = _container(state, path)
@@ -304,6 +310,25 @@ class CheckpointState:
             _increment(stats["reasons"], value["reason"], sign)
         stats["canonicalCandidates" if value["kind"] == "document" else "sitemaps"] += sign
         stats["unexpandedLinks"] += sign * (value.get("links", {}).get("length", 0) - value["discoveryCursor"])
+        lifecycle = stats.get("lifecycle")
+        if lifecycle is not None and value["kind"] == "document":
+            observed = bool(value["discoveredFrom"] or value.get("responseHash"))
+            configured = value.get("discoveryEvidence") == "configured-seed"
+            contributions = {
+                "configuredSeeds": configured,
+                "proposedWithheldSeeds": configured and not observed and value["state"] in {"blocked", "unsupported"},
+                "discovered": observed,
+                "eligible": value["state"] in {"pending", "retry-wait", "candidate"},
+                "fetched": bool(value.get("responseHash")),
+                "withheld": observed and value["state"] in {"blocked", "unsupported", "quarantined", "withdrawn"},
+                "failed": value["attempts"] > 0 and (
+                    value["state"] in {"blocked", "retry-wait", "unsupported"}
+                    or value["state"] == "quarantined" and (value["reason"] or "").startswith("pdf-quarantine:")),
+            }
+            for stage, contribution in contributions.items():
+                lifecycle[stage] += sign * int(contribution)
+            if value["state"] in {"blocked", "unsupported"} and value.get("reason"):
+                _increment(lifecycle["exclusions"], value["reason"], sign)
         for source in value["sourceIds"] if value["kind"] == "document" else []:
             counts = stats["bySource"].setdefault(source, {"canonicalCandidates": 0, "states": {}, "reasons": {}})
             counts["canonicalCandidates"] += sign
@@ -369,6 +394,12 @@ class CheckpointState:
             for work in after:
                 self.engine.set(work, new["id"])
         elif path == "ledger/documents":
+            lifecycle = self.stats.get("lifecycle")
+            if lifecycle is not None:
+                for entry, sign in ((old, -1), (new, 1)):
+                    if entry:
+                        lifecycle["extracted"] += sign * int(bool(entry["versions"]))
+                        lifecycle["superseded"] += sign * int(any(v["status"] == "superseded" for v in entry["versions"]))
             self.changed_documents.add(key)
             self._document_indexes(key, old, False)
             self._document_indexes(key, new, True)

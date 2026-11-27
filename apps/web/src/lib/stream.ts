@@ -1,5 +1,6 @@
 import type { BaseEvent, Message } from "@ag-ui/core";
 import { z } from "zod";
+import { jurisdiction, presentation } from "./jurisdiction";
 import { safeOfficialUrl } from "./links";
 import { researchOfferSchema, type ResearchOffer } from "./research-schema";
 import {
@@ -209,9 +210,9 @@ function terminate(
 
 function recoverDialogue(state: StreamState, code?: string): StreamState | null {
   const content = code === "GREETING"
-    ? "Hello! What would you like to know about B.C. government services?"
+    ? presentation.stream.hello
     : code === "JOURNEY_REQUIRED"
-      ? "Tell me a little more about the B.C. service or topic you need help with. You can also choose a guided pathway."
+      ? presentation.stream.clarify
       : null;
   if (!content || state.messages.some((message) => message.runId === state.runId && message.role === "assistant" && message.content.trim())) return null;
   const response: ResponseContext = { version: 1, kind: "dialogue", origin: "application" };
@@ -245,6 +246,23 @@ function recoverDialogue(state: StreamState, code?: string): StreamState | null 
 export function needsSources(message: ChatMessage): boolean {
   return message.response?.kind !== "dialogue"
     && !(message.response?.kind === "handoff" && message.response.origin === "application");
+}
+
+function unavailableMessage(code: string | undefined, fallback: string): string {
+  if (jurisdiction.features.guidedJourneys) return fallback;
+  if (code === "SOURCES_UNAVAILABLE") {
+    return "Current reviewed source information is unavailable. Browse official services instead.";
+  }
+  if (code === "BUDGET_EXHAUSTED") {
+    return "The pilot has reached its daily processing allowance. Browse official services instead.";
+  }
+  if (code === "GENERAL_AGENT_NOT_CONFIGURED" || code === "CONVERSATION_AGENT_NOT_CONFIGURED") {
+    return presentation.stream.unavailable;
+  }
+  if (code === "AGENT_UNAVAILABLE") {
+    return "The assistant is unavailable. Your question has been kept. Try again or browse official services.";
+  }
+  return fallback;
 }
 
 export function streamReducer(state: StreamState, action: StreamAction): StreamState {
@@ -352,7 +370,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
       ? recoverDialogue(state, action.code) ?? terminate(
         state,
         "error",
-        action.message,
+        unavailableMessage(action.code, action.message),
         action.code,
         action.retryAt,
       )
@@ -451,7 +469,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
     if (!progress.success) return terminate(state, "error", "The assistant returned an unsupported progress update. Your question has been kept.");
     const labels = {
       connecting: "Connecting to the assistant...",
-      retrieving: "Checking official BC sources...",
+      retrieving: presentation.stream.checking,
       thinking: "Thinking...",
       preparing: "Preparing your next steps...",
       locations: "Checking published service locations...",
@@ -499,9 +517,9 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
       return { ...state, progress: "Thinking...", announcement: "Connected to the assistant." };
     case "STEP_STARTED": {
       const labels: Record<string, string> = {
-        search_approved_sources: "Checking official BC sources...",
-        search_approved_corpus: "Searching official BC sources…",
-        search: "Searching official BC sources…",
+        search_approved_sources: presentation.stream.checking,
+        search_approved_corpus: presentation.stream.searching,
+        search: presentation.stream.searching,
         retrieve: "Retrieving source information…",
         research_public_web: "Checking public information with Web IQ…",
         read_consented_context: "Checking the consented synthetic context…",
@@ -513,8 +531,8 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
     }
     case "TOOL_CALL_START": {
       const labels: Record<string, string> = {
-        search_approved_sources: "Checking official BC sources...",
-        search_approved_corpus: "Searching official BC sources…",
+        search_approved_sources: presentation.stream.checking,
+        search_approved_corpus: presentation.stream.searching,
         read_approved_source: "Reading an official source…",
         find_service_locations: "Checking published service locations…",
         build_preparation_plan: "Preparing source-backed next steps…",
@@ -594,7 +612,9 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
         return terminate(state, "interrupted", "This answer needs an action the pilot cannot perform. Use an official service handoff instead.");
       }
       const hasAnswer = state.messages.some((item) => item.runId === state.runId && item.role === "assistant" && item.content.trim());
-      if (!hasAnswer) return terminate(state, "error", "The assistant did not return an answer. Try a guided plan or rephrase your question.");
+      if (!hasAnswer) return terminate(state, "error", jurisdiction.features.guidedJourneys
+        ? "The assistant did not return an answer. Try a guided plan or rephrase your question."
+        : "The assistant did not return an answer. Browse official services or rephrase your question.");
       if (state.discoveryRevision !== null && !state.pendingDiscovery) {
         return terminate(state, "error", "Your updated context was not received. Refresh it before continuing.", "DISCOVERY_CHANGED");
       }
@@ -628,7 +648,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
       const dialogue = recoverDialogue(state, code);
       if (dialogue) return dialogue;
       const errors: Record<string, string> = {
-        GENERAL_AGENT_NOT_CONFIGURED: "General B.C. chat is not connected in this pilot. Your question has been kept. Try again later or use a guided plan.",
+        GENERAL_AGENT_NOT_CONFIGURED: presentation.stream.unavailable,
         SOURCES_UNAVAILABLE: "No current, approved evidence was found. Use a guided plan or the official service.",
         SOURCE_CONFLICT: "The source changed or conflicted during this answer. Please retry or check the official service.",
         CRITICAL_CLAIM_UNVERIFIED: "A fee, deadline or eligibility statement could not be verified. Check the official source.",
@@ -643,7 +663,10 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
         CONVERSATION_DECISION_INVALID: "The assistant couldn't verify its next step. Please retry or use a guided plan.",
         CONVERSATION_AGENT_NOT_CONFIGURED: "AI-led conversation is not connected. The guided plans remain available.",
       };
-      return terminate(state, "error", errors[code] || "The assistant couldn’t finish the answer. Your question has been kept; try again or choose a guided plan.", code);
+      const fallback = errors[code] || (jurisdiction.features.guidedJourneys
+        ? "The assistant couldn’t finish the answer. Your question has been kept; try again or choose a guided plan."
+        : "The assistant couldn’t finish the answer. Your question has been kept; try again or browse official services.");
+      return terminate(state, "error", unavailableMessage(code, fallback), code);
     }
     default:
       // Reasoning, generated UI/state, tool arguments, and browser actions never render or execute.

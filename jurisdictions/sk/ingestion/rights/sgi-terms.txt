@@ -1,0 +1,1925 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+		
+			<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html class="ltr" dir="ltr" lang="en-US">
+<head>
+	<title>Terms of use</title>
+	<meta content="initial-scale=1.0, width=device-width" name="viewport" />
+
+	<!--Add og:image property-->
+	<meta property="og:image" content="$site_logo">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<meta content="text/html; charset=UTF-8" http-equiv="content-type" />
+
+
+
+
+
+
+
+
+
+<meta content="These terms apply to your use of all of the sites and services owned or operated by Saskatchewan Government Insurance (SGI) and affiliated companies." lang="en-US" name="description" /><meta content="governance, terms of use" lang="en-US" name="keywords" />
+
+
+<link data-senna-track="temporary" href="https://sgi.sk.ca/terms" rel="canonical" />
+<meta property="og:description" content="These terms apply to your use of all of the sites and services owned or operated by Saskatchewan Government Insurance (SGI) and affiliated companies.">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:site_name" content="SGI">
+<meta property="og:title" content="Terms of use - SGI - Liferay DXP prd01">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://sgi.sk.ca/terms">
+
+
+<link href="https://sgi.sk.ca/o/sgic-desktop-theme/images/favicon.ico" rel="icon" />
+
+
+
+<link class="lfr-css-file" data-senna-track="temporary" href="https://sgi.sk.ca/o/sgic-desktop-theme/css/clay.css?browserId=other&amp;themeId=sgicdesktop_WAR_sgicdesktoptheme&amp;minifierType=css&amp;languageId=en_US&amp;b=7310&amp;t=1795020280000" id="liferayAUICSS" rel="stylesheet" type="text/css" />
+
+
+
+<link data-senna-track="temporary" href="/o/frontend-css-web/main.css?browserId=other&amp;themeId=sgicdesktop_WAR_sgicdesktoptheme&amp;minifierType=css&amp;languageId=en_US&amp;b=7310&amp;t=1791952115914" id="liferayPortalCSS" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+
+
+	
+
+	
+
+
+
+
+
+	
+
+
+
+	
+
+		<link data-senna-track="temporary" href="/combo?browserId=other&amp;minifierType=&amp;themeId=sgicdesktop_WAR_sgicdesktoptheme&amp;languageId=en_US&amp;b=7310&amp;com_liferay_portal_search_web_search_bar_portlet_SearchBarPortlet_INSTANCE_templateSearch:%2Fcss%2Fmain.css&amp;com_liferay_product_navigation_user_personal_bar_web_portlet_ProductNavigationUserPersonalBarPortlet:%2Fcss%2Fmain.css&amp;com_liferay_site_navigation_menu_web_portlet_SiteNavigationMenuPortlet:%2Fcss%2Fmain.css&amp;detect_device_upgraded_DetectDeviceUpgradedPortlet:%2Fcss%2Fmain.css&amp;t=1795020280000" id="294598c6" rel="stylesheet" type="text/css" />
+
+	
+
+
+
+
+
+
+
+<script data-senna-track="temporary" type="text/javascript">
+	// <![CDATA[
+		var Liferay = Liferay || {};
+
+		Liferay.Browser = {
+			acceptsGzip: function() {
+				return false;
+			},
+
+			
+
+			getMajorVersion: function() {
+				return 0;
+			},
+
+			getRevision: function() {
+				return '';
+			},
+			getVersion: function() {
+				return '';
+			},
+
+			
+
+			isAir: function() {
+				return false;
+			},
+			isChrome: function() {
+				return false;
+			},
+			isEdge: function() {
+				return false;
+			},
+			isFirefox: function() {
+				return false;
+			},
+			isGecko: function() {
+				return false;
+			},
+			isIe: function() {
+				return false;
+			},
+			isIphone: function() {
+				return false;
+			},
+			isLinux: function() {
+				return false;
+			},
+			isMac: function() {
+				return false;
+			},
+			isMobile: function() {
+				return false;
+			},
+			isMozilla: function() {
+				return false;
+			},
+			isOpera: function() {
+				return false;
+			},
+			isRtf: function() {
+				return false;
+			},
+			isSafari: function() {
+				return false;
+			},
+			isSun: function() {
+				return false;
+			},
+			isWebKit: function() {
+				return false;
+			},
+			isWindows: function() {
+				return false;
+			}
+		};
+
+		Liferay.Data = Liferay.Data || {};
+
+		Liferay.Data.ICONS_INLINE_SVG = true;
+
+		Liferay.Data.NAV_SELECTOR = '#navigation';
+
+		Liferay.Data.NAV_SELECTOR_MOBILE = '#navigationCollapse';
+
+		Liferay.Data.isCustomizationView = function() {
+			return false;
+		};
+
+		Liferay.Data.notices = [
+			
+
+			
+		];
+
+		Liferay.PortletKeys = {
+			DOCUMENT_LIBRARY: 'com_liferay_document_library_web_portlet_DLPortlet',
+			DYNAMIC_DATA_MAPPING: 'com_liferay_dynamic_data_mapping_web_portlet_DDMPortlet',
+			ITEM_SELECTOR: 'com_liferay_item_selector_web_portlet_ItemSelectorPortlet'
+		};
+
+		Liferay.PropsValues = {
+			JAVASCRIPT_SINGLE_PAGE_APPLICATION_TIMEOUT: 0,
+			NTLM_AUTH_ENABLED: false,
+			UPLOAD_SERVLET_REQUEST_IMPL_MAX_SIZE: 2122570000
+		};
+
+		Liferay.ThemeDisplay = {
+
+			
+
+			
+				getLayoutId: function() {
+					return '121';
+				},
+
+				
+
+				getLayoutRelativeControlPanelURL: function() {
+					return '/group/sgi/~/control_panel/manage';
+				},
+
+				getLayoutRelativeURL: function() {
+					return '/terms';
+				},
+				getLayoutURL: function() {
+					return 'https://sgi.sk.ca/terms';
+				},
+				getParentLayoutId: function() {
+					return '7';
+				},
+				isControlPanel: function() {
+					return false;
+				},
+				isPrivateLayout: function() {
+					return 'false';
+				},
+				isVirtualLayout: function() {
+					return false;
+				},
+			
+
+			getBCP47LanguageId: function() {
+				return 'en-US';
+			},
+			getCanonicalURL: function() {
+
+				
+
+				return 'https\x3a\x2f\x2fsgi\x2esk\x2eca\x2fterms';
+			},
+			getCDNBaseURL: function() {
+				return 'https://sgi.sk.ca';
+			},
+			getCDNDynamicResourcesHost: function() {
+				return '';
+			},
+			getCDNHost: function() {
+				return '';
+			},
+			getCompanyGroupId: function() {
+				return '20123';
+			},
+			getCompanyId: function() {
+				return '20097';
+			},
+			getDefaultLanguageId: function() {
+				return 'en_US';
+			},
+			getDoAsUserIdEncoded: function() {
+				return '';
+			},
+			getLanguageId: function() {
+				return 'en_US';
+			},
+			getParentGroupId: function() {
+				return '37148';
+			},
+			getPathContext: function() {
+				return '';
+			},
+			getPathImage: function() {
+				return '/image';
+			},
+			getPathJavaScript: function() {
+				return '/o/frontend-js-web';
+			},
+			getPathMain: function() {
+				return '/c';
+			},
+			getPathThemeImages: function() {
+				return 'https://sgi.sk.ca/o/sgic-desktop-theme/images';
+			},
+			getPathThemeRoot: function() {
+				return '/o/sgic-desktop-theme';
+			},
+			getPlid: function() {
+				return '272';
+			},
+			getPortalURL: function() {
+				return 'https://sgi.sk.ca';
+			},
+			getScopeGroupId: function() {
+				return '37148';
+			},
+			getScopeGroupIdOrLiveGroupId: function() {
+				return '37148';
+			},
+			getSessionId: function() {
+				return '';
+			},
+			getSiteAdminURL: function() {
+				return 'https://sgi.sk.ca/group/sgi/~/control_panel/manage?p_p_lifecycle=0&p_p_state=maximized&p_p_mode=view';
+			},
+			getSiteGroupId: function() {
+				return '37148';
+			},
+			getURLControlPanel: function() {
+				return '/group/control_panel?refererPlid=272';
+			},
+			getURLHome: function() {
+				return 'https\x3a\x2f\x2fsgi\x2esk\x2eca\x2fweb\x2fguest';
+			},
+			getUserEmailAddress: function() {
+				return '';
+			},
+			getUserId: function() {
+				return '20102';
+			},
+			getUserName: function() {
+				return '';
+			},
+			isAddSessionIdToURL: function() {
+				return false;
+			},
+			isImpersonated: function() {
+				return false;
+			},
+			isSignedIn: function() {
+				return false;
+			},
+			isStateExclusive: function() {
+				return false;
+			},
+			isStateMaximized: function() {
+				return false;
+			},
+			isStatePopUp: function() {
+				return false;
+			}
+		};
+
+		var themeDisplay = Liferay.ThemeDisplay;
+
+		Liferay.AUI = {
+
+			
+
+			getAvailableLangPath: function() {
+				return 'available_languages.jsp?browserId=other&themeId=sgicdesktop_WAR_sgicdesktoptheme&colorSchemeId=sgi-site&minifierType=js&languageId=en_US&b=7310&t=1794906969320';
+			},
+			getCombine: function() {
+				return true;
+			},
+			getComboPath: function() {
+				return '/combo/?browserId=other&minifierType=&languageId=en_US&b=7310&t=1791952116499&';
+			},
+			getDateFormat: function() {
+				return '%m/%d/%Y';
+			},
+			getEditorCKEditorPath: function() {
+				return '/o/frontend-editor-ckeditor-web';
+			},
+			getFilter: function() {
+				var filter = 'raw';
+
+				
+					
+						filter = 'min';
+					
+					
+
+				return filter;
+			},
+			getFilterConfig: function() {
+				var instance = this;
+
+				var filterConfig = null;
+
+				if (!instance.getCombine()) {
+					filterConfig = {
+						replaceStr: '.js' + instance.getStaticResourceURLParams(),
+						searchExp: '\\.js$'
+					};
+				}
+
+				return filterConfig;
+			},
+			getJavaScriptRootPath: function() {
+				return '/o/frontend-js-web';
+			},
+			getLangPath: function() {
+				return 'aui_lang.jsp?browserId=other&themeId=sgicdesktop_WAR_sgicdesktoptheme&colorSchemeId=sgi-site&minifierType=js&languageId=en_US&b=7310&t=1791952116499';
+			},
+			getPortletRootPath: function() {
+				return '/html/portlet';
+			},
+			getStaticResourceURLParams: function() {
+				return '?browserId=other&minifierType=&languageId=en_US&b=7310&t=1791952116499';
+			}
+		};
+
+		Liferay.authToken = 'sI20CGR1';
+
+		
+
+		Liferay.currentURL = '\x2fterms';
+		Liferay.currentURLEncoded = '\x252Fterms';
+	// ]]>
+</script>
+
+<script src="/o/js_loader_config?t=1794907035627" type="text/javascript"></script>
+<script data-senna-track="permanent" src="/combo?browserId=other&minifierType=js&languageId=en_US&b=7310&t=1791952116499&/o/frontend-js-aui-web/aui/aui/aui.js&/o/frontend-js-aui-web/liferay/modules.js&/o/frontend-js-aui-web/liferay/aui_sandbox.js&/o/frontend-js-aui-web/aui/attribute-base/attribute-base.js&/o/frontend-js-aui-web/aui/attribute-complex/attribute-complex.js&/o/frontend-js-aui-web/aui/attribute-core/attribute-core.js&/o/frontend-js-aui-web/aui/attribute-observable/attribute-observable.js&/o/frontend-js-aui-web/aui/attribute-extras/attribute-extras.js&/o/frontend-js-aui-web/aui/event-custom-base/event-custom-base.js&/o/frontend-js-aui-web/aui/event-custom-complex/event-custom-complex.js&/o/frontend-js-aui-web/aui/oop/oop.js&/o/frontend-js-aui-web/aui/aui-base-lang/aui-base-lang.js&/o/frontend-js-aui-web/liferay/dependency.js&/o/frontend-js-aui-web/liferay/util.js&/o/frontend-js-web/loader/config.js&/o/frontend-js-web/loader/loader.js&/o/frontend-js-web/liferay/dom_task_runner.js&/o/frontend-js-web/liferay/events.js&/o/frontend-js-web/liferay/lazy_load.js&/o/frontend-js-web/liferay/liferay.js&/o/frontend-js-web/liferay/global.bundle.js&/o/frontend-js-web/liferay/portlet.js&/o/frontend-js-web/liferay/workflow.js" type="text/javascript"></script>
+
+
+
+
+	
+
+	<script data-senna-track="temporary" src="/o/js_bundle_config?t=1794907049060" type="text/javascript"></script>
+
+
+<script data-senna-track="temporary" type="text/javascript">
+	// <![CDATA[
+		
+			
+				
+		
+
+		
+
+		
+	// ]]>
+</script>
+
+
+
+
+
+	
+		
+
+			
+
+			
+		
+		
+
+
+
+	
+		
+
+			
+
+			
+		
+	
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+	
+
+
+
+
+
+	
+
+
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link class="lfr-css-file" data-senna-track="temporary" href="https://sgi.sk.ca/o/sgic-desktop-theme/css/main.css?browserId=other&amp;themeId=sgicdesktop_WAR_sgicdesktoptheme&amp;minifierType=css&amp;languageId=en_US&amp;b=7310&amp;t=1795020280000" id="liferayThemeCSS" rel="stylesheet" type="text/css" />
+
+
+
+
+	<style data-senna-track="temporary" type="text/css">
+		.top-area{
+padding-top:40px;
+margin-bottom:24px;
+}
+a#googlesharelink{
+ display:none;
+}
+	</style>
+
+
+
+
+
+	<style data-senna-track="temporary" type="text/css">
+
+		
+
+			
+
+		
+
+			
+
+		
+
+			
+
+		
+
+			
+
+		
+
+	</style>
+
+
+<style data-senna-track="temporary" type="text/css">
+</style>
+<script type="text/javascript">
+// <![CDATA[
+Liferay.SPA = Liferay.SPA || {};
+Liferay.SPA.cacheExpirationTime = -1;
+Liferay.SPA.clearScreensCache = false;
+Liferay.SPA.debugEnabled = false;
+Liferay.SPA.excludedPaths = ["/c/document_library","/documents","/image"];
+Liferay.SPA.loginRedirect = '';
+Liferay.SPA.navigationExceptionSelectors = ':not([target="_blank"]):not([data-senna-off]):not([data-resource-href]):not([data-cke-saved-href]):not([data-cke-saved-href])';
+Liferay.SPA.requestTimeout = 0;
+Liferay.SPA.userNotification = {
+	message: 'It looks like this is taking longer than expected.',
+	timeout: 30000,
+	title: 'Oops'
+};
+// ]]>
+</script><script type="text/javascript">
+// <![CDATA[
+Liferay.Loader.require('frontend-js-spa-web@4.0.36/liferay/init.es', function(frontendJsSpaWeb4036LiferayInitEs) {
+try {
+(function() {
+var frontendJsSpaWebLiferayInitEs = frontendJsSpaWeb4036LiferayInitEs;
+frontendJsSpaWebLiferayInitEs.default.init(
+	function(app) {
+		app.setPortletsBlacklist({"com_liferay_nested_portlets_web_portlet_NestedPortletsPortlet":true,"com_liferay_site_navigation_directory_web_portlet_SitesDirectoryPortlet":true,"com_liferay_login_web_portlet_LoginPortlet":true,"com_liferay_login_web_portlet_FastLoginPortlet":true});
+		app.setValidStatusCodes([221,490,494,499,491,492,493,495,220]);
+	}
+);
+})();
+} catch (err) {
+	console.error(err);
+}
+});
+// ]]>
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script data-senna-track="temporary" type="text/javascript">
+	if (window.Analytics) {
+		window._com_liferay_document_library_analytics_isViewFileEntry = false;
+	}
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script type="text/javascript">
+// <![CDATA[
+Liferay.on(
+	'ddmFieldBlur', function(event) {
+		if (window.Analytics) {
+			Analytics.send(
+				'fieldBlurred',
+				'Form',
+				{
+					fieldName: event.fieldName,
+					focusDuration: event.focusDuration,
+					formId: event.formId,
+					page: event.page
+				}
+			);
+		}
+	}
+);
+
+Liferay.on(
+	'ddmFieldFocus', function(event) {
+		if (window.Analytics) {
+			Analytics.send(
+				'fieldFocused',
+				'Form',
+				{
+					fieldName: event.fieldName,
+					formId: event.formId,
+					page: event.page
+				}
+			);
+		}
+	}
+);
+
+Liferay.on(
+	'ddmFormPageShow', function(event) {
+		if (window.Analytics) {
+			Analytics.send(
+				'pageViewed',
+				'Form',
+				{
+					formId: event.formId,
+					page: event.page,
+					title: event.title
+				}
+			);
+		}
+	}
+);
+
+Liferay.on(
+	'ddmFormSubmit', function(event) {
+		if (window.Analytics) {
+			Analytics.send(
+				'formSubmitted',
+				'Form',
+				{
+					formId: event.formId
+				}
+			);
+		}
+	}
+);
+
+Liferay.on(
+	'ddmFormView', function(event) {
+		if (window.Analytics) {
+			Analytics.send(
+				'formViewed',
+				'Form',
+				{
+					formId: event.formId,
+					title: event.title
+				}
+			);
+		}
+	}
+);
+// ]]>
+</script><meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1" /><meta http-equiv="X-UA-Compatible" content="IE=Edge" /><meta name="HandheldFriendly" content="True"><link href="https://sgi.sk.ca/o/sgic-desktop-theme/images/sgi-favicon.ico" rel="icon" /><meta name="MobileOptimized" content="500"><meta name="format-detection" content="telephone=no"><meta name="author" content="SGI"><meta name="rating" content="General"><meta name='subject' content='Insurance'><!-- Facebook Meta Start --><meta property="og:title" content="Terms of use"><meta property="og:url" content="sgi.sk.ca"><meta property="og:description" content="These terms apply to your use of all of the sites and services owned or operated by Saskatchewan Government Insurance (SGI) and affiliated companies."><meta property="og:type"   content="website" /> <!-- Twitter Meta --><meta name="twitter:card" content="summary"><meta name="twitter:site" content="@SGI_CANADA"><meta property="og:site_name" content="SGI"><meta name="twitter:description" content="These terms apply to your use of all of the sites and services owned or operated by Saskatchewan Government Insurance (SGI) and affiliated companies."><meta name="twitter:title" content="Terms of use"><meta name="twitter:url" content="sgi.sk.ca"><meta name="twitter:image:src" content="/image/layout_set_logo?img_id=7405256&t=1795029948131"><meta name="msapplication-TileColor" content="#FFFFFF"><meta name="msapplication-TileImage" content="https://sgi.sk.ca/o/sgic-desktop-theme/images/sgi-72-72.png"><!-- For iPad with high-resolution Retina display running iOS >= 7 --><link rel="apple-touch-icon" sizes="72x72" href="https://sgi.sk.ca/o/sgic-desktop-theme/images/sgi-72-72.png" /><link rel="apple-touch-icon" sizes="114x114" href="https://sgi.sk.ca/o/sgic-desktop-theme/images/sgi-114-114.png" />
+
+
+	<!-- Common Style Lib -->
+	
+	<link rel="stylesheet" href="https://sgi.sk.ca/o/sgic-desktop-theme/css/vendors/custombox/custombox.css?themeId=themeDisplay.getThemeId()&minifierType=css&languageId=themeDisplay.getLanguageId()">
+	<link rel="stylesheet" href="https://sgi.sk.ca/o/sgic-desktop-theme/css/vendors/select2/css/select2.min.css?themeId=themeDisplay.getThemeId()&minifierType=css&languageId=themeDisplay.getLanguageId()">
+	<link rel="stylesheet" href="https://sgi.sk.ca/o/sgic-desktop-theme/css/vendors/utilcarousel/util.carousel.css?themeId=themeDisplay.getThemeId()&minifierType=css&languageId=themeDisplay.getLanguageId()">
+	<link rel="stylesheet" href="https://sgi.sk.ca/o/sgic-desktop-theme/css/vendors/photoswipe/photoswipe.css?themeId=themeDisplay.getThemeId()&minifierType=css&languageId=themeDisplay.getLanguageId()">
+	<link rel="stylesheet" href="https://sgi.sk.ca/o/sgic-desktop-theme/css/vendors/photoswipe/default-skin.css?themeId=themeDisplay.getThemeId()&minifierType=css&languageId=themeDisplay.getLanguageId()">
+	<link rel="stylesheet" href="https://sgi.sk.ca/o/sgic-desktop-theme/css/vendors/malihu_custom_scrollbar/jquery.mCustomScrollbar.min.css?themeId=themeDisplay.getThemeId()&minifierType=css&languageId=themeDisplay.getLanguageId()">
+
+	<!-- FONT -->
+    <link rel="preload" href="/o/sgic-desktop-theme/fonts/OpenSans-Regular.ttf" as="font" type="font/ttf" crossorigin>
+	<link rel="stylesheet preload prefetch" href="https://sgi.sk.ca/o/sgic-desktop-theme/css/vendors/icomoon/fonts/sgi_icon_font.woff?3gm3ru" as="style" type="font/woff" crossorigin>
+
+	<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/jquery-2.2.1.min.js"></script>
+	<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/angular.min.js"></script>
+	<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/picturefill.min.js"></script>
+	<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/custombox/custombox.js?themeId=themeDisplay.getThemeId()&minifierType=js&languageId=themeDisplay.getLanguageId()"></script>
+	<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/select2/js/select2.full.js?themeId=themeDisplay.getThemeId()&minifierType=js&languageId=themeDisplay.getLanguageId()"></script>
+	<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/utilcarousel/jquery.utilcarousel.min.js"></script>
+	<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/photoswipe/photoswipe.js?themeId=themeDisplay.getThemeId()&minifierType=js&languageId=themeDisplay.getLanguageId()"></script>
+	<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/photoswipe/default-skin.js?themeId=themeDisplay.getThemeId()&minifierType=js&languageId=themeDisplay.getLanguageId()"></script>
+	<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/malihu_custom_scrollbar/jquery.mCustomScrollbar.concat.min.js"></script>
+
+	<script src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/momentjs/moment.js"></script>
+	<script src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/momentjs/moment-timezone.js"></script>
+
+	<!--  Desktop theme -->
+
+		<!-- Mobile theme -->
+
+	<!-- JavaScript  -->
+
+	<!-- remove no geoip2 for elvis-->
+		<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/geoip2.js"></script>
+	<!-- end -->
+
+	<!-- SGI CANADA Script -->
+	
+	<!-- SGI Script -->
+		<script type="text/javascript" src="https://nebula-cdn.kampyle.com/wc/11230/onsite/embed.js" async></script>
+		<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/customizeMedallia.js?abd=123"></script>
+		<noscript><meta http-equiv="refresh" content="0; url=/o/sgic-desktop-theme/error/noscriptsgi.html" /></noscript>
+	
+	<!-- ELVIS Script -->
+	
+	
+		<!-- SGI Google Tag Manager -->
+			<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+			new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+			j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+			'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+			})(window,document,'script','dataLayer','GTM-K3R6S7Z');</script>
+		<!-- End Google Tag Manager -->
+	
+
+</head>
+
+		<body class="other controls-visible sgi yui3-skin-sam signed-out public-page site sgicdesktoptheme">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	<nav aria-label="Quick Links" class="quick-access-nav" id="didt_quickAccessNav">
+		<h1 class="hide-accessible">Navigation</h1>
+
+		<ul>
+			
+				<li><a href="#main-content">Skip to Content</a></li>
+			
+
+			
+		</ul>
+	</nav>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		<div id="outer-div">
+			<input type="hidden" class="siteCssClass" id="color-scheme"  value="sgi">
+			<input type="hidden" class="mapsApiKey" id="maps-api-key"  value="AIzaSyCm6bGJLPCL0ZzTsRtpaura8rno3JyNmuI">
+			<input type="hidden" class="mapsApiKey2" id="maps-api-key2"  value="AIzaSyCAGpqQsF389xPSe66zWbtgleZ7iHyVOP4">
+			<input type="hidden" class="portletGeoCodeApiKey" id="portlet-geocode-apikey"  value="AIzaSyBs27nhIOB_Ssqtr6mAZYjkuqPY4I06OaU">
+			<input type="hidden" class="sheetsApiKey" id="sheets-api-key"  value="AIzaSyCInR0kjJJ2Co6aQAXjLBQ14CEHam3K0xg">
+			<input type="hidden" class="mobileThemesApiKey" id="mobile-themes-api-key"  value="AIzaSyB2pU3Wj0r9QHj9K7BZGLrO2t0NQGqtvdU">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="columns-1" id="main-content" role="main">
+	<div class="portlet-layout row">
+		<div class="col-md-12 portlet-column portlet-column-only" id="column-1">
+			<div class="portlet-dropzone portlet-column-content portlet-column-content-only" id="layout-column_column-1">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+	<div class="portlet-boundary portlet-boundary_detect_device_upgraded_DetectDeviceUpgradedPortlet_  portlet-static portlet-static-start portlet-barebone detect-device-portlet " id="p_p_id_detect_device_upgraded_DetectDeviceUpgradedPortlet_">
+		<span id="p_detect_device_upgraded_DetectDeviceUpgradedPortlet"></span>
+
+
+
+
+	
+
+	
+		
+			
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+		
+<section class="portlet" id="portlet_detect_device_upgraded_DetectDeviceUpgradedPortlet">
+
+
+	<div class="portlet-content">
+
+
+		
+			<div class=" portlet-content-container">
+				
+
+
+	<div class="portlet-body">
+
+
+
+	
+		
+			
+				
+					
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+				
+
+				
+					
+						
+
+
+	
+
+		
+
+<div class="hidden">
+	<div id="deviceModel">
+			
+	</div> 
+	<div id="browserName">
+		
+	</div>
+	<div id="browserVersion">
+		
+	</div>
+	<div id="osName">
+		null
+	</div>
+	<div id="isInternal">
+		null
+	</div>
+</div> 
+
+ <script type="text/javascript">
+ 	var browserName = document.getElementById("browserName").innerHTML;
+ 	var browserVersion = document.getElementById("browserVersion").innerHTML;
+ 	if (!String.prototype.trim) {
+ 		  String.prototype.trim = function () {
+ 		    return this.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '');
+ 		  };
+ 	}
+ 	if(browserName.trim() == "Internet Explorer"){
+	 	if(browserVersion != null && browserVersion.trim().length > 0) {
+	 		if(browserVersion.indexOf('.') != -1) {
+				browserVersion = browserVersion.trim().substring(0, browserVersion.indexOf('.') - 1);
+				if((browserVersion.length == 1) && (browserVersion < "9")) {
+					window.location="/o/sgic-desktop-theme/error/unsupported-jsc.html";
+				}
+	 		}
+	 	}
+ 	}
+ </script>
+ 
+
+	
+	
+					
+				
+			
+		
+	
+	
+
+
+	</div>
+
+			</div>
+		
+	</div>
+</section>
+	
+
+		
+		
+
+
+
+
+
+
+
+	</div>
+
+
+
+
+
+
+</div>
+		</div>
+	</div>
+</div>
+
+<form action="#" aria-hidden="true" class="hide" id="hrefFm" method="post" name="hrefFm"><span></span><input hidden type="submit"/></form>
+
+	
+		</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+	
+
+
+
+
+
+	
+
+
+
+	
+
+
+
+
+
+
+
+
+
+	
+
+	
+
+
+
+
+
+	
+
+
+
+	
+
+
+
+
+
+
+
+
+
+<script type="text/javascript">
+// <![CDATA[
+
+	
+		
+
+			
+
+			
+		
+	
+
+// ]]>
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script type="text/javascript">
+	// <![CDATA[
+
+		
+
+		Liferay.currentURL = '\x2fterms';
+		Liferay.currentURLEncoded = '\x252Fterms';
+
+	// ]]>
+</script>
+
+
+
+	
+
+	
+
+	<script type="text/javascript">
+		// <![CDATA[
+			
+				
+
+				
+
+				
+			
+		// ]]>
+	</script>
+
+
+
+
+
+
+
+
+
+
+
+
+	
+
+	
+
+		
+
+		
+	
+
+
+<script type="text/javascript">
+// <![CDATA[
+(function() {var $ = AUI.$;var _ = AUI._;
+	var onDestroyPortlet = function () {
+		Liferay.detach('messagePosted', onMessagePosted);
+		Liferay.detach('destroyPortlet', onDestroyPortlet);
+	};
+
+	Liferay.on('destroyPortlet', onDestroyPortlet);
+
+	var onMessagePosted = function (event) {
+		if (window.Analytics) {
+			Analytics.send('posted', 'Comment', {
+				className: event.className,
+				classPK: event.classPK,
+				commentId: event.commentId,
+				text: event.text,
+			});
+		}
+	};
+
+	Liferay.on('messagePosted', onMessagePosted);
+})();(function() {var $ = AUI.$;var _ = AUI._;
+	var pathnameRegexp = /\/documents\/(\d+)\/(\d+)\/(.+?)\/([^&]+)/;
+
+	function handleDownloadClick(event) {
+		if (event.target.nodeName.toLowerCase() === 'a' && window.Analytics) {
+			var anchor = event.target;
+			var match = pathnameRegexp.exec(anchor.pathname);
+
+			var fileEntryId =
+				anchor.dataset.analyticsFileEntryId ||
+				(anchor.parentElement &&
+					anchor.parentElement.dataset.analyticsFileEntryId);
+
+			if (fileEntryId && match) {
+				var getParameterValue = function (parameterName) {
+					var result = null;
+
+					anchor.search
+						.substr(1)
+						.split('&')
+						.forEach(function (item) {
+							var tmp = item.split('=');
+
+							if (tmp[0] === parameterName) {
+								result = decodeURIComponent(tmp[1]);
+							}
+						});
+
+					return result;
+				};
+
+				Analytics.send('documentDownloaded', 'Document', {
+					groupId: match[1],
+					fileEntryId: fileEntryId,
+					preview: !!window._com_liferay_document_library_analytics_isViewFileEntry,
+					title: decodeURIComponent(match[3].replace(/\+/gi, ' ')),
+					version: getParameterValue('version'),
+				});
+			}
+		}
+	}
+
+	Liferay.once('destroyPortlet', function () {
+		document.body.removeEventListener('click', handleDownloadClick);
+	});
+
+	Liferay.once('portletReady', function () {
+		document.body.addEventListener('click', handleDownloadClick);
+	});
+})();(function() {var $ = AUI.$;var _ = AUI._;
+	var onVote = function (event) {
+		if (window.Analytics) {
+			Analytics.send('VOTE', 'Ratings', {
+				className: event.className,
+				classPK: event.classPK,
+				ratingType: event.ratingType,
+				score: event.score,
+			});
+		}
+	};
+
+	var onDestroyPortlet = function () {
+		Liferay.detach('ratings:vote', onVote);
+		Liferay.detach('destroyPortlet', onDestroyPortlet);
+	};
+
+	Liferay.on('ratings:vote', onVote);
+	Liferay.on('destroyPortlet', onDestroyPortlet);
+})();(function() {var $ = AUI.$;var _ = AUI._;
+	var onShare = function (data) {
+		if (window.Analytics) {
+			Analytics.send('shared', 'SocialBookmarks', {
+				className: data.className,
+				classPK: data.classPK,
+				type: data.type,
+				url: data.url,
+			});
+		}
+	};
+
+	var onDestroyPortlet = function () {
+		Liferay.detach('socialBookmarks:share', onShare);
+		Liferay.detach('destroyPortlet', onDestroyPortlet);
+	};
+
+	Liferay.on('socialBookmarks:share', onShare);
+	Liferay.on('destroyPortlet', onDestroyPortlet);
+})();
+	if (window.svg4everybody && Liferay.Data.ICONS_INLINE_SVG) {
+		svg4everybody(
+			{
+				polyfill: true,
+				validate: function (src, svg, use) {
+					return !src || !src.startsWith('#');
+				}
+			}
+		);
+	}
+
+	
+		Liferay.Portlet.register('detect_device_upgraded_DetectDeviceUpgradedPortlet');
+	
+
+	Liferay.Portlet.onLoad(
+		{
+			canEditTitle: false,
+			columnPos: 0,
+			isStatic: 'end',
+			namespacedId: 'p_p_id_detect_device_upgraded_DetectDeviceUpgradedPortlet_',
+			portletId: 'detect_device_upgraded_DetectDeviceUpgradedPortlet',
+			refreshURL: '\x2fc\x2fportal\x2frender_portlet\x3fp_l_id\x3d272\x26p_p_id\x3ddetect_device_upgraded_DetectDeviceUpgradedPortlet\x26p_p_lifecycle\x3d0\x26p_t_lifecycle\x3d0\x26p_p_state\x3dnormal\x26p_p_mode\x3dview\x26p_p_col_id\x3dcolumn-1\x26p_p_col_pos\x3d0\x26p_p_col_count\x3d1\x26p_p_static\x3d1\x26p_p_static_start\x3d1\x26p_p_isolated\x3d1\x26currentURL\x3d\x252Fterms',
+			refreshURLData: {}
+		}
+	);
+Liferay.Loader.require('metal-dom/src/all/dom', 'frontend-js-web/liferay/toast/commands/OpenToast.es', function(metalDomSrcAllDom, frontendJsWebLiferayToastCommandsOpenToastEs) {
+try {
+(function() {
+var dom = metalDomSrcAllDom;
+var $ = AUI.$;var _ = AUI._;
+	var focusInPortletHandler = dom.delegate(
+		document,
+		'focusin',
+		'.portlet',
+		function(event) {
+			dom.addClasses(dom.closest(event.delegateTarget, '.portlet'), 'open');
+		}
+	);
+
+	var focusOutPortletHandler = dom.delegate(
+		document,
+		'focusout',
+		'.portlet',
+		function(event) {
+			dom.removeClasses(dom.closest(event.delegateTarget, '.portlet'), 'open');
+		}
+	);
+
+})();
+(function() {
+var toastCommands = frontendJsWebLiferayToastCommandsOpenToastEs;
+var $ = AUI.$;var _ = AUI._;
+			AUI().use(
+				'liferay-session',
+				function() {
+					Liferay.Session = new Liferay.SessionBase(
+						{
+							autoExtend: true,
+							redirectOnExpire: false,
+							redirectUrl: 'https\x3a\x2f\x2fsgi\x2esk\x2eca\x2fweb\x2fguest',
+							sessionLength: 7200,
+							sessionTimeoutOffset: 70,
+							warningLength: 0
+						}
+					);
+
+					
+				}
+			);
+		
+})();
+} catch (err) {
+	console.error(err);
+}
+});AUI().use('liferay-menu', 'aui-base', function(A) {(function() {var $ = AUI.$;var _ = AUI._;
+	if (A.UA.mobile) {
+		Liferay.Util.addInputCancel();
+	}
+})();(function() {var $ = AUI.$;var _ = AUI._;
+	new Liferay.Menu();
+
+	var liferayNotices = Liferay.Data.notices;
+
+	for (var i = 0; i < liferayNotices.length; i++) {
+		Liferay.Util.openToast(liferayNotices[i]);
+	}
+
+})();});
+// ]]>
+</script>
+
+
+
+
+
+
+
+
+
+<script src="https://sgi.sk.ca/o/sgic-desktop-theme/js/main.js?browserId=other&amp;minifierType=js&amp;languageId=en_US&amp;b=7310&amp;t=1795020280000" type="text/javascript"></script>
+
+
+
+
+<script type="text/javascript">
+	// <![CDATA[
+		AUI().use(
+			'aui-base',
+			function(A) {
+				var frameElement = window.frameElement;
+
+				if (frameElement && frameElement.getAttribute('id') === 'simulationDeviceIframe') {
+					A.getBody().addClass('lfr-has-simulation-panel');
+				}
+			}
+		);
+	// ]]>
+</script><script type="text/javascript">
+// <![CDATA[
+Liferay.Loader.require('frontend-js-tabs-support-web@1.0.9/index', function(frontendJsTabsSupportWeb109Index) {
+try {
+(function() {
+var TabsProvider = frontendJsTabsSupportWeb109Index;
+TabsProvider.default()
+})();
+} catch (err) {
+	console.error(err);
+}
+});
+// ]]>
+</script><script type="text/javascript">
+// <![CDATA[
+Liferay.Loader.require('frontend-js-tooltip-support-web@3.0.5/index', function(frontendJsTooltipSupportWeb305Index) {
+try {
+(function() {
+var TooltipSupport = frontendJsTooltipSupportWeb305Index;
+TooltipSupport.default()
+})();
+} catch (err) {
+	console.error(err);
+}
+});
+// ]]>
+</script><script type="text/javascript">
+// <![CDATA[
+Liferay.Loader.require('frontend-js-dropdown-support-web@1.0.9/index', function(frontendJsDropdownSupportWeb109Index) {
+try {
+(function() {
+var DropdownProvider = frontendJsDropdownSupportWeb109Index;
+DropdownProvider.default()
+})();
+} catch (err) {
+	console.error(err);
+}
+});
+// ]]>
+</script><script type="text/javascript">
+// <![CDATA[
+Liferay.Loader.require('frontend-js-collapse-support-web@1.0.11/index', function(frontendJsCollapseSupportWeb1011Index) {
+try {
+(function() {
+var CollapseProvider = frontendJsCollapseSupportWeb1011Index;
+CollapseProvider.default()
+})();
+} catch (err) {
+	console.error(err);
+}
+});
+// ]]>
+</script><script type="text/javascript">
+// <![CDATA[
+Liferay.Loader.require('frontend-js-alert-support-web@1.0.8/index', function(frontendJsAlertSupportWeb108Index) {
+try {
+(function() {
+var AlertProvider = frontendJsAlertSupportWeb108Index;
+AlertProvider.default()
+})();
+} catch (err) {
+	console.error(err);
+}
+});
+// ]]>
+</script><script type="text/javascript">
+// <![CDATA[
+Liferay.Loader.require('remote-app-support-web@1.0.6/index', function(remoteAppSupportWeb106Index) {
+try {
+(function() {
+var RemoteAppSupport = remoteAppSupportWeb106Index;
+RemoteAppSupport.default()
+})();
+} catch (err) {
+	console.error(err);
+}
+});
+// ]]>
+</script>			<!-- Google tag (gtag.js) -->
+			<script async src="https://www.googletagmanager.com/gtag/js?id=G-28HHHWM5MJ"></script>
+			<script>
+				window.dataLayer = window.dataLayer || [];
+				function gtag(){dataLayer.push(arguments);}
+				gtag('js', new Date());
+				gtag('config', 'G-28HHHWM5MJ');
+			</script>
+			
+			<!-- Google Tag Manager (noscript) -->
+			<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-K3R6S7Z"
+			height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+			<!-- End Google Tag Manager (noscript) -->
+		<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/vendors/url.min.js"></script>
+		<script type="text/javascript" src="https://sgi.sk.ca/o/sgic-desktop-theme/js/predictSearch.js?papa=471"></script>
+	</body>
+
+</html>
+
+
+		
+	
+

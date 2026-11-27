@@ -7,13 +7,9 @@ import { getLocations } from "@/lib/api";
 import type { Catalog, Location } from "@/lib/contract";
 import { formatDate } from "@/lib/links";
 import { OfficialLink } from "./official-link";
+import { presentation } from "@/lib/jurisdiction";
 
-export const serviceLabels: Record<string, string> = {
-  "icbc-licensing": "ICBC driver licensing",
-  "income-assistance": "Income assistance",
-  "bc-services-card": "BC Services Card account / ID verification",
-  bceid: "BCeID",
-};
+export const serviceLabels: Record<string, string> = presentation.serviceLabels;
 
 export function filterLocations(locations: Location[], service: string, municipality: string): Location[] {
   return locations.filter((location) =>
@@ -57,7 +53,7 @@ export function LocationFinder({ catalog }: { catalog: Catalog }) {
   return (
     <section className="location-finder" aria-labelledby="locations-heading">
       <h2 id="locations-heading">Find an office that can help</h2>
-      <p>Filter the {catalog.locations.length}-office curated snapshot by service, then municipality. This is not a complete or live directory. BC Services Card support here means account setup or ID verification, not photo-card issuance.</p>
+      <p>Filter the {catalog.locations.length}-office curated snapshot by service, then municipality. This is not a complete or live directory. {presentation.locationIntro}</p>
       <form className="location-filters" onSubmit={(event) => { event.preventDefault(); void find(); }}>
         <label>Service<select value={service} onChange={(event) => setService(event.target.value)}>
           <option value="">Any supported service</option>
@@ -71,7 +67,7 @@ export function LocationFinder({ catalog }: { catalog: Catalog }) {
       </form>
       <p className="location-result-count" role="status">{busy ? "Checking published location records…" : `${locations.length} ${locations.length === 1 ? "location" : "locations"} in these results`}</p>
       {error && <p className="inline-notice" role="status">{error}</p>}
-      {!busy && !locations.length && <p className="empty-state">No matching office is verified in this snapshot. Try another filter or use the official Service BC directory. Missing information does not mean a service is unavailable everywhere.</p>}
+      {!busy && !locations.length && <p className="empty-state">{presentation.locationEmpty}</p>}
       <ul className="location-results">
         {(expanded ? locations : locations.slice(0, 3)).map((location) => {
           const source = catalog.sources.find((item) => location.sourceIds.includes(item.id));

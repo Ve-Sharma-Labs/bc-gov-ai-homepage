@@ -11,6 +11,7 @@ import { CitizenContextControl, SyntheticContextBanner } from "./citizen-context
 import { AI_PROCESSING_NOTICE, ConversationDetailsContent } from "./ai-conversation";
 import { useAssistant } from "./assistant-provider";
 import { FooterCredit } from "./chrome";
+import { jurisdiction } from "@/lib/jurisdiction";
 
 interface Position { top: number; left: number; width: number; docked: boolean; keyboard: number }
 
@@ -136,7 +137,7 @@ export function ComposerDock() {
       {isChat && <footer className="chat-composer-footer"><div><Link href="/about#privacy">Privacy</Link><span aria-hidden="true">·</span><Link href="/how-it-works">How it works</Link></div><FooterCredit /></footer>}
       {assistant.notice && !isChat && <div className="composer-notice" role="status">
         <div><CircleHelp size={18} aria-hidden="true" /><p>{assistant.notice}</p></div>
-        <div className="notice-actions"><Link href="/#journeys">Explore guided plans</Link><button type="button" onClick={() => { void assistant.load(); }}>Retry connection</button><button type="button" aria-label="Dismiss notice" onClick={() => assistant.setNotice("")}><X size={16} aria-hidden="true" /></button></div>
+        <div className="notice-actions"><Link href={jurisdiction.features.guidedJourneys ? "/#journeys" : "/services"}>{jurisdiction.features.guidedJourneys ? "Explore guided plans" : "Browse official services"}</Link><button type="button" onClick={() => { void assistant.load(); }}>Retry connection</button><button type="button" aria-label="Dismiss notice" onClick={() => assistant.setNotice("")}><X size={16} aria-hidden="true" /></button></div>
       </div>}
     </motion.div>
   );

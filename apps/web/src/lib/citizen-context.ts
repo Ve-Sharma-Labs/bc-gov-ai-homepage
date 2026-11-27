@@ -1,3 +1,4 @@
+import { jurisdiction, presentation } from "./jurisdiction";
 import type {
   ConsentScope,
   ContextCategory,
@@ -14,8 +15,8 @@ export const contextCategoryDetails: Record<ContextCategory, {
   scope: ConsentScope;
 }> = {
   "identity-residency": {
-    label: "Identity and B.C. residency",
-    reason: "Confirm the fictional resident and B.C. service pathway.",
+    label: presentation.identityLabel,
+    reason: presentation.identityReason,
     scope: "identity.read",
   },
   "household-dependants": {
@@ -128,7 +129,7 @@ export function scopesToCategories(scopes: Iterable<ConsentScope>): ContextCateg
 export function humanizeContextIdentifier(value: string): string {
   const words = value
     .replace(/[._-]+/gu, " ")
-    .replace(/\b(?:bc)\b/giu, "B.C.")
+    .replace(/\b(?:bc)\b/giu, jurisdiction.inlineName)
     .trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Information";
 }
@@ -137,5 +138,5 @@ export function humanizeContextPurpose(value: string): string {
   return value
     .replace(/^personalize-/u, "")
     .replace(/[._-]+/gu, " ")
-    .replace(/\bbc\b/giu, "B.C.");
+    .replace(/\bbc\b/giu, jurisdiction.inlineName);
 }

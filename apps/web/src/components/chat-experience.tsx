@@ -1,4 +1,5 @@
 "use client";
+import { jurisdiction, presentation } from "@/lib/jurisdiction";
 
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
@@ -55,8 +56,8 @@ export function ChatExperience() {
       {contextExpired && <ResetDialog onReset={reset} />}
       {purposeChanged && <Button variant="outline" disabled={assistant.busy} onMouseDown={retainComposerFocus} onClick={() => { void assistant.clearContext(); }}>Continue anonymously</Button>}
       {!allowanceExhausted && !contextChanged && !contextExpired && !purposeChanged && <Button variant="outline" disabled={assistant.busy || !assistant.draft.trim()} onMouseDown={retainComposerFocus} onClick={() => { void assistant.submit(); }}><RotateCcw size={15} aria-hidden="true" />Try again</Button>}
-      <Link href="/#journeys">Use a guided plan <ArrowRight size={16} aria-hidden="true" /></Link>
-      {allowanceExhausted && <Link href="/services">Browse official services <ArrowRight size={16} aria-hidden="true" /></Link>}
+      {jurisdiction.features.guidedJourneys && <Link href="/#journeys">Use a guided plan <ArrowRight size={16} aria-hidden="true" /></Link>}
+      {(allowanceExhausted || !jurisdiction.features.guidedJourneys) && <Link href="/services">Browse official services <ArrowRight size={16} aria-hidden="true" /></Link>}
     </div>
   </div>;
   return <section className={`chat-page${hasMessages ? "" : " chat-empty"}`} aria-labelledby="chat-heading">
@@ -89,7 +90,7 @@ export function ChatExperience() {
     {hasMessages && <div id={examplesId} hidden={!examplesOpen}>
       <ConversationStarters onPrepared={() => setExamplesOpen(false)} />
     </div>}
-    <h1 id="chat-heading" className={hasMessages ? "sr-only" : ""}>{hasMessages ? "Conversation with the BC service assistant" : "How can we help?"}</h1>
+    <h1 id="chat-heading" className={hasMessages ? "sr-only" : ""}>{hasMessages ? presentation.conversationLabel : "How can we help?"}</h1>
     {!hasMessages && <div className="chat-empty-copy">
       <p>Tell me what you need. We can work through the next step together.</p>
     </div>}

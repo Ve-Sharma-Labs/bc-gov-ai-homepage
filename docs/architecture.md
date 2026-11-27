@@ -202,8 +202,10 @@ overwrite this health assessment with a document-count shortcut.
 When metrics and Search are configured, an owned lifespan task checks source
 health on startup and every five minutes, even with no user traffic. It records
 `bc.sources.checked` operational events and `bc.sources.checks`,
-`bc.sources.usable_documents`, and `bc.sources.hours_to_expiry` metrics. Operators
-should investigate zero usable documents, failed checks, or an expiring status;
+`bc.sources.usable_documents`, `bc.sources.expired_documents`,
+`bc.sources.missing_sources`, and `bc.sources.hours_to_expiry` metrics. The
+counts do not contain source text or resident queries. Operators should
+investigate expired documents, missing source coverage, failed checks, or an expiring status;
 missing telemetry is not a healthy check. This task performs no model/embedding
 calls, acquisition, publication, or automatic date updates.
 

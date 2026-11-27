@@ -11,15 +11,15 @@ from bc_ingestion.vectors import azure_embedder, enrich_documents, validate_vect
 class VectorTests(unittest.TestCase):
     def test_native_vector_schema_matches_api_field_and_dimensions(self):
         try:
-            schema = build_index("bc-test", 3).serialize()
+            schema = build_index("bc-test", 3)
         except ImportError:
             self.skipTest("Optional Azure SDK is not installed")
-        fields = {field["name"]: field for field in schema["fields"]}
-        self.assertEqual(fields["contentVector"]["dimensions"], 3)
-        self.assertEqual(fields["contentVector"]["type"], "Collection(Edm.Single)")
-        self.assertEqual(fields["contentVector"]["vectorSearchProfile"], "bc-vector-profile")
-        self.assertEqual(schema["vectorSearch"]["profiles"][0]["algorithm"], "bc-hnsw")
-        self.assertTrue(fields["status"]["filterable"])
+        fields = {field.name: field for field in schema.fields}
+        self.assertEqual(fields["contentVector"].vector_search_dimensions, 3)
+        self.assertEqual(fields["contentVector"].type, "Collection(Edm.Single)")
+        self.assertEqual(fields["contentVector"].vector_search_profile_name, "bc-vector-profile")
+        self.assertEqual(schema.vector_search.profiles[0].algorithm_configuration_name, "bc-hnsw")
+        self.assertTrue(fields["status"].filterable)
 
     def test_enrichment_does_not_mutate_reviewed_documents(self):
         documents = [{"id": "fixture", "status": "active", "content": "Synthetic reviewed content."}]

@@ -1,5 +1,6 @@
 export type Theme = "light" | "dark" | "system";
-export const themeStorageKey = "bc-service-theme";
+import { jurisdiction } from "./jurisdiction";
+export const themeStorageKey = `${jurisdiction.id}-service-theme`;
 
 export function validTheme(value: unknown): Theme {
   return value === "light" || value === "dark" ? value : "system";

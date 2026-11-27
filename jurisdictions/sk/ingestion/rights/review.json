@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 3,
+  "jurisdictionId": "sk",
+  "programmeHash": "06ffc1eaad223dd58759aab279c4576c6534fdd92f034eafd505c9af677c0706",
+  "packIdentity": {
+    "jurisdictionId": "sk",
+    "manifestHash": "08538c86d35d97cfc802b96969a67fb28331422e44ccd4cfc40ec060a7113877"
+  },
+  "reviewId": "user-attestation:8fe4e770-db65-43f6-9ba5-99e84c9bbed7",
+  "reviewer": "User-attested authorization, recorded by assistant",
+  "reviewedAt": "2026-11-24T18:12:33Z",
+  "expiresAt": "2026-12-23T18:13:33Z",
+  "revocation": {
+    "status": "active",
+    "reference": "user-attestation:8fe4e770-db65-43f6-9ba5-99e84c9bbed7",
+    "revokedAt": null
+  },
+  "evidence": [
+    {
+      "id": "sk-terms",
+      "kind": "terms",
+      "host": "www.saskatchewan.ca",
+      "url": "https://www.saskatchewan.ca/terms-of-use",
+      "file": "sk-terms.txt",
+      "sha256": "0d4dbb0876b7df54e612ff9caa3f497721c267f50203f42db27661e245c8f536",
+      "capturedAt": "2026-11-24T06:38:25Z",
+      "mediaType": "text/html",
+      "publisherReference": "https://www.saskatchewan.ca/terms-of-use",
+      "permittedOperations": []
+    },
+    {
+      "id": "sk-robots",
+      "kind": "robots",
+      "host": "www.saskatchewan.ca",
+      "url": "https://www.saskatchewan.ca/robots.txt",
+      "file": "sk-robots.txt",
+      "sha256": "4bed4026cdd93617c82037fe89aa372ea0f3e6415eb36293eca5e2a9adef3901",
+      "capturedAt": "2026-11-24T06:37:54Z",
+      "mediaType": "text/plain",
+      "publisherReference": "https://www.saskatchewan.ca/robots.txt",
+      "permittedOperations": []
+    },
+    {
+      "id": "sgi-terms",
+      "kind": "terms",
+      "host": "sgi.sk.ca",
+      "url": "https://sgi.sk.ca/terms",
+      "file": "sgi-terms.txt",
+      "sha256": "13b6c147104a4e83be04102b4798ed75550349366538c085804b13a60399eb81",
+      "capturedAt": "2026-11-24T06:42:21Z",
+      "mediaType": "text/html",
+      "publisherReference": "https://sgi.sk.ca/terms",
+      "permittedOperations": []
+    },
+    {
+      "id": "sgi-robots",
+      "kind": "robots",
+      "host": "sgi.sk.ca",
+      "url": "https://sgi.sk.ca/robots.txt",
+      "file": "sgi-robots.txt",
+      "sha256": "e6239139044997863c07dd45e185406bc6cb8a9e3500ccd86b571080e8e50ecb",
+      "capturedAt": "2026-11-24T06:38:30Z",
+      "mediaType": "text/plain",
+      "publisherReference": "https://sgi.sk.ca/robots.txt",
+      "permittedOperations": []
+    },
+    {
+      "id": "ehealth-terms",
+      "kind": "terms",
+      "host": "www.ehealthsask.ca",
+      "url": "https://www.ehealthsask.ca/about-us/publications/privacy-statement-and-terms-of-use",
+      "file": "ehealth-terms.txt",
+      "sha256": "ffb319fe55df31ea8cd06e35aeb836527729666bf22bc68d11f479c0720d8d86",
+      "capturedAt": "2026-11-24T06:42:23Z",
+      "mediaType": "text/html",
+      "publisherReference": "https://www.ehealthsask.ca/about-us/publications/privacy-statement-and-terms-of-use",
+      "permittedOperations": []
+    },
+    {
+      "id": "ehealth-robots",
+      "kind": "robots",
+      "host": "www.ehealthsask.ca",
+      "url": "https://www.ehealthsask.ca/robots.txt",
+      "file": "ehealth-robots.txt",
+      "sha256": "c967b4e368308281ed51af8396b453f97a53d52c4cc70d074ae5ea129ac5eb7d",
+      "capturedAt": "2026-11-24T06:38:34Z",
+      "mediaType": "text/plain",
+      "publisherReference": "https://www.ehealthsask.ca/robots.txt",
+      "permittedOperations": []
+    },
+    {
+      "id": "user-www.saskatchewan.ca",
+      "kind": "user-attestation",
+      "host": "www.saskatchewan.ca",
+      "url": null,
+      "file": "user-attestation.txt",
+      "sha256": "dfedc36c52eb2ddb67ff95a9170c73cfe01caeb7ffa58821ae268d1a1853254a",
+      "capturedAt": "2026-11-24T16:44:00Z",
+      "mediaType": "text/plain",
+      "publisherReference": "user-attestation:8fe4e770-db65-43f6-9ba5-99e84c9bbed7",
+      "permittedOperations": [
+        "discovery",
+        "acquisition",
+        "extraction",
+        "storage",
+        "embedding",
+        "rag",
+        "generated-summary",
+        "publication"
+      ]
+    },
+    {
+      "id": "user-sgi.sk.ca",
+      "kind": "user-attestation",
+      "host": "sgi.sk.ca",
+      "url": null,
+      "file": "user-attestation.txt",
+      "sha256": "dfedc36c52eb2ddb67ff95a9170c73cfe01caeb7ffa58821ae268d1a1853254a",
+      "capturedAt": "2026-11-24T16:44:00Z",
+      "mediaType": "text/plain",
+      "publisherReference": "user-attestation:8fe4e770-db65-43f6-9ba5-99e84c9bbed7",
+      "permittedOperations": [
+        "discovery",
+        "acquisition",
+        "extraction",
+        "storage",
+        "embedding",
+        "rag",
+        "generated-summary",
+        "publication"
+      ]
+    },
+    {
+      "id": "user-www.ehealthsask.ca",
+      "kind": "user-attestation",
+      "host": "www.ehealthsask.ca",
+      "url": null,
+      "file": "user-attestation.txt",
+      "sha256": "dfedc36c52eb2ddb67ff95a9170c73cfe01caeb7ffa58821ae268d1a1853254a",
+      "capturedAt": "2026-11-24T16:44:00Z",
+      "mediaType": "text/plain",
+      "publisherReference": "user-attestation:8fe4e770-db65-43f6-9ba5-99e84c9bbed7",
+      "permittedOperations": [
+        "discovery",
+        "acquisition",
+        "extraction",
+        "storage",
+        "embedding",
+        "rag",
+        "generated-summary",
+        "publication"
+      ]
+    }
+  ],
+  "grants": [
+    {
+      "host": "www.saskatchewan.ca",
+      "pathPrefixes": [
+        "/"
+      ],
+      "formats": [
+        "html",
+        "pdf",
+        "robots",
+        "sitemap-xml"
+      ],
+      "decisions": {
+        "discovery": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.saskatchewan.ca"
+          ]
+        },
+        "acquisition": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.saskatchewan.ca"
+          ]
+        },
+        "extraction": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.saskatchewan.ca"
+          ]
+        },
+        "storage": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.saskatchewan.ca"
+          ]
+        },
+        "embedding": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.saskatchewan.ca"
+          ]
+        },
+        "rag": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.saskatchewan.ca"
+          ]
+        },
+        "generated-summary": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.saskatchewan.ca"
+          ]
+        },
+        "publication": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.saskatchewan.ca"
+          ]
+        },
+        "training": {
+          "status": "denied",
+          "evidenceIds": []
+        },
+        "fine-tuning": {
+          "status": "denied",
+          "evidenceIds": []
+        }
+      }
+    },
+    {
+      "host": "sgi.sk.ca",
+      "pathPrefixes": [
+        "/"
+      ],
+      "formats": [
+        "html",
+        "pdf",
+        "robots",
+        "sitemap-xml"
+      ],
+      "decisions": {
+        "discovery": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-sgi.sk.ca"
+          ]
+        },
+        "acquisition": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-sgi.sk.ca"
+          ]
+        },
+        "extraction": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-sgi.sk.ca"
+          ]
+        },
+        "storage": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-sgi.sk.ca"
+          ]
+        },
+        "embedding": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-sgi.sk.ca"
+          ]
+        },
+        "rag": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-sgi.sk.ca"
+          ]
+        },
+        "generated-summary": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-sgi.sk.ca"
+          ]
+        },
+        "publication": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-sgi.sk.ca"
+          ]
+        },
+        "training": {
+          "status": "denied",
+          "evidenceIds": []
+        },
+        "fine-tuning": {
+          "status": "denied",
+          "evidenceIds": []
+        }
+      }
+    },
+    {
+      "host": "www.ehealthsask.ca",
+      "pathPrefixes": [
+        "/"
+      ],
+      "formats": [
+        "html",
+        "pdf",
+        "robots",
+        "sitemap-xml"
+      ],
+      "decisions": {
+        "discovery": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.ehealthsask.ca"
+          ]
+        },
+        "acquisition": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.ehealthsask.ca"
+          ]
+        },
+        "extraction": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.ehealthsask.ca"
+          ]
+        },
+        "storage": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.ehealthsask.ca"
+          ]
+        },
+        "embedding": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.ehealthsask.ca"
+          ]
+        },
+        "rag": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.ehealthsask.ca"
+          ]
+        },
+        "generated-summary": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.ehealthsask.ca"
+          ]
+        },
+        "publication": {
+          "status": "granted",
+          "evidenceIds": [
+            "user-www.ehealthsask.ca"
+          ]
+        },
+        "training": {
+          "status": "denied",
+          "evidenceIds": []
+        },
+        "fine-tuning": {
+          "status": "denied",
+          "evidenceIds": []
+        }
+      }
+    }
+  ]
+}

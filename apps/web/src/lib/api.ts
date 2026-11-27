@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { jurisdiction } from "./jurisdiction";
 import {
   catalogSchema,
   capabilitiesSchema,
@@ -116,7 +117,14 @@ async function requestApi<T>(
       typeof error?.error?.message === "string" ? error.error.message.slice(0, 600) : "This service is unavailable. Please try again.",
     );
   }
-  const result = schema.safeParse(await response.json().catch(() => null));
+  const body = await response.json().catch(() => null);
+  if (path === "/api/catalog" || path === "/api/capabilities") {
+    const identities = [body?.jurisdiction, response.headers.get("x-jurisdiction")].filter((id) => id != null && id !== "");
+    if (identities.some((id) => id !== jurisdiction.id) || (!identities.length && jurisdiction.id !== "bc")) {
+      throw new ApiError(502, "JURISDICTION_MISMATCH", "The connected service does not match this government pilot. Official service links remain available.");
+    }
+  }
+  const result = schema.safeParse(body);
   if (!result.success) throw new ApiError(502, "INVALID_CONTENT", "We couldn’t verify the service information. Please try again later.");
   return result.data;
 }
@@ -142,8 +150,17 @@ const consentChangeSchema = z.object({
   scopes: z.array(consentScopeSchema).min(1).max(6),
 }).strict();
 
-export const getCatalog = (signal?: AbortSignal) => readApi("/api/catalog", catalogSchema, signal);
-export const getCapabilities = (signal?: AbortSignal) => requestApi("/api/capabilities", capabilitiesSchema, { signal, clientVersion: 6 });
+export const getCatalog = async (signal?: AbortSignal) => {
+  const catalog = await readApi("/api/catalog", catalogSchema, signal);
+  return jurisdiction.features.guidedJourneys ? catalog : { ...catalog, journeys: [], locations: [] };
+};
+export const getCapabilities = async (signal?: AbortSignal) => {
+  const capabilities = await requestApi("/api/capabilities", capabilitiesSchema, { signal, clientVersion: 6 });
+  return { ...capabilities,
+    syntheticContextAvailable: jurisdiction.features.syntheticContext && capabilities.syntheticContextAvailable,
+    ...(jurisdiction.features.guidedJourneys ? {} : { journeys: {}, discoveryAvailable: false, research: null, webIqEnabled: false }),
+  };
+};
 export const getDemoPersonas = (signal?: AbortSignal) => readApi(
   "/api/demo/personas",
   demoPersonasSchema,

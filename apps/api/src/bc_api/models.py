@@ -417,7 +417,7 @@ class Handoff(WireModel):
 
 
 class Journey(WireModel):
-    id: JourneyId
+    id: Identifier
     title: Text
     prompt: Text
     summary: Text
@@ -442,17 +442,30 @@ class Location(WireModel):
 
 class Catalog(WireModel):
     schema_version: Literal[1]
+    jurisdiction: Identifier = "bc"
     as_of: IsoDate
-    sources: list[Source] = Field(min_length=1, max_length=1000)
-    journeys: list[Journey] = Field(min_length=7, max_length=7)
+    sources: list[Source] = Field(max_length=1000)
+    journeys: list[Journey] = Field(max_length=1000)
     locations: list[Location] = Field(max_length=500)
 
     @model_validator(mode="after")
     def references_resolve(self) -> Self:
+        from bc_api.jurisdiction import current_pack, load_jurisdiction
+
+        if self.jurisdiction != "bc":
+            pack = current_pack()
+            if pack.id != self.jurisdiction:
+                pack = load_jurisdiction(self.jurisdiction)
+            if pack.rag_pending and (self.sources or self.journeys or self.locations):
+                raise ValueError("Permission-pending jurisdiction catalogues must remain empty.")
+            if not pack.guided_journeys and self.journeys:
+                raise ValueError("Guided journeys are not registered for this jurisdiction.")
+        elif not self.sources:
+            raise ValueError("BC catalogue requires reviewed sources.")
         for collection in (self.sources, self.journeys, self.locations):
             if len({item.id for item in collection}) != len(collection):
                 raise ValueError("Catalogue IDs must be unique within each collection.")
-        if {journey.id for journey in self.journeys} != JOURNEY_IDS:
+        if self.jurisdiction == "bc" and {journey.id for journey in self.journeys} != JOURNEY_IDS:
             raise ValueError("The seven approved journeys are required.")
         source_ids = {source.id for source in self.sources}
         references = [item.source_ids for item in (*self.journeys, *self.locations)]
@@ -1029,13 +1042,17 @@ class ResearchCapabilities(WireModel):
 
 
 class Capabilities(WireModel):
+    jurisdiction: Identifier = "bc"
+    guided_journeys_available: StrictBool = True
+    registered_flows: list[str] = Field(default_factory=list)
+    source_policy_status: str = "existing-reviewed-snapshots-only"
     mode: Literal["guided", "foundry"]
     ai_configured: bool
     web_iq_enabled: StrictBool = False
     research: ResearchCapabilities | None = None
     transactions_enabled: Literal[False] = False
     message: str
-    journeys: dict[JourneyId, bool] = Field(default_factory=dict)
+    journeys: dict[Identifier, bool] = Field(default_factory=dict)
     general_chat_configured: bool = False
     retrieval_ready: bool = False
     source_health: SourceHealth = Field(default_factory=SourceHealth)

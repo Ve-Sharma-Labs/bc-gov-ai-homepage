@@ -13,6 +13,7 @@ import { SourceCard } from "./sources";
 import { TaskPanel } from "./task-panel";
 import { Button } from "./ui/button";
 import { formatDate } from "@/lib/links";
+import { jurisdiction, presentation } from "@/lib/jurisdiction";
 
 export function AssistantApp() {
   const { catalog, capabilities, loading, catalogError, selected, selectedId, selectJourney, checked, setChecked, state, busy, load, reset } = useAssistant();
@@ -27,6 +28,11 @@ export function AssistantApp() {
     : capabilities.retrievalReady === false
       ? "Reviewed preparation available · Detailed source answers limited"
       : "AI answers configured";
+  const serviceConnectionStatus = capabilities.retrievalReady === false
+    ? "Current reviewed source answers unavailable · Official service links available"
+    : !aiConfigured
+      ? "AI answers not connected · Official service links available"
+      : "AI answers configured · Verify official sources";
   useEffect(() => {
     if (workspace) headingRef.current?.focus({ preventScroll: true });
   }, [workspace, selectedId]);
@@ -42,10 +48,14 @@ export function AssistantApp() {
   return <>
     {!workspace ? <>
       <HeroExperience />
-      <p className="connection-status">{loading ? "Checking available services..." : connectionStatus}<Link href="/about#how-it-works">About this pilot</Link></p>
+      <p className="connection-status">{loading ? "Checking available services..." : jurisdiction.features.guidedJourneys ? connectionStatus : serviceConnectionStatus}<Link href="/about#how-it-works">About this pilot</Link></p>
       {!!state.messages.length && <p className="connection-status"><Link href="/chat">Return to your conversation <ArrowRight size={16} aria-hidden="true" /></Link></p>}
-      <HowItWorksInvitation />
-      {journeys}
+      {jurisdiction.features.guidedJourneys ? <><HowItWorksInvitation />{journeys}</> : <section className="journeys-section site-container" aria-labelledby="availability-heading">
+        <h2 id="availability-heading">Find {jurisdiction.shortName} services.</h2>
+        <p>{presentation.emptyJourneys}</p>
+        {catalogError && <p role="status">{catalogError}</p>}
+        <Link className="pill-link" href="/services">Browse official services <ArrowRight size={18} aria-hidden="true" /></Link>
+      </section>}
     </> : <div className="workspace-container site-container">
       <div className="workspace-toolbar"><a href="#journeys"><ArrowLeft size={16} />All guided plans</a><ResetDialog onReset={reset} /></div>
       <div className="workspace-grid">

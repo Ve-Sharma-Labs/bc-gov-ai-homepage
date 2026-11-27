@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
-const suppliedFavicon = readFileSync(new URL("../../apps/web/public/favicon.ico", import.meta.url));
+const suppliedFavicon = readFileSync(new URL("../../apps/web/brand-assets/bc/public/favicon.ico", import.meta.url));
 
 test("transparent logo preserves proportions with a readable dark-mode fallback", async ({ page }, testInfo) => {
   for (const theme of ["light", "dark"]) {
@@ -52,4 +52,20 @@ test("favicon and touch-icon metadata resolve to the supplied branding", async (
   const icon = await page.request.get("/apple-touch-icon.png");
   expect(icon.ok()).toBeTruthy();
   expect(icon.headers()["content-type"]).toContain("image/png");
+});
+
+test("BC hero carousel retains its local photography and accessible controls", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.goto("/");
+  const photo = page.locator(".hero-photograph img");
+  await expect(photo).toHaveAttribute("src", "/images/bc/vancouver-waterfront-1600.webp");
+  await expect(photo).toHaveAttribute("alt", /Vancouver's waterfront/u);
+  await expect(page.getByRole("button", { name: "Play examples" })).toBeDisabled();
+  const next = page.getByRole("button", { name: "Next example" });
+  await next.focus();
+  await page.keyboard.press("Enter");
+  await expect(photo).toHaveAttribute("src", "/images/bc/garibaldi-lake-1600.webp");
+  await expect(page.locator(".example-count")).toHaveText("02 / 05");
+  await page.getByRole("button", { name: "Previous example" }).click();
+  await expect(photo).toHaveAttribute("src", "/images/bc/vancouver-waterfront-1600.webp");
 });

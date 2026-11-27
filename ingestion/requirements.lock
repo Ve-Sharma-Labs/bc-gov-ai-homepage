@@ -1,4 +1,4 @@
-# Runtime closure verified from the existing ingestion environment for CPython 3.14 / Linux.
+# Runtime closure verified from the existing ingestion environment for CPython 3.14 / Linux. PDF pin resolved with pip freeze in the owned ingestion environment.
 azure-common==1.1.28
 azure-core==1.41.0
 azure-identity==1.26.0
@@ -15,6 +15,7 @@ msal==1.39.0
 msal-extensions==1.3.1
 pycparser==3.11
 pyjwt==2.15.1
+pypdf==6.21.4
 requests==2.34.2
 setuptools==84.0.0
 soupsieve==3.0.4

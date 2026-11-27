@@ -70,6 +70,37 @@ async def test_health_counts_valid_documents_not_chunks_or_index_presence(
     assert not search.options[0]["logging_enable"]
 
 
+async def test_partial_loss_metrics_use_inspected_evidence(configured, repository, health_row):
+    catalog = repository.get()
+    missing = catalog.sources[0].model_copy(update={"id": "missing-source"})
+    scoped_catalog = SimpleNamespace(
+        get=lambda: catalog.model_copy(update={"sources": [*catalog.sources, missing]})
+    )
+    expired = {
+        **health_row,
+        "id": "expired-chunk",
+        "documentId": "expired-document",
+        "checkedAt": (datetime.now(UTC) - timedelta(days=8)).isoformat(),
+    }
+    search = HealthSearch([health_row, expired, {**expired, "id": "expired-chunk-2"}])
+    health = await AzureRetriever(configured, scoped_catalog, search).inspect_sources()
+    assert health.status == "ready"
+    assert health.usable_documents == 1
+    assert health.expired_documents == 1
+    assert health.missing_source_ids == ["missing-source"]
+
+    telemetry = Telemetry(configured)
+    telemetry.source_checks = Mock()
+    telemetry.source_documents = Mock()
+    telemetry.source_expired_documents = Mock()
+    telemetry.source_missing_sources = Mock()
+    telemetry.source_expiry = Mock()
+    telemetry.sources(health)
+    attributes = {"status": "ready", "error.code": "none"}
+    telemetry.source_expired_documents.record.assert_called_once_with(1, attributes)
+    telemetry.source_missing_sources.record.assert_called_once_with(1, attributes)
+
+
 @pytest.mark.parametrize(
     "changes",
     [
@@ -209,3 +240,20 @@ def test_source_health_telemetry_contains_only_operational_metadata(settings, ca
     assert '"expiredDocuments": 4' in caplog.text
     assert '"status": "expired"' in caplog.text
     assert not any(key in caplog.text for key in ("messages", "content", "query", "token"))
+
+
+@pytest.mark.parametrize(("expired", "missing"), [(0, []), (2, ["health", "icbc"])])
+def test_source_health_metrics_report_partial_evidence_loss(settings, expired, missing):
+    telemetry = Telemetry(settings)
+    telemetry.source_checks = Mock()
+    telemetry.source_documents = Mock()
+    telemetry.source_expired_documents = Mock()
+    telemetry.source_missing_sources = Mock()
+    health = SourceHealth(
+        status="ready", usable_documents=3, expired_documents=expired,
+        missing_source_ids=missing,
+    )
+    telemetry.sources(health)
+    attributes = {"status": "ready", "error.code": "none"}
+    telemetry.source_expired_documents.record.assert_called_once_with(expired, attributes)
+    telemetry.source_missing_sources.record.assert_called_once_with(len(missing), attributes)

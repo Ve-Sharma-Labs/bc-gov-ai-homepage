@@ -3,14 +3,18 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from bc_api.errors import ApiError
+from bc_api.jurisdiction import JurisdictionPack, current_pack, pack_scope
 from bc_api.models import Catalog, GuidedPlan, Journey, LocationsResponse
 
 KNOWN_SERVICES = frozenset({"icbc-licensing", "income-assistance", "bc-services-card", "bceid"})
 
 
 class CatalogRepository:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, pack: JurisdictionPack | None = None) -> None:
         self.path = path
+        self.pack = pack or current_pack()
+        if self.pack.id != "bc" and self.path.resolve() != self.pack.path("catalog"):
+            raise ValueError("Catalogue path does not match the selected jurisdiction.")
         self._version: tuple[int, int] | None = None
         self._catalog: Catalog | None = None
 
@@ -23,9 +27,13 @@ class CatalogRepository:
             if self._version != version or self._catalog is None:
                 # Do not serve a cached catalogue after a failed replacement.
                 self._catalog = None
-                self._catalog = Catalog.model_validate_json(
-                    self.path.read_bytes(), by_alias=True, by_name=False
-                )
+                with pack_scope(self.pack):
+                    candidate = Catalog.model_validate_json(
+                        self.path.read_bytes(), by_alias=True, by_name=False
+                    )
+                if candidate.jurisdiction != self.pack.id:
+                    raise ValueError("Catalogue jurisdiction mismatch.")
+                self._catalog = candidate
                 self._version = version
             return self._catalog
         except OSError:
@@ -61,7 +69,7 @@ class CatalogRepository:
 
     def locations(self, service: str | None, municipality: str | None) -> LocationsResponse:
         catalog = self.get()
-        known = KNOWN_SERVICES | {
+        known = (KNOWN_SERVICES if self.pack.id == "bc" else frozenset()) | {
             key for item in catalog.locations for key in (*item.services, *item.excluded_services)
         }
         if service is not None and service not in known:

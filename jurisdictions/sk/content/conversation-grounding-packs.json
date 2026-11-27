@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "jurisdiction": "sk",
+  "purpose": "grounded-conversation",
+  "publicationPolicy": "exact-hash-human-review",
+  "containsSourceContent": false,
+  "packs": []
+}

@@ -375,6 +375,8 @@ async def stream_run(
                     await conversation_service.commit(conversation_plan)
                 if context.model_work_started is False:
                     run.usage_tokens = 0
+                if context.output_retry_used:
+                    run.usage_valid = False
                 research_offer = None
                 if (
                     settings.research_requested and run.research_page_hash
@@ -486,11 +488,16 @@ async def stream_run(
     except ApiError as exc:
         terminal_error_code = exc.code
         if (
-            exc.code == "CRITICAL_CLAIM_UNVERIFIED"
+            (
+                exc.code in ("CRITICAL_CLAIM_UNVERIFIED", "INCOMPLETE_LIST")
+                or (settings.jurisdiction == "sk" and exc.code == "CITATION_INVALID")
+            )
             and response_sent
             and gate.started
             and not application_replied
         ):
+            if context.output_retry_used:
+                run.usage_valid = False
             yield encoder.encode(
                 CustomEvent(
                     name="bc.warning",

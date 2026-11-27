@@ -64,6 +64,9 @@ METADATA_FIELDS = [
     "legalSectionId",
     "isHistorical",
 ]
+DOCUMENT_FORMAT_FIELDS = [
+    "mediaType", "extractionMethod", "responseHash", "pageCount", "contentHashBasis",
+]
 INJECTION_MARKERS = re.compile(
     r"(?:ignore|override|disregard).{0,50}(?:instructions|system|developer)"
     r"|<script\b|javascript:|(?:system|developer)\s+prompt"
@@ -125,11 +128,13 @@ def legal_day(now: datetime) -> str:
     return now.astimezone(bc_timezone()).date().isoformat()
 
 
-def evidence_metadata(row: dict, source_ids: set[str], day: str) -> EvidenceMetadata:
+def evidence_metadata(
+    row: dict, source_ids: set[str], day: str, *, allow_pdf: bool = False,
+) -> EvidenceMetadata:
     version = row.get("metadataVersion")
     if version is None:
         raise ValueError("Metadata-aware evidence needs explicit provenance metadata.")
-    if type(version) is not int or version != 1:
+    if type(version) is not int or version not in ((1, 2) if allow_pdf else (1,)):
         raise ValueError("Unsupported evidence metadata version.")
     if row.get("rightsStatus") != "candidate-acquisition-permitted":
         raise ValueError("The acquired evidence has no verified rights provenance.")
@@ -173,6 +178,40 @@ def evidence_metadata(row: dict, source_ids: set[str], day: str) -> EvidenceMeta
     return metadata
 
 
+def reviewed_document_format(row: dict, metadata: EvidenceMetadata) -> Literal["html", "pdf"]:
+    from bc_ingestion.metadata import EXTRACTION_METHODS, PDF_EXTRACTION_METHOD
+
+    version, mime, method = (
+        row["metadataVersion"], row.get("mediaType"), row.get("extractionMethod")
+    )
+    response_hash = row.get("responseHash")
+    if not isinstance(response_hash, str) or not re.fullmatch(r"[a-f0-9]{64}", response_hash):
+        raise ValueError("Reviewed format needs the acquired response hash.")
+    if version == 2:
+        if (
+            mime != "application/pdf"
+            or method != PDF_EXTRACTION_METHOD
+            or type(row.get("pageCount")) is not int
+            or not 1 <= row["pageCount"] <= 100
+            or row.get("contentHashBasis") != "original-response-bytes"
+            or response_hash != metadata.content_hash
+        ):
+            raise ValueError("PDF v2 evidence must retain consistent original-byte provenance.")
+        return "pdf"
+    if (
+        mime not in {
+            "text/html", "application/xhtml+xml", "application/json", "application/xml", "text/xml",
+        }
+        or method not in EXTRACTION_METHODS - {PDF_EXTRACTION_METHOD}
+        or row.get("pageCount") is not None
+        or row.get("contentHashBasis") is not None
+        or (mime == "application/json" and metadata.document_type != "service-directory")
+        or (mime in {"application/xml", "text/xml"} and metadata.document_type != "legal")
+    ):
+        raise ValueError("Non-PDF provenance cannot substitute HTML rights for PDF evidence.")
+    return "html"
+
+
 def validate_evidence_row(
     row: dict,
     allowed: dict[str, Source],
@@ -185,6 +224,27 @@ def validate_evidence_row(
     if source is None or row.get("status") != "active":
         return None, "invalid"
     try:
+        non_bc = settings.jurisdiction != "bc"
+        metadata = (
+            evidence_metadata(
+                row, source_ids,
+                day or now.astimezone(
+                    ZoneInfo(settings.pack.manifest["timeZone"])
+                ).date().isoformat(),
+                allow_pdf=non_bc,
+            ) if day is not None or non_bc else None
+        )
+        if non_bc:
+            pack = settings.pack
+            if (
+                row.get("rightsHash") != pack.operation_provider.review_hash
+                or row.get("rightsReviewId") != pack.operation_provider.review["reviewId"]
+            ):
+                return None, "invalid"
+            pack.authorize_source(
+                row["url"], document_format=reviewed_document_format(row, metadata),
+                embedding=settings.azure_search_vector_enabled,
+            )
         ref = SourceReference(
             source_id=source.id,
             document_id=row["documentId"],
@@ -196,7 +256,7 @@ def validate_evidence_row(
             publisher_updated_at=iso_value(row.get("publisherUpdatedAt")),
             section=row.get("section", ""),
             chunk_id=row.get("id"),
-            metadata=evidence_metadata(row, source_ids, day) if day is not None else None,
+            metadata=metadata,
         )
         if (
             urlsplit(ref.url).hostname != urlsplit(source.url).hostname
@@ -219,10 +279,14 @@ def validate_evidence_row(
         return None, "invalid"
 
 
-def add_metadata_filter(filters: str, day: str | None) -> str:
+def add_metadata_filter(filters: str, day: str | None, *, allow_pdf: bool = False) -> str:
     if day is not None:
+        versions = (
+            "(metadataVersion eq 1 or metadataVersion eq 2)" if allow_pdf
+            else "metadataVersion eq 1"
+        )
         filters += (
-            " and metadataVersion eq 1"
+            f" and {versions}"
             " and rightsStatus eq 'candidate-acquisition-permitted'"
             " and rightsReviewId ne null and rightsHash ne null and reviewHash ne null"
             " and (documentType ne 'legal' or (legalStatus eq 'in-force'"
@@ -248,12 +312,25 @@ class AzureRetriever:
         self.embeddings = embeddings
 
     def allowed_sources(self) -> dict[str, Source]:
-        return {
+        allowed = {
             source.id: source
             for source in self.catalog.get().sources
             if source.status in ("available", "limited")
             and (source.id != "bc-laws" or self.settings.azure_search_metadata_enabled)
         }
+        if self.settings.jurisdiction != "bc":
+            try:
+                for source in allowed.values():
+                    self.settings.pack.authorize_source(
+                        source.url, embedding=self.settings.azure_search_vector_enabled
+                    )
+            except ValueError as exc:
+                raise ApiError(
+                    503, "SOURCE_RIGHTS_UNAVAILABLE",
+                    "The pinned publisher operation review is missing, expired, "
+                    "revoked or out of scope.",
+                ) from exc
+        return allowed
 
     async def inspect_sources(self) -> SourceHealth:
         allowed = self.allowed_sources()
@@ -268,7 +345,13 @@ class AzureRetriever:
                         search_text="*",
                         filter=f"status eq 'active' and ({filters})",
                         select=SELECT_FIELDS
-                        + (METADATA_FIELDS if self.settings.azure_search_metadata_enabled else []),
+                        + (
+                            METADATA_FIELDS
+                            if self.settings.azure_search_metadata_enabled
+                            or self.settings.jurisdiction != "bc" else []
+                        ) + (
+                            DOCUMENT_FORMAT_FIELDS if self.settings.jurisdiction != "bc" else []
+                        ),
                         query_type=QueryType.SIMPLE,
                         logging_enable=False,
                     )
@@ -391,12 +474,19 @@ class AzureRetriever:
                     f"sourceIds/any(s: s eq '{key}')" for key in sorted(requested_topics)
                 )
             filters += f" and ({topic_filter})"
-        filters = add_metadata_filter(filters, day)
+        filters = add_metadata_filter(
+            filters, day, allow_pdf=self.settings.jurisdiction != "bc"
+        )
         options: dict[str, Any] = {
             "search_text": query,
             "filter": filters,
             "top": 10,
-            "select": SELECT_FIELDS + METADATA_FIELDS if day is not None else SELECT_FIELDS,
+            "select": (
+                SELECT_FIELDS + METADATA_FIELDS
+                if day is not None or self.settings.jurisdiction != "bc" else SELECT_FIELDS
+            ) + (
+                DOCUMENT_FORMAT_FIELDS if self.settings.jurisdiction != "bc" else []
+            ),
             "query_type": QueryType.SIMPLE,
             "logging_enable": False,
         }
@@ -453,7 +543,9 @@ class AzureRetriever:
             if (
                 self.settings.azure_search_metadata_enabled
                 and type(row.get("metadataVersion")) is int
-                and row["metadataVersion"] == 1
+                and row["metadataVersion"] in (
+                    (1, 2) if self.settings.jurisdiction != "bc" else (1,)
+                )
                 and isinstance(row.get("sourceIds"), list)
             ):
                 row_topics.update(key for key in row["sourceIds"] if isinstance(key, str))

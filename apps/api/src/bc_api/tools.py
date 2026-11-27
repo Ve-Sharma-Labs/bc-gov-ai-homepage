@@ -46,6 +46,11 @@ class SearchInput(ToolInput):
     journey_id: JourneyId | None
 
 
+class GeneralSearchInput(ToolInput):
+    query: Annotated[str, Field(min_length=1, max_length=512)]
+    journey_id: None
+
+
 class ProgrammeSourceInput(ToolInput):
     topic: AnswerTopic
 
@@ -77,6 +82,7 @@ class ToolContext:
     journey_id: str | None = None
     output_byte_limit: int = 65536
     model_work_started: bool | None = None
+    output_retry_used: bool = False
     search_results: dict[tuple[str, str | None], EvidenceBundle] = field(default_factory=dict)
     phase_times: dict[str, float] = field(default_factory=dict)
     public_query: str | None = None
@@ -194,11 +200,14 @@ def create_tools(context: ToolContext) -> list[FunctionTool]:
             raise RuntimeError("Official-source retrieval did not succeed.") from None
 
     @tool(
-        schema=SearchInput,
+        schema=SearchInput if context.catalog.pack.guided_journeys else GeneralSearchInput,
         max_invocations=3,
         max_invocation_exceptions=1,
         description=(
             "Search the approved BC corpus. Returns versioned evidence, never web research."
+            if context.catalog.pack.guided_journeys
+            else "Search the approved jurisdiction corpus. Returns versioned evidence, "
+            "never web research."
         ),
     )
     async def search_approved_sources(query: str, journey_id: str | None) -> str:
@@ -312,6 +321,8 @@ def create_tools(context: ToolContext) -> list[FunctionTool]:
 
     if context.grounded_conversation:
         return [read_programme_sources]
+    if not context.catalog.pack.guided_journeys:
+        return [search_approved_sources]
     functions = [search_approved_sources, build_preparation_plan]
     if context.journey_id is None or context.journey_id in LOCATION_JOURNEYS:
         functions.append(find_service_locations)

@@ -136,6 +136,50 @@ class FreshnessTests(unittest.TestCase):
             with self.assertRaises(CheckpointError):
                 self.collect()
 
+    def test_failed_reservation_checkpoint_is_not_retried_or_dispatched(self):
+        original_save = FreshnessStore.save
+        writes = 0
+
+        def fail_reservation(store, state):
+            nonlocal writes
+            writes += 1
+            if writes == 2:
+                raise CheckpointError("storage unavailable")
+            return original_save(store, state)
+
+        network = Network(self.clock)
+        with (
+            patch.object(FreshnessStore, "save", autospec=True, side_effect=fail_reservation),
+            self.assertRaises(CheckpointError),
+        ):
+            self.collect(network=network)
+        self.assertEqual(writes, 2)
+        self.assertEqual(network.calls, [])
+
+    def test_failed_response_checkpoint_preserves_reservation_without_retry(self):
+        original_save = FreshnessStore.save
+        writes = 0
+
+        def fail_response(store, state):
+            nonlocal writes
+            writes += 1
+            if writes == 3:
+                raise CheckpointError("storage unavailable")
+            return original_save(store, state)
+
+        network = Network(self.clock)
+        with (
+            patch.object(FreshnessStore, "save", autospec=True, side_effect=fail_response),
+            self.assertRaises(CheckpointError),
+        ):
+            self.collect(network=network)
+        self.assertEqual(writes, 3)
+        self.assertEqual(len(network.calls), 1)
+        budget = json.loads(self.path.read_text())["budget"]
+        self.assertEqual(budget["requests"], 1)
+        self.assertIn("inFlight", budget)
+        self.assertEqual(budget["chargedBytes"], budget["inFlight"]["reservedBytes"])
+
     def test_denied_sources_are_never_requested(self):
         report, network = self.collect()
         self.assertTrue(any("source-access-hold" in row["findings"] for row in report["sources"]))

@@ -15,6 +15,7 @@ RUN python -m pip install --no-cache-dir --no-build-isolation --no-deps /app/ing
     && mkdir -p /app/ingestion/.generated \
     && chown app:app /app/ingestion/.generated
 COPY data/pilot-catalog.json data/source-programme.json /app/data/
+COPY jurisdictions /app/jurisdictions
 USER 10001:10001
 ENTRYPOINT ["python", "-m", "bc_ingestion"]
 CMD ["programme"]

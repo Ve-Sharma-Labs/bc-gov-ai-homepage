@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import { prepareJurisdiction, stampJurisdiction } from "./scripts/prepare-jurisdiction.mjs";
+
+const selectedJurisdiction = prepareJurisdiction();
+stampJurisdiction(selectedJurisdiction);
 
 const requestedDistDir = process.env.NEXT_DIST_DIR;
 if (requestedDistDir && !/^\.next(?:-[a-z0-9-]+)?$/u.test(requestedDistDir)) {
@@ -12,6 +16,9 @@ const config: NextConfig = {
   serverExternalPackages: ["@azure/identity"],
   poweredByHeader: false,
   reactStrictMode: true,
+  compiler: {
+    runAfterProductionCompile: async () => { stampJurisdiction(selectedJurisdiction); },
+  },
   turbopack: { root: path.resolve(__dirname) },
   experimental: { proxyClientMaxBodySize: "64kb" },
   async headers() {

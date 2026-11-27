@@ -32,7 +32,7 @@ def test_health_and_catalog_are_honest(client, catalog_data):
     assert client.get("/healthz").json() == {"status": "ok"}
     result = client.get("/api/catalog")
     assert result.status_code == 200
-    assert result.json() == catalog_data
+    assert result.json() == {**catalog_data, "jurisdiction": "bc"}
     assert result.headers["cache-control"] == "no-store"
     assert result.headers["x-content-type-options"] == "nosniff"
 
