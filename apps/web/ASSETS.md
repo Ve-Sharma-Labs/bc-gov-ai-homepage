@@ -335,3 +335,62 @@ contrast, keyboard behavior, and final visual acceptance.
   This local candidate does not authorize deployment or assert government
   endorsement. Legal/public-brand review and the user's actual visual
   acceptance remain separate from asset readiness.
+
+# Selected jurisdiction assets
+
+The original BC assets are preserved byte-for-byte in `brand-assets/bc/public`.
+`public` is generated when Next config loads (including a direct Next CLI call)
+and contains only the selected jurisdiction's public assets. Do not add assets
+to that generated directory.
+
+The Saskatchewan local pilot uses unchanged user-supplied reference PNGs in
+`jurisdictions/sk/brand`, with attribution and approval status in
+`attribution.json`. The user subsequently confirmed that the wordmark is
+authorized for public link-preview use; this confirmation does not establish
+broader publisher rights, endorsement or public release approval for other assets.
+The white-backed wordmark is used in both themes and on the social card; the
+complete flag is a supporting credits image only. The Saskatchewan favicon is
+the unchanged user-supplied ICO in `brand-assets/sk/public/favicon-saskatchewan.ico`. The
+contrast-tested candidate theme is not a verified official design system.
+Five responsive Unsplash photographs are curated separately from the supplied
+identity references. They illustrate locations only and do not imply government
+endorsement, official services, or cleared third-party rights.
+
+## Saskatchewan Unsplash photography
+
+Five Unsplash photo pages identify their photographers and Saskatchewan
+locations. The site uses locally stored 1600 x 1200 and 800 x 600 WebP files;
+the original pages and photographer profiles are linked from the photo credits.
+The images are downloaded and cropped/resized from the Unsplash CDN, with no
+runtime third-party image requests or Unsplash API integration.
+
+- **Saskatchewan farmland:** Ruvim Kerimov,
+  [original photo](https://unsplash.com/photos/an-aerial-view-of-a-green-field-with-a-white-line-GuCNRdpemxc),
+  [photographer](https://unsplash.com/@ruvimkerimov). The page describes
+  Saskatchewan crop fields; no more specific location is claimed.
+- **South Saskatchewan River, Saskatoon:** Kaz Vogel,
+  [original photo](https://unsplash.com/photos/a-body-of-water-with-a-bridge-in-the-background-jWGKI_oEG30),
+  [photographer](https://unsplash.com/@kazev). The photo page identifies the
+  South Saskatchewan River and Saskatoon.
+- **Regina at sunset:** Tandem X Visuals,
+  [original photo](https://unsplash.com/photos/sunset-silhouettes-the-buildings-dome-and-horizon-DdRCJgdpHPo),
+  [photographer](https://unsplash.com/@tandemxvisuals). The page identifies
+  Regina; the caption does not identify the domed building by name.
+- **Grasslands National Park:** Andrew Darlington,
+  [original photo](https://unsplash.com/photos/rolling-hills-with-dry-grass-d6JfGN6k0Ac),
+  [photographer](https://unsplash.com/@andrewdarlington). The page identifies
+  Grasslands National Park, Saskatchewan.
+- **Pinehouse Lake aurora:** Dre Erwin,
+  [original photo](https://unsplash.com/photos/the-aurora-bore-is-reflected-in-the-water-at-night-mGY-pzwunLs),
+  [photographer](https://unsplash.com/@dreerwin). The page identifies
+  Pinehouse Lake, Saskatchewan.
+
+Each listing states that the photo is free to use under the Unsplash License.
+The license notice is bundled at
+`brand-assets/sk/public/licenses/Unsplash-Photo-License.txt`. Credits are
+provided even though the copyright license does not require attribution.
+Photographer, source-page and file metadata are also retained in
+`jurisdictions/sk/brand/attribution.json` and `brand-assets/sk/hero-images.ts`.
+The photos were visually checked for composition and obvious watermarks. The
+Unsplash copyright license is not a model/property/trademark release, does not
+grant government endorsement, and does not approve public release of the pilot.

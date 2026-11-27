@@ -1,7 +1,9 @@
 """Publisher-only rights upload validation; no live Azure requests."""
 
 import base64
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime
+from functools import partial
 import hashlib
 import io
 import json
@@ -15,8 +17,9 @@ from bc_ingestion.azure_blob import json_bytes
 from bc_ingestion.catalog import load_catalog
 from bc_ingestion.cli import main
 from bc_ingestion.policy import AcquisitionError
+from bc_ingestion.programme_policy import ProgrammePolicy
 from bc_ingestion.rights_upload import upload_rights_review
-from test_programme import ROOT, rights_for
+from test_programme import Clock, ROOT, rights_for
 
 try:
     import azure.identity
@@ -29,6 +32,7 @@ except ImportError:
 
 class RightsUploadValidationTests(unittest.TestCase):
     def setUp(self):
+        self.clock = Clock()
         self.catalog = load_catalog(ROOT / "data" / "pilot-catalog.json")
         self.programme = json.loads((ROOT / "data" / "source-programme.json").read_text(encoding="utf-8"))
         self.rights = rights_for(self.programme)
@@ -41,7 +45,9 @@ class RightsUploadValidationTests(unittest.TestCase):
         self.path.write_bytes(self.body)
 
     def test_cli_validates_exact_canonical_file_and_target_without_authenticating(self):
-        with redirect_stdout(io.StringIO()) as output:
+        with patch("bc_ingestion.rights_upload.ProgrammePolicy",
+                   new=partial(ProgrammePolicy, clock=self.clock.datetime)), \
+                redirect_stdout(io.StringIO()) as output:
             result = main([
                 "rights-upload",
                 "--catalog", str(ROOT / "data" / "pilot-catalog.json"),
@@ -84,6 +90,7 @@ class RightsUploadValidationTests(unittest.TestCase):
 @unittest.skipUnless(HAS_AZURE, "Optional Azure SDK is not installed")
 class RightsUploadProtocolTests(unittest.TestCase):
     def test_upload_is_create_only_and_verified_by_conditional_read(self):
+        clock = Clock()
         catalog = load_catalog(ROOT / "data" / "pilot-catalog.json")
         programme = json.loads((ROOT / "data" / "source-programme.json").read_text(encoding="utf-8"))
         body = json_bytes(rights_for(programme))
@@ -96,7 +103,9 @@ class RightsUploadProtocolTests(unittest.TestCase):
         blob = service_context.get_blob_client.return_value
         blob.get_blob_properties.return_value = SimpleNamespace(size=len(body), etag='"rights"')
         blob.download_blob.return_value.readall.return_value = body
-        with patch("azure.identity.ManagedIdentityCredential", return_value=identity_context) as identity, \
+        with patch("bc_ingestion.rights_upload.ProgrammePolicy",
+                   new=partial(ProgrammePolicy, clock=clock.datetime)), \
+                patch("azure.identity.ManagedIdentityCredential", return_value=identity_context) as identity, \
                 patch("azure.storage.blob.BlobServiceClient", return_value=service_context) as service, \
                 patch.dict("os.environ", {
                     "AZURE_CLIENT_ID": "publisher-client",
@@ -132,6 +141,56 @@ class RightsUploadProtocolTests(unittest.TestCase):
         )
         self.assertTrue(result["conditionalReadVerified"])
         self.assertEqual(result["sha256"], sha256)
+
+    def test_expired_review_is_rejected_before_authentication_or_upload(self):
+        clock = Clock()
+        catalog = load_catalog(ROOT / "data" / "pilot-catalog.json")
+        programme = json.loads((ROOT / "data" / "source-programme.json").read_text(encoding="utf-8"))
+        rights = rights_for(programme)
+        body = json_bytes(rights)
+        sha256 = hashlib.sha256(body).hexdigest()
+        expires_at = datetime.fromisoformat(rights["expiresAt"].replace("Z", "+00:00")).timestamp()
+        for seconds_after_expiry in (0, 1):
+            clock.now = expires_at + seconds_after_expiry
+            with self.subTest(seconds_after_expiry=seconds_after_expiry), \
+                    patch("bc_ingestion.rights_upload.ProgrammePolicy",
+                          new=partial(ProgrammePolicy, clock=clock.datetime)), \
+                    patch("azure.identity.ManagedIdentityCredential",
+                          side_effect=AssertionError("No authentication")) as identity, \
+                    patch("azure.storage.blob.BlobServiceClient",
+                          side_effect=AssertionError("No Azure")) as service, \
+                    patch.dict("os.environ", {
+                        "AZURE_CLIENT_ID": "publisher-client",
+                        "BC_RIGHTS_UPLOAD_BASE64": base64.b64encode(body).decode("ascii"),
+                    }, clear=True):
+                with self.assertRaisesRegex(AcquisitionError, "rights-review-expired"):
+                    upload_rights_review(
+                        "https://synthetic.blob.core.windows.net",
+                        "bc-ingestion-rights",
+                        "reviews/programme-v1.json",
+                        "programme-v1",
+                        sha256,
+                        programme,
+                        catalog,
+                        execute=True,
+                    )
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as errors:
+                    result = main([
+                        "rights-upload",
+                        "--catalog", str(ROOT / "data" / "pilot-catalog.json"),
+                        "--programme", str(ROOT / "data" / "source-programme.json"),
+                        "--blob-account-url", "https://synthetic.blob.core.windows.net",
+                        "--rights-container", "bc-ingestion-rights",
+                        "--rights-blob", "reviews/programme-v1.json",
+                        "--run-prefix", "programme-v1",
+                        "--rights-sha256", sha256,
+                        "--credential", "managed-identity",
+                        "--execute",
+                    ])
+                self.assertEqual(result, 2)
+                self.assertIn("rights-review-expired", json.loads(errors.getvalue())["error"])
+                identity.assert_not_called()
+                service.assert_not_called()
 
 
 if __name__ == "__main__":

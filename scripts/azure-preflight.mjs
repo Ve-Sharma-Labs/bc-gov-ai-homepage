@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { isIP } from "node:net";
+import { assertReviewedSourcePolicy, loadJurisdiction } from "./jurisdiction.mjs";
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const journeys = new Set([
@@ -11,7 +12,7 @@ const journeys = new Set([
   "primary-care",
   "service-bc",
 ]);
-const pinnedImage = /^[a-z0-9][a-z0-9.-]*\.azurecr\.io\/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$/;
+export const pinnedImage = /^[a-z0-9][a-z0-9.-]*\.azurecr\.io\/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$/;
 
 function jsonValue(env, key, blockers) {
   try {
@@ -31,8 +32,61 @@ function cidr(value) {
   return number % size === 0n ? { first: number, last: number + size - 1n } : null;
 }
 
-export function deploymentBlockers(env) {
+export function deploymentBlockers(env, operation = "prepare") {
   const blockers = [];
+  if (!["prepare", "provision", "deploy"].includes(operation)) {
+    blockers.push("Select a supported preflight operation.");
+  }
+  if (operation === "deploy") {
+    blockers.push("Generic azd image deployment cannot bypass PyRIT qualification. Use the protected Azure Deployment workflow.");
+  }
+  if (operation === "provision" && (!env.AZURE_PRODUCTION_ENV_NAME
+      || env.AZURE_ENV_NAME === env.AZURE_PRODUCTION_ENV_NAME
+      || env.AZURE_DEPLOYMENT_STAGE === "public")) {
+    blockers.push("Generic provisioning is restricted to staging; supply the distinct production environment name.");
+  }
+  if (!["", "true", "false"].includes(env.AZURE_RELEASE_PROBE_ENABLED || "")) {
+    blockers.push("AZURE_RELEASE_PROBE_ENABLED must be true or false.");
+  }
+  if (env.AZURE_RELEASE_PROBE_ENABLED === "true" && !pinnedImage.test(env.AZURE_WEB_IMAGE_NAME || "")) {
+    blockers.push("The private release probe requires a reviewed web image digest.");
+  }
+  if (env.AZURE_RELEASE_COMMIT && !/^[a-f0-9]{40}$/.test(env.AZURE_RELEASE_COMMIT)) {
+    blockers.push("AZURE_RELEASE_COMMIT must be the full source commit.");
+  }
+  if (env.AZURE_RELEASE_COMMIT && env.RELEASE_COMMIT && env.AZURE_RELEASE_COMMIT !== env.RELEASE_COMMIT) {
+    blockers.push("AZURE_RELEASE_COMMIT and RELEASE_COMMIT must identify the same source commit.");
+  }
+  let pack;
+  try {
+    pack = loadJurisdiction(env.JURISDICTION ?? "bc");
+    assertReviewedSourcePolicy(pack, env);
+  } catch (error) {
+    return [`Invalid deployment jurisdiction: ${error.message}`];
+  }
+  if (pack.id !== "bc") {
+    if (env.AZURE_SEARCH_INDEX && !env.AZURE_SEARCH_INDEX.startsWith(`${pack.id}-`)) {
+      blockers.push("The Search index must belong to the selected jurisdiction.");
+    }
+    if (env.API_CONTROL_NAMESPACE
+      && !env.API_CONTROL_NAMESPACE.startsWith(`${pack.id}-`)
+      && !env.API_CONTROL_NAMESPACE.startsWith(`${pack.id}assist-`)) {
+      blockers.push("The control namespace must belong to the selected jurisdiction.");
+    }
+    if (pack.sourcePolicy.approvalStatus === "pending-rag-permission"
+      && ((env.AZURE_DEPLOYMENT_STAGE || "closed") !== "closed"
+        || ["AI_CONVERSATION_ENABLED", "GROUNDED_CONVERSATION_ENABLED", "WEBIQ_ENABLED", "FOUNDRY_IQ_ENABLED"]
+          .some((key) => env[key] === "true")
+        || Number(env.AZURE_OPENAI_EMBEDDING_DIMENSIONS || "0") > 0)) {
+      blockers.push("Publisher RAG/embedding permission is unresolved; model activation and traffic release remain blocked.");
+    }
+    if (!pack.features.syntheticContext && env.SYNTHETIC_CONTEXT_ENABLED === "true") {
+      blockers.push("Synthetic context is not available for the selected jurisdiction.");
+    }
+    if (!pack.features.guidedJourneys && env.TASK_ASSISTANCE_ENABLED === "true") {
+      blockers.push("Reviewed guided journeys are not available for the selected jurisdiction.");
+    }
+  }
   if (env.AZURE_PROVISIONING_APPROVED !== "1") {
     blockers.push("Azure provisioning is not approved. No resources will be created from guessed context.");
   }
@@ -72,14 +126,15 @@ export function deploymentBlockers(env) {
   const dimension = Number(env.AZURE_OPENAI_EMBEDDING_DIMENSIONS || "0");
   const metadataEnabled = env.AZURE_SEARCH_METADATA_ENABLED || "";
   const metadataReviewed = env.AZURE_SEARCH_METADATA_REVIEWED || "";
-  const metadataIndexSelected = env.AZURE_SEARCH_INDEX === "bc-pilot-public-v2";
+  const metadataIndex = `${pack.id}-pilot-public-v2`;
+  const metadataIndexSelected = env.AZURE_SEARCH_INDEX === metadataIndex;
   if (!["", "true", "false"].includes(metadataEnabled) ||
       !["", "0", "1"].includes(metadataReviewed)) {
     blockers.push("Search metadata settings must use explicit true/false and 0/1 values.");
   }
   if ((metadataIndexSelected || metadataEnabled === "true" || metadataReviewed === "1") &&
       !(metadataIndexSelected && metadataEnabled === "true" && metadataReviewed === "1")) {
-    blockers.push("Switch AZURE_SEARCH_INDEX=bc-pilot-public-v2, AZURE_SEARCH_METADATA_ENABLED=true and AZURE_SEARCH_METADATA_REVIEWED=1 together in one reviewed API revision.");
+    blockers.push(`Switch AZURE_SEARCH_INDEX=${metadataIndex}, AZURE_SEARCH_METADATA_ENABLED=true and AZURE_SEARCH_METADATA_REVIEWED=1 together in one reviewed API revision.`);
   }
   if (!Number.isSafeInteger(dimension) || dimension < 0 || dimension > 3072 ||
       (dimension > 0 && (!Array.isArray(models) || !models.some((model) => model?.deploymentName === env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT)))) {
@@ -93,7 +148,7 @@ export function deploymentBlockers(env) {
     const identities = jsonValue(env, "AZURE_STAGING_IDENTITIES_JSON", blockers);
     const roles = ["api", "web", "publisher"];
     const group = env.AZURE_RESOURCE_GROUP || "";
-    if (kind !== "staging" || !/^rg-bcassist-[a-z0-9]{10}$/u.test(group)
+    if (kind !== "staging" || !new RegExp(`^rg-${pack.id}assist-[a-z0-9]{10}$`, "u").test(group)
       || !identities || typeof identities !== "object" || Array.isArray(identities)
       || Object.keys(identities).length !== roles.length
       || roles.some((role) => {
@@ -223,13 +278,13 @@ export function deploymentBlockers(env) {
   }
   if (stage !== "closed" && env.AZURE_PRIVATE_ORIGIN_APPROVED !== "1") blockers.push("Verify and approve the exact private Front Door origin connection before enabling traffic.");
   if (stage === "public") {
-    for (const key of ["AZURE_PUBLIC_PREVIEW_APPROVED", "AZURE_LIVE_EVALUATION_APPROVED", "AZURE_SOURCE_PUBLICATION_APPROVED", "AZURE_BC_BRAND_APPROVED"]) {
+    for (const key of ["AZURE_PUBLIC_PREVIEW_APPROVED", "AZURE_LIVE_EVALUATION_APPROVED", "AZURE_SOURCE_PUBLICATION_APPROVED", `AZURE_${pack.id.toUpperCase()}_BRAND_APPROVED`]) {
       if (env[key] !== "1") blockers.push(`${key} is required before anonymous public exposure.`);
     }
     const agents = jsonValue(env, "FOUNDRY_AGENTS", blockers);
-    if (!Array.isArray(agents) || agents.length !== journeys.size ||
+    if (pack.features.guidedJourneys && (!Array.isArray(agents) || agents.length !== journeys.size ||
         agents.some((agent) => !agent || !journeys.has(agent.journeyId) || !agent.name || !agent.version || !agent.modelDeployment) ||
-        new Set(agents.map((agent) => agent.journeyId)).size !== journeys.size) {
+        new Set(agents.map((agent) => agent.journeyId)).size !== journeys.size)) {
       blockers.push("Public release requires the seven actually published and pinned agent bindings.");
     }
   }
@@ -237,7 +292,8 @@ export function deploymentBlockers(env) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const blockers = deploymentBlockers(process.env);
+  const operation = process.argv.find((arg) => arg.startsWith("--operation="))?.slice(12) || "prepare";
+  const blockers = deploymentBlockers(process.env, operation);
   if (blockers.length) {
     console.error(blockers.map((message) => `- ${message}`).join("\n"));
     process.exitCode = 1;

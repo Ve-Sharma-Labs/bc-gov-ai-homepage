@@ -41,6 +41,50 @@ describe("closed same-origin proxy boundary", () => {
     expect((await response.json()).error.code).toBe("INVALID_RELEASE_IDENTITY");
   });
 
+  it("reports the server-owned web/API pair without forwarding caller release headers", async () => {
+    const commit = "a".repeat(40);
+    vi.stubEnv("RELEASE_COMMIT", commit);
+    vi.stubEnv("RELEASE_ID", "r-fixture");
+    let forwarded = new Headers();
+    vi.stubGlobal("fetch", vi.fn(async (_url, init: RequestInit) => {
+      forwarded = new Headers(init.headers);
+      return Response.json({ ready: true }, { headers: {
+        "X-BC-API-Release": commit, "X-BC-Web-Release": "b".repeat(40),
+        "X-BC-API-Deployment": "r-fixture",
+      } });
+    }));
+    const response = await proxyRequest(new Request("http://localhost:3000/api/capabilities", {
+      headers: { "X-BC-API-Release": "c".repeat(40), "X-BC-Web-Release": "d".repeat(40) },
+    }));
+    expect(response.headers.get("x-bc-api-release")).toBe(commit);
+    expect(response.headers.get("x-bc-web-release")).toBe(commit);
+    expect(response.headers.get("x-bc-api-deployment")).toBe("r-fixture");
+    expect(response.headers.get("x-bc-web-deployment")).toBe("r-fixture");
+    expect(forwarded.has("x-bc-api-release")).toBe(false);
+    expect(forwarded.has("x-bc-web-release")).toBe(false);
+    await response.json();
+  });
+
+  it("rejects an invalid deployment stamp before contacting the backend", async () => {
+    vi.stubEnv("RELEASE_COMMIT", "latest");
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    const response = await proxyRequest(new Request("http://localhost:3000/api/capabilities"));
+    expect(response.status).toBe(503);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("closes a response with an invalid upstream deployment identity", async () => {
+    let cancelled = false;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({
+      cancel() { cancelled = true; },
+    }), { headers: { "X-BC-API-Release": "not-a-reviewed-commit" } })));
+    const response = await proxyRequest(new Request("http://localhost:3000/api/capabilities"));
+    expect(response.status).toBe(502);
+    expect((await response.json()).error.code).toBe("INVALID_RELEASE_IDENTITY");
+    expect(cancelled).toBe(true);
+  });
+
   it.each([
     ["http://public.example/api/catalog", "127.0.0.1", {}],
     ["http://127.0.0.1:3000/api/catalog", "0.0.0.0", {}],

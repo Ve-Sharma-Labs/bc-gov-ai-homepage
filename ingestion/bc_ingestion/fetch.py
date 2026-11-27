@@ -143,7 +143,7 @@ class Fetcher:
                 url, limit=limit, timeout=self.timeout,
                 headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity",
                          "Accept": "text/plain" if robots else (
-                             "application/xml,text/xml" if kind == "sitemap" else "text/html"
+                             "application/xml,text/xml" if kind == "sitemap" else "text/html,application/pdf"
                          ), **(headers or {})},
             )
             if response.url != url or len(response.body) > limit:

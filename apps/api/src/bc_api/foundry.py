@@ -29,7 +29,7 @@ from azure.identity.aio import AzureCliCredential, ManagedIdentityCredential
 from azure.search.documents.aio import SearchClient
 from pydantic import ValidationError
 
-from bc_api.agent_policy import GENERAL_INSTRUCTIONS, instructions_for
+from bc_api.agent_policy import general_instructions, instructions_for
 from bc_api.agents import binding_for, binding_for_request, bindings_for, route_journey
 from bc_api.catalog import CatalogRepository
 from bc_api.config import Settings
@@ -60,6 +60,7 @@ from bc_api.protocol import progress_event
 from bc_api.research_contract import ResearchEvidence
 from bc_api.research_output import RESEARCH_INSTRUCTIONS
 from bc_api.retrieval import AzureRetriever, EvidenceLedger, choose_journey, model_evidence_json
+from bc_api.source_conflicts import sgi_renewal_fee_conflict
 from bc_api.tools import ToolContext, create_tools, function_declarations, verify_tool_declarations
 
 
@@ -312,11 +313,11 @@ class FoundryRuntime:
             if mode == "grounded-answer"
             else CONVERSATION_INSTRUCTIONS
             if mode == "conversation"
-            else GENERAL_INSTRUCTIONS
+            else general_instructions(self.settings.pack)
             if mode == "general"
             else CONTEXTUAL_INSTRUCTIONS
             if mode == "contextual-demo"
-            else instructions_for(binding.journey_id)
+            else instructions_for(binding.journey_id, self.settings.pack)
         )
         if (
             version.name != binding.name
@@ -982,6 +983,19 @@ class FoundryRuntime:
         *,
         context_plan: ContextRunPlan | None = None,
     ) -> AsyncIterator[BaseEvent | ApplicationReply]:
+        options = parse_options(request.forwarded_props)
+        if (
+            self.settings.jurisdiction == "sk"
+            and options.version == 2
+            and options.mode == "general"
+            and context_plan is None
+            and not context.grounded_conversation
+            and context.assert_authorized is None
+        ):
+            async with contextlib.aclosing(self._sk_general_events(request, context)) as stream:
+                async for event in stream:
+                    yield event
+            return
         if not context.grounded_conversation or context.programme_id is None:
             async with contextlib.aclosing(
                 self._events(request, context, context_plan=context_plan)
@@ -1105,6 +1119,113 @@ class FoundryRuntime:
                 yield event
             return
 
+    async def _sk_general_events(
+        self, request: RunAgentInput, context: ToolContext
+    ) -> AsyncIterator[BaseEvent | ApplicationReply]:
+        for attempt in range(2):
+            gate = OutputGate(self.catalog, context.ledger, allow_clarification=True)
+            buffered: list[BaseEvent] = []
+            rejection: ApiError | None = None
+            forwarded = False
+            handoff = False
+            finished = False
+            async with contextlib.aclosing(self._events(request, context)) as stream:
+                async for event in stream:
+                    if isinstance(event, ApplicationReply):
+                        if attempt and context.model_work_started is True:
+                            raise ApiError(
+                                503, "SOURCES_UNAVAILABLE", "Official sources are unavailable."
+                            )
+                        handoff = True
+                        yield event
+                        continue
+                    if event.type == "RUN_STARTED":
+                        if not attempt:
+                            yield event
+                        continue
+                    if event.type == "RUN_ERROR":
+                        yield event
+                        return
+                    if handoff:
+                        if event.type != "RUN_FINISHED":
+                            raise ApiError(
+                                502, "OUTPUT_INVALID", "Mixed response authority was withheld."
+                            )
+                        yield event
+                        return
+                    if event.type == "CUSTOM" and event.name in ("status", "usage"):
+                        yield event
+                        continue
+                    if rejection is not None:
+                        if event.type == "RUN_FINISHED":
+                            finished = True
+                            break
+                        continue
+                    if forwarded:
+                        yield event
+                        if event.type == "RUN_FINISHED":
+                            return
+                        continue
+                    try:
+                        if event.type == "RUN_FINISHED":
+                            gate.finish()
+                            for held in buffered:
+                                yield held
+                            yield event
+                            return
+                        gate.hold(event)
+                        buffered.append(event)
+                        gate.flush_sections()
+                        if gate.started:
+                            for held in buffered:
+                                yield held
+                            buffered.clear()
+                            forwarded = True
+                    except ApiError as exc:
+                        if (
+                            attempt
+                            or context.model_work_started is not True
+                            or context.failure is not None
+                            or exc.code not in (
+                                "CITATION_INVALID",
+                                "CITATION_REQUIRED",
+                                "CRITICAL_CLAIM_UNVERIFIED",
+                            )
+                        ):
+                            raise
+                        rejection = exc
+                        if event.type == "RUN_FINISHED":
+                            finished = True
+                            break
+            if rejection is None or not finished:
+                raise ApiError(502, "STREAM_INCOMPLETE", "The sourced answer ended unexpectedly.")
+            if context.failure is not None:
+                raise context.failure
+            logging.getLogger("bc_api.conversation").warning(
+                "Uncommitted Saskatchewan answer requested one correction: %s", rejection.code
+            )
+            context.output_retry_used = True
+            context.public_query = context.public_query or search_query_for(
+                request, self.catalog, route_journey(request)
+            )
+            content = request.messages[-1].content
+            assert isinstance(content, str)
+            correction = (
+                "\n\nA previous draft was withheld by validation. Answer the original question "
+                "using only the provided evidence and cite its exact source URLs. Omit "
+                "nonessential fees, deadlines and eligibility conditions. If a critical claim "
+                "is necessary, copy a complete source sentence without changes and cite it. "
+                "Do not give amounts from inconsistent payment guidance."
+            )
+            request = request.model_copy(
+                update={
+                    "messages": [
+                        *request.messages[:-1],
+                        request.messages[-1].model_copy(update={"content": content + correction}),
+                    ]
+                }
+            )
+
     async def _events(
         self,
         request: RunAgentInput,
@@ -1214,6 +1335,22 @@ class FoundryRuntime:
         context.mark_phase("retrieval_completed")
         context.ledger.add(bundle)
         context.search_results[(" ".join(search_query.split()).casefold(), journey_id)] = bundle
+        if (
+            self.settings.jurisdiction == "sk"
+            and general
+            and options.version == 2
+            and not context.grounded_conversation
+            and context.assert_authorized is None
+            and sgi_renewal_fee_conflict(search_query, bundle.evidence) is not None
+        ):
+            yield ApplicationReply(
+                "I can't confirm the renewal fee because SGI's published payment amounts "
+                "are inconsistent. Check [SGI's licence renewal guidance]"
+                "(https://sgi.sk.ca/renew-licence) or contact SGI before paying.",
+                "handoff",
+            )
+            yield RunFinishedEvent(run_id=request.run_id, thread_id=request.thread_id)
+            return
         if local_sources is not None:
             for approved in context.public_queries:
                 context.search_results[(" ".join(approved.split()).casefold(), None)] = bundle
@@ -1229,7 +1366,11 @@ class FoundryRuntime:
         policy = (
             GROUNDED_ANSWER_INSTRUCTIONS
             if context.grounded_conversation
-            else (GENERAL_INSTRUCTIONS if general else instructions_for(binding.journey_id))
+            else (
+                general_instructions(self.settings.pack)
+                if general
+                else instructions_for(binding.journey_id, self.settings.pack)
+            )
         )
         overhead = len(policy.encode()) + len(json.dumps(function_declarations(tools)).encode())
         budget = context.model_budget or ModelBudget(self.settings, context, overhead)

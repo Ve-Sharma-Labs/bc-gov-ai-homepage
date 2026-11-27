@@ -53,8 +53,18 @@ def parse_robots(body: bytes, content_type: str, agent: str = "BCPilotIngest") -
             if started_rules:
                 groups.append((agents, rules, delay))
                 agents, rules, delay, started_rules = [], [], 1.0, False
-            if not value or not re.fullmatch(r"[\w*.-]+", value):
+            if not value:
                 raise AcquisitionError("Invalid robots user-agent")
+            if not re.fullmatch(r"[\w*.-]+", value):
+                tokens = re.findall(r"[\w.-]+", value)
+                if (
+                    not re.fullmatch(r"[ -~]+", value)
+                    or "*" in value
+                    or not tokens
+                    or agent.lower() in value.lower()
+                    or any(token.lower() in agent.lower() for token in tokens)
+                ):
+                    raise AcquisitionError("Ambiguous robots user-agent")
             agents.append(value.lower())
         elif key in ("allow", "disallow", "crawl-delay"):
             if not agents:

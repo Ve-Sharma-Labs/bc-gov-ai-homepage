@@ -8,6 +8,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight, X, ArrowRight, Info } from "lucide-react";
 import { ThemeControl } from "./theme-control";
 import { Button } from "./ui/button";
+import { jurisdiction, presentation } from "@/lib/jurisdiction";
 
 const navigation = [
   { href: "/", label: "Home" },
@@ -26,12 +27,12 @@ export function Header() {
   useEffect(() => { setOpen(false); }, [pathname]);
   return (
     <>
-      {!isChat && <div className="government-banner"><Link href="/about">A service assistant for British Columbia <span className="banner-pilot">Pilot</span><Info size={13} aria-hidden="true" /></Link></div>}
+      {!isChat && <div className="government-banner"><Link href="/about">{presentation.banner} <span className="banner-pilot">Pilot</span><Info size={13} aria-hidden="true" /></Link></div>}
       <header className={`site-header${isChat ? " chat-header" : ""}`}>
         <div className="header-inner">
           <div className="header-brand">
-            <Link className="identity" href="/" aria-label="British Columbia service assistant home">
-              <img className="identity-logo" src="/brand/bc-logo-horizontal-transparent.png" width={361} height={120} alt="Government of British Columbia" />
+            <Link className="identity" href="/" aria-label={presentation.homeLabel}>
+              <img className="identity-logo" src={jurisdiction.brand.logo} width={jurisdiction.brand.logoWidth} height={jurisdiction.brand.logoHeight} alt={jurisdiction.name} />
             </Link>
             {isChat && <Link className="chat-pilot-label" href="/about">Pilot</Link>}
           </div>
@@ -68,12 +69,14 @@ export function Footer() {
   if (pathname === "/chat") return null;
   return (
     <footer className="site-footer">
-      <div className="footer-intro"><p>Less searching.<br />More living.</p><Link href="/#journeys" className="pill-link">Find your next step <ArrowRight size={19} aria-hidden="true" /></Link></div>
-      <div className="footer-signature" aria-hidden="true">British Columbia</div>
+      <div className="footer-intro"><p>{jurisdiction.id === "sk" ? <>Saskatchewan services.<br />A place to start.</> : <>Less searching.<br />More living.</>}</p><Link href={jurisdiction.features.guidedJourneys ? "/#journeys" : "/services"} className="pill-link">{jurisdiction.id === "sk" ? "Browse official services" : "Find your next step"} <ArrowRight size={19} aria-hidden="true" /></Link></div>
+      <div className="footer-signature" aria-hidden="true">{jurisdiction.shortName}</div>
       <div className="footer-lower">
-        <p>A service assistant pilot.<br /><span>Official services take it from here.</span></p>
-        <nav aria-label="Footer navigation"><Link href="/how-it-works">How it works</Link><Link href="/about#privacy">Privacy</Link><Link href="/about#accessibility">Accessibility</Link><Link href="/sources">Our sources</Link><Link href="/credits">Photo credits</Link></nav>
-        <a href="https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc" className="footer-help">Talk to Service BC <ArrowUpRight size={16} aria-hidden="true" /></a>
+        {jurisdiction.id === "sk"
+          ? <p>Independent pilot.<br /><span>AI answers may be incomplete or wrong. Check information at saskatchewan.ca.</span></p>
+          : <p>A service assistant pilot.<br /><span>Official services take it from here.</span></p>}
+        <nav aria-label="Footer navigation"><Link href="/how-it-works">How it works</Link><Link href="/about#privacy">Privacy</Link><Link href="/about#accessibility">Accessibility</Link><Link href="/sources">Our sources</Link><Link href="/credits">{presentation.creditsTitle}</Link></nav>
+        <a href={jurisdiction.helpChannel.url} className="footer-help">{presentation.helpLabel} <ArrowUpRight size={16} aria-hidden="true" /></a>
       </div>
       <FooterCredit />
     </footer>
@@ -81,5 +84,5 @@ export function Footer() {
 }
 
 export function FooterCredit() {
-  return <p className="footer-credit">Built with love in BC by <a href="https://github.com/VeVarunSharma" target="_blank" rel="noopener noreferrer">@VeVarunSharma</a></p>;
+  return <p className="footer-credit">{presentation.credit} <a href="https://github.com/VeVarunSharma" target="_blank" rel="noopener noreferrer">@VeVarunSharma</a></p>;
 }

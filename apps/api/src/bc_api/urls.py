@@ -7,25 +7,24 @@ import socket
 from collections.abc import Awaitable, Callable
 from urllib.parse import unquote, urlsplit
 
-OFFICIAL_DOMAINS = frozenset(
-    {
-        "gov.bc.ca",
-        "icbc.com",
-        "bchousing.org",
-        "workbc.ca",
-        "healthlinkbc.ca",
-        "canada.ca",
-        "trustee.bc.ca",
-    }
-)
-PUBLIC_RESEARCH_HOSTS = frozenset(
-    {
-        "www2.gov.bc.ca",
-        "www.icbc.com",
-        "www.bchousing.org",
-        "www.healthlinkbc.ca",
-    }
-)
+from bc_api.jurisdiction import current_pack
+
+
+class PublisherRegistry:
+    """Dynamic membership keeps validation isolated for multiple local app instances."""
+
+    def __init__(self, key: str) -> None:
+        self.key = key
+
+    def __iter__(self):
+        return iter(current_pack().manifest[self.key])
+
+    def __contains__(self, host: str) -> bool:
+        return host in current_pack().manifest[self.key]
+
+
+OFFICIAL_DOMAINS = PublisherRegistry("officialDomains")
+PUBLIC_RESEARCH_HOSTS = PublisherRegistry("researchHosts")
 
 
 def https_url(value: str) -> str:

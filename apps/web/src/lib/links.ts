@@ -1,13 +1,5 @@
-const officialHosts = [
-  "gov.bc.ca",
-  "icbc.com",
-  "bchousing.org",
-  "healthlinkbc.ca",
-  "workbc.ca",
-  "bclaws.gov.bc.ca",
-  "canada.ca",
-  "trustee.bc.ca",
-];
+import { jurisdiction } from "./jurisdiction";
+const officialHosts = jurisdiction.officialDomains;
 
 export function safeOfficialUrl(value: unknown): string | null {
   if (typeof value !== "string" || value.length > 2048 || /[\u0000-\u0020\\]/u.test(value)) return null;
@@ -28,11 +20,11 @@ export function sourceDomain(value: string): string {
 
 export function formatDate(value: string | null): string {
   if (!value || !Number.isFinite(Date.parse(value))) return "Not provided";
-  return new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat(jurisdiction.locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
-    timeZone: value.includes("T") ? "America/Vancouver" : "UTC",
+    timeZone: value.includes("T") ? jurisdiction.timeZone : "UTC",
   }).format(new Date(value));
 }
 

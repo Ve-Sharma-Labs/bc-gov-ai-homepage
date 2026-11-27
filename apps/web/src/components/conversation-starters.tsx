@@ -4,19 +4,20 @@ import { useId, useState } from "react";
 import { retainComposerFocus } from "@/lib/utils";
 import { useAssistant } from "./assistant-provider";
 import { Button } from "./ui/button";
+import { jurisdiction, presentation } from "@/lib/jurisdiction";
 
-export const conversationStarters = [
-  "I need to renew my drivers license",
-  "I need to apply for guardianship",
-  "I need to apply for disability",
-  "I just lost my job, what do I do?",
-] as const;
+export const conversationStarters = jurisdiction.id === "sk" ? [
+  "I need to renew my driver's licence.",
+  "I'm a student and need to find student loans.",
+  "How do I apply for Saskatchewan health coverage?",
+  "I've moved to Saskatchewan. What do I need to do?",
+] : presentation.starters;
 
 export function ConversationStarters({ heading, onPrepared }: { heading?: string; onPrepared?: () => void }) {
   const assistant = useAssistant();
   const instructions = useId();
   const [replacement, setReplacement] = useState<string | null>(null);
-  if (assistant.contextActive || assistant.selectedId) return null;
+  if (!conversationStarters.length || assistant.contextActive || assistant.selectedId) return null;
   const prepare = (prompt: string) => {
     assistant.setDraft(prompt);
     setReplacement(null);

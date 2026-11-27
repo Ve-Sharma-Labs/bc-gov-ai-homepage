@@ -27,7 +27,7 @@ dependencies = [
   "redis-entraid==1.2.2",
   "PyJWT[crypto]==2.15.1",
   "azure-monitor-opentelemetry-exporter==1.0.0b58",
-  "opentelemetry-sdk==1.45.1",
+  "opentelemetry-sdk==1.45.2",
   "tzdata==2026.5",
 ]
 
@@ -42,9 +42,17 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/bc_api"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"../../ingestion/bc_ingestion/__init__.py" = "bc_ingestion/__init__.py"
+"../../ingestion/bc_ingestion/operation_rights.py" = "bc_ingestion/operation_rights.py"
+"../../ingestion/bc_ingestion/metadata.py" = "bc_ingestion/metadata.py"
+"../../ingestion/bc_ingestion/policy.py" = "bc_ingestion/policy.py"
+"../../ingestion/bc_ingestion/pack_policy.py" = "bc_ingestion/pack_policy.py"
+"../../ingestion/bc_ingestion/robots.py" = "bc_ingestion/robots.py"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "../../ingestion"]
 asyncio_mode = "auto"
 addopts = "-q"
 

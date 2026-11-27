@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from bc_api.jurisdiction import current_pack
+
 SCHEMA_VERSION = 1
 FIXTURE_ID = "citizen-context-demo-v1"
 MAX_FIXTURE_BYTES = 256_000
@@ -169,11 +171,7 @@ class DemoPersonaFixture:
 
 
 def default_demo_personas_path() -> Path:
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "data" / "demo-personas.json"
-        if candidate.is_file() or (parent / "PRODUCT.md").is_file():
-            return candidate
-    return Path("/app/data/demo-personas.json")
+    return current_pack().path("personas")
 
 
 def _invalid(path: str, message: str) -> DemoPersonaFixtureError:
@@ -212,6 +210,11 @@ def parse_demo_persona_json(payload: bytes) -> DemoPersonaFixture:
 
 
 def load_demo_persona_fixture(path: Path | None = None) -> DemoPersonaFixture:
+    if not current_pack().synthetic_context:
+        current_pack().validate_disabled_content("personas")
+        raise DemoPersonaFixtureError(
+            "Synthetic personas are not registered for this jurisdiction."
+        )
     fixture_path = path or default_demo_personas_path()
     try:
         payload = fixture_path.read_bytes()

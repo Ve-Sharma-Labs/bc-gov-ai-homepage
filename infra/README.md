@@ -7,6 +7,49 @@ or public-release approval is inferred from an authenticated Azure CLI session.
 `scripts/azure-preflight.mjs`. Flags are necessary configuration, not evidence
 that reviews or live verification happened.
 
+## Government selection
+
+`JURISDICTION=bc` preserves the existing BC deployment defaults and resource
+names. A different pack selects a separate environment and resource prefix
+(for example, `rg-skassist-*`), index/semantic defaults and container government
+configuration. Build both application images for that same pack; runtime
+selection must not reuse images, indices, bindings or operational state from
+another government. BC CI/CD workflow definitions remain unchanged.
+
+Saskatchewan's source/brand release approvals are still pending. The preflight
+rejects cross-government index/control configuration, unsupported BC demos
+and AI/traffic activation while the source permission gate remains unresolved.
+The sample `jurisdictions\sk\deployment.env.example` is configuration only,
+not a provisioning or publication approval. Existing staging repair/identity
+workflows remain BC-specific and must not be reused for Saskatchewan.
+
+The Saskatchewan hosting entry point uses private, Entra-only Azure Managed
+Redis in Canada East, with a private endpoint in the Canada Central VNet.
+When redeploying an existing Saskatchewan network, supply
+`privateSubnetNetworkSecurityGroupId` and `appsSubnetNetworkSecurityGroupId`
+for any Azure Policy-assigned NSGs attached to those subnets, so the template
+preserves them.
+
+`sk-source-health-alert.bicep` is a separately scoped Saskatchewan alert
+candidate, not an automatic refresh. It reads only source-health metrics from
+the configured Application Insights resource and the fixed Saskatchewan API
+role. Every five minutes it evaluates the preceding 15 minutes; it alerts if
+checks or metrics are missing, source health is not ready, no documents are
+usable, some documents have expired, source coverage is missing, or the
+earliest expiry is within 72 hours. By default, the two partial-loss metrics
+are required and their absence alerts. The currently deployed API does not emit
+them; `requirePartialLossMetrics=false` permits a temporary baseline rule that
+still detects imminent expiry, missing baseline telemetry, and total loss, but
+cannot detect partial source loss without those metrics. Set it back to `true`
+when the updated API is deployed. An existing action group with a responsible
+operator is required. Validate the rule, notification
+delivery, monitoring cost and deployment scope before enabling it; an alert
+cannot reacquire, review, publish or withdraw source content.
+To test the exact KQL against synthetic metrics, set
+`AZURE_LOG_ANALYTICS_TEST_WORKSPACE` to a workspace customer ID and run
+`python -m unittest discover -s infra\tests -p test_source_health_alert.py`.
+The tests query Azure and are skipped when the workspace is not configured.
+
 The isolated pilot infrastructure and real application images are deployed.
 One general and seven pathway agents, and 12 chunks from four explicitly approved
 source snapshots are configured. The private-origin connection is approved, and
@@ -193,8 +236,10 @@ review flag solely to satisfy preflight.
    identity and publication permissions. Complete Azure validation and review
    the real provision preview before authorizing resource creation.
 2. Provision with `closed` stage: Front Door is disabled. Bootstrap placeholder
-   images are allowed only while closed. Deploy the real application images,
-   publish reviewed agent versions/content, and apply their actual bindings.
+   images are allowed only while closed. Publish reviewed agent versions/content
+   and apply their actual bindings and conversation flags to the closed app.
+   Run Foundry Evals separately to review candidate response quality. Its result
+   does not automatically block image deployment.
 3. Resolve the approved application image digests in ACR. Set both image inputs
    before any subsequent exposure/configuration provision operation. This keeps
    an IaC update from resetting a deployed application to AVM's hello-world image.
@@ -212,19 +257,46 @@ be trusted, restore the reviewed bindings/images, and reverify before reopening.
 Do not delete source or shared-control resources as an automatic rollback.
 
 **BC Gov App - Azure Deployment** (`.github/workflows/azure-pilot.yml`) is
-**manual only**. Its run title and check name identify the selected provision,
-deploy, or verify operation. It needs an explicitly
-configured/protected `pilot` GitHub environment, OIDC deployment identity and
-the reviewed variables above. Provision and image deployment are separate
-operations. The separate `verify` operation requires an exact `public_url`;
+manual only. `provision` is restricted to reviewed staging and rejects production
+changes in a structured what-if. `AZURE_PRODUCTION_ENV_NAME` must identify the
+distinct production environment. Generic `azd deploy` is blocked so it cannot
+bypass qualification.
+
+`deploy` requires offline PyRIT checks, builds immutable images, deploys them to
+staging, and requires complete fixed and adaptive live results. Protected
+production approval follows. The controller probes a zero-traffic API/web pair
+and switches web traffic without disabling Front Door. The web revision points
+to its matching API revision; failed public verification restores the prior
+traffic mapping. It preserves identities, secret references, WAF settings, and
+production limits.
+
+Configure protected `pilot-staging` and `pilot` environments, OIDC identities
+and a reviewed fixed-egress Linux runner. The idle private-readiness job can be
+included in staging with `AZURE_RELEASE_PROBE_ENABLED=true`; use
+`infra/release-probe.bicep` to prepare it in existing production without
+reprovisioning the apps. Review its identity, image, and costs first.
+The [PyRIT guide](../docs/pyrit.md) covers variables, permissions, retained
+revisions, and activation checks. These definitions are not evidence of Azure
+activation or a verified live cutover.
+
+The separate `verify` operation requires an exact `public_url`;
 it checks version-5/task readiness, current baseline evidence, and all seven
 preparation guides without a model call by default. `live_checks=true` also
 requires `AZURE_LIVE_EVALUATION_APPROVED=1` and performs at most 18 synthetic
-turns, clearing its own conversation sessions. It does not create its own GitHub approvals, publish unreviewed
-content/agents, or enable Web IQ. Before image replacement it checks the actual
-Front Door endpoint is disabled, rather than trusting a stage variable. New
-images must pass validation before their immutable digests are promoted and
-traffic reopened. No workflow has been run.
+turns, clearing its own conversation sessions. It does not create approvals,
+publish agents or content, or enable Web IQ.
+
+Azure Deployment does not run Foundry Evals or depend on its results.
+[BC Gov App - Foundry Evals (Relevance & Task Outcomes)](../.github/workflows/foundry-evals.yml)
+is a separate, manual workflow. It evaluates the checked-out candidate using the
+existing API Container App's bindings and publishes content-free scores and report
+metadata. It reuses the protected `pilot` environment and OIDC identity, with its
+own concurrency group. It requires `AZURE_LIVE_EVALUATION_APPROVED=1`,
+`AZURE_FOUNDRY_EVALUATION_APPROVED=1`, and an explicit
+`FOUNDRY_EVALUATION_MODEL_DEPLOYMENT`. Evaluation failures fail that run without
+blocking or triggering deployment. It does not provision resources, replace
+images, or emit a deployment marker. See the
+[Foundry evaluation guide](../docs/foundry-evaluations.md) for setup and scoring.
 
 For a focused diagnosis, run `scripts/verify-pilot-chat.mjs` with the exact
 `--url`, `--live-approved` and a supported `--case` such as `--case=job-loss`.
@@ -432,6 +504,19 @@ can initially return the old template. Keep the prior image digests for rollback
 and verify public-edge recovery after restoring Front Door's enabled state.
 Treat snapshot parameters as confidential and remove temporary secret values
 after validation.
+
+`sk-search-private-endpoint.bicep` prepares a private endpoint and private DNS
+zone for the existing Saskatchewan Search service without changing its public
+access setting. Linking the zone can redirect live VNet traffic even while
+public access remains enabled. Do not deploy it until DNS conflicts, client
+and publisher connectivity, rollback, cost, policy and the exact what-if
+have been reviewed and the Azure validation workflow has passed. A private
+zone can also make other Search names return NXDOMAIN when they lack records.
+Azure's [DNS fallback](https://learn.microsoft.com/azure/dns/private-dns-fallback)
+is a possible mitigation, but it can resolve a missing private record to a
+public endpoint, including this Search service while public access is enabled.
+The template does not enable that fallback; assess the exposure and test both
+private and other consumer resolution before selecting a DNS policy.
 
 ## References
 

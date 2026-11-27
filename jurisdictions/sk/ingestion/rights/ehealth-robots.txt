@@ -1,0 +1,11 @@
+# Algolia-Crawler-Verif: F3977A0FB53DDD41
+
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /*agilitypreviewkey=
+Disallow: /*AgilityPreview=
+Disallow: /*ContentID=
+Disallow: /*preview=1
+
+Sitemap: https://www.ehealthsask.ca/sitemap.xml

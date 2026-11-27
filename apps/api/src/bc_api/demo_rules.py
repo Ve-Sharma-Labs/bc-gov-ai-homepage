@@ -24,6 +24,7 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
+from bc_api.jurisdiction import current_pack
 from bc_api.models import (
     SCREENING_NOTICE,
     Catalog,
@@ -376,15 +377,11 @@ class RuleEvaluationEvidence:
 
 
 def default_demo_program_rules_path() -> Path:
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "data" / "demo-program-rules.json"
-        if candidate.is_file() or (parent / "PRODUCT.md").is_file():
-            return candidate
-    return Path("/app/data/demo-program-rules.json")
+    return current_pack().path("programmeRules")
 
 
 def default_demo_catalog_path() -> Path:
-    return default_demo_program_rules_path().with_name("pilot-catalog.json")
+    return current_pack().path("catalog")
 
 
 def _strict_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -494,6 +491,9 @@ def load_demo_program_rule_set(
     path: Path | None = None,
     catalog_path: Path | None = None,
 ) -> DemoProgramRuleSet:
+    if not current_pack().synthetic_context:
+        current_pack().validate_disabled_content("programmeRules")
+        raise DemoRuleSetError("Programme rules are not registered for this jurisdiction.")
     rule_path = path or default_demo_program_rules_path()
     source_path = catalog_path or default_demo_catalog_path()
     try:

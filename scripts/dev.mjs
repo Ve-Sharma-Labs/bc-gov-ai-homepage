@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { jurisdictionEnvironment, loadJurisdiction } from "./jurisdiction.mjs";
 import {
   assertPortAvailable,
   loadLocalEnvironment,
@@ -9,6 +10,7 @@ import {
   requireWebRuntime,
   root,
   waitUntilReady,
+  webDistDirectory,
 } from "./runtime.mjs";
 
 const children = [];
@@ -48,7 +50,7 @@ try {
   const python = pythonFor(path.join("apps", "api"));
   const next = requireWebRuntime();
   const production = process.argv.includes("--production");
-  const standalone = path.join(root, "apps", "web", ".next", "standalone", "server.js");
+  const standalone = path.join(root, "apps", "web", webDistDirectory(), "standalone", "server.js");
   if (production && !existsSync(standalone)) {
     throw new Error("The optimized web build is missing. Run npm run build first.");
   }
@@ -57,9 +59,8 @@ try {
     assertPortAvailable(settings.webPort),
   ]);
   const env = {
-    ...process.env,
+    ...jurisdictionEnvironment(),
     APP_ENV: process.env.APP_ENV || "development",
-    CONTENT_CATALOG_PATH: process.env.CONTENT_CATALOG_PATH || path.join(root, "data", "pilot-catalog.json"),
     API_BASE_URL: settings.apiUrl,
     API_ALLOWED_ORIGINS: process.env.API_ALLOWED_ORIGINS || `${settings.webUrl},http://localhost:${settings.webPort}`,
     API_ALLOWED_HOSTS: process.env.API_ALLOWED_HOSTS || (
@@ -92,7 +93,7 @@ try {
       waitUntilReady(`${settings.webUrl}/api/capabilities`, web),
     ]);
     if (!stopping) {
-      console.log(`\nBC service pilot: ${settings.webUrl}`);
+      console.log(`\n${loadJurisdiction().shortName} service pilot: ${settings.webUrl}`);
       console.log(`Local API: ${settings.apiUrl}`);
       console.log("Azure resources were not provisioned. Press Ctrl+C to stop these services.\n");
     }

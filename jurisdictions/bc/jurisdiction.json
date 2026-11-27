@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "id": "bc",
+  "name": "Government of British Columbia",
+  "shortName": "British Columbia",
+  "inlineName": "B.C.",
+  "siteTitle": "BC.Gov",
+  "description": "Find British Columbia government services, understand what you need, and prepare your next steps.",
+  "locale": "en-CA",
+  "timeZone": "America/Vancouver",
+  "officialDomains": ["gov.bc.ca", "icbc.com", "bchousing.org", "workbc.ca", "healthlinkbc.ca", "canada.ca", "trustee.bc.ca"],
+  "researchHosts": ["www2.gov.bc.ca", "www.icbc.com", "www.bchousing.org", "www.healthlinkbc.ca"],
+  "helpChannel": {
+    "name": "Service BC",
+    "url": "https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc"
+  },
+  "brand": {
+    "logo": "/brand/bc-logo-horizontal-transparent.png",
+    "logoWidth": 361,
+    "logoHeight": 120,
+    "fontFamily": "BC Sans",
+    "assetStatus": "existing-bc-baseline"
+  },
+  "presentation": {
+    "title": "BC.Gov",
+    "siteUrl": "https://bcassist-xufhsendpx-ddabgxfdera9azbp.b01.azurefd.net/",
+    "socialAlt": "BC.Gov — Government of British Columbia",
+    "banner": "A service assistant for British Columbia",
+    "homeLabel": "British Columbia service assistant home",
+    "greeting": "British Columbia.",
+    "serviceIntro": "Find your way through B.C. services.",
+    "chatLabel": "General B.C. chat",
+    "conversationLabel": "Conversation with the BC service assistant",
+    "assistantName": "BC service assistant",
+    "scopeDescription": "Optional: focus your questions on a service, or keep asking about B.C. government in general.",
+    "clearScopeLabel": "Clear pathway and use general B.C. chat",
+    "helpLabel": "Talk to Service BC",
+    "helpInline": "get help through Service BC",
+    "credit": "Built with love in BC by",
+    "creditsTitle": "Photo credits",
+    "creditsIntro": "British Columbia, photographed by the Unsplash community. These images illustrate places, not endorsements of this pilot.",
+    "creditsNotice": "BC Sans and the display typeface are self-hosted with their open licence notices. Visual identity and public-release approval remain separate.",
+    "aboutLead": "A helpful place to understand B.C. services and prepare your next step. This is a pilot, not a released government transaction service.",
+    "aboutIdentity": "The pilot pairs BC Sans with an open-licensed display serif and B.C. Design System colours. Its British Columbia photographs are from Unsplash. The British Columbia logo and favicon were supplied for this project. Public release approvals remain separate.",
+    "howIntro": "This pilot brings a few everyday B.C. services into one approachable place. No account to create. No applications submitted for you. Just a helpful place to start.",
+    "sourceScene": "Find information from official B.C. services, with sources you can open and check for yourself.",
+    "sourceNotice": "",
+    "pilotNotice": "",
+    "emptyJourneys": "",
+    "flag": "",
+    "flagAlt": "",
+    "starters": ["I need to renew my drivers license", "I need to apply for guardianship", "I need to apply for disability", "I just lost my job, what do I do?"],
+    "identityLabel": "Identity and B.C. residency",
+    "identityReason": "Confirm the fictional resident and B.C. service pathway.",
+    "licenceNotice": "BC Laws source notice",
+    "officeEmpty": "No matching office was found in the reviewed snapshot. Check the official Service BC directory.",
+    "locationIntro": "BC Services Card support here means account setup or ID verification, not photo-card issuance.",
+    "locationEmpty": "No matching office is verified in this snapshot. Try another filter or use the official Service BC directory. Missing information does not mean a service is unavailable everywhere.",
+    "serviceLabels": {
+      "icbc-licensing": "ICBC driver licensing",
+      "income-assistance": "Income assistance",
+      "bc-services-card": "BC Services Card account / ID verification",
+      "bceid": "BCeID"
+    },
+    "handoffIllustration": "Go to ICBC",
+    "regionValue": "british-columbia",
+    "socialBackground": "#013366",
+    "socialAccent": "#fdb813",
+    "assets": [],
+    "tokens": {},
+    "stream": {
+      "hello": "Hello! What would you like to know about B.C. government services?",
+      "clarify": "Tell me a little more about the B.C. service or topic you need help with. You can also choose a guided pathway.",
+      "checking": "Checking official BC sources...",
+      "searching": "Searching official BC sources…",
+      "unavailable": "General B.C. chat is not connected in this pilot. Your question has been kept. Try again later or use a guided plan."
+    },
+    "services": [
+      { "name": "Driver licensing and BCID", "publisher": "ICBC", "description": "Check the official requirements for licensing, identification and office visits.", "url": "https://www.icbc.com/driver-licensing" },
+      { "name": "Rental assistance and housing", "publisher": "BC Housing", "description": "Explore programmes and check current application guidance directly with BC Housing.", "url": "https://www.bchousing.org/housing-assistance" },
+      { "name": "MSP and PharmaCare", "publisher": "Government of B.C.", "description": "Find the official starting points for medical and prescription drug coverage.", "url": "https://www2.gov.bc.ca/gov/content/health/health-drug-coverage" },
+      { "name": "Finding primary care", "publisher": "HealthLink BC", "description": "Learn about the Health Connect Registry and official support routes.", "url": "https://www.healthlinkbc.ca/health-connect-registry" },
+      { "name": "Service BC locations", "publisher": "Service BC", "description": "Find office details and confirm which services are offered before you go.", "url": "https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc" },
+      { "name": "All government services", "publisher": "Government of B.C.", "description": "Browse the provincial website for topics outside this pilot’s curated guided plans.", "url": "https://www2.gov.bc.ca/gov/content/home" }
+    ]
+  },
+  "content": {
+    "catalog": "data/pilot-catalog.json",
+    "groundingPacks": "data/conversation-grounding-packs.json",
+    "personas": "data/demo-personas.json",
+    "programmeRules": "data/demo-program-rules.json",
+    "sourceProgramme": "data/source-programme.json",
+    "provenance": "data/provenance.json"
+  },
+  "features": {
+    "guidedJourneys": true,
+    "syntheticContext": true
+  },
+  "sourcePolicy": {
+    "approvalStatus": "existing-reviewed-snapshots-only",
+    "trainingAllowed": false,
+    "scopeNotice": "Existing BC per-source rights and exact-snapshot review gates remain authoritative."
+  }
+}

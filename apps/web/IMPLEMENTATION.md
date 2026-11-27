@@ -144,3 +144,45 @@ The Dockerfile still uses the repository root as build context, produces a
 non-root Next standalone runtime, and bundles local photos/fonts. Docker/Azure
 execution and independent accessibility/public-brand certification remain
 separate verification gates.
+# Jurisdiction-selected web builds
+
+Default commands still select BC. Set `JURISDICTION=sk` before dev, build or tests
+to select the Saskatchewan local pilot. Next config prepares the selected
+manifest, font module, hero images, CSS and public assets synchronously, so root
+tooling that invokes the Next CLI directly does not need generated files first.
+Use Node 24 and run `npm ci` in this directory when dependencies are missing.
+
+`npm run build` stamps the selected identity. `npm start` rejects a mismatched
+runtime `JURISDICTION`; Next instrumentation also guards direct standalone
+startup, and Docker's unchanged `node server.js` command uses a preloaded
+identity guard. Docker supports `--build-arg JURISDICTION=sk` and still
+compiles on BUILDPLATFORM with separately installed target-platform runtime
+dependencies. Only selected public assets and fonts reach the release image.
+Set `SITE_URL` to the pilot's actual deployment URL before a production build;
+the SK local default is localhost and robots remain noindex.
+
+Presentation copy is additive manifest data. Unsupported Saskatchewan journeys,
+office snapshots and synthetic profiles are hidden, with official service
+handoffs instead of BC data. Catalog/capability responses must identify `sk`;
+missing or mismatched identity fails closed. Additive identity omissions remain
+accepted for legacy BC fixtures.
+
+The generated client manifest is an explicit public projection: identity,
+locale/time zone, official destinations, brand, features and public presentation.
+Content paths, research policy, publisher grants, private deployment fields and
+source-review records are excluded. Only public presentation inputs contribute
+to its serialization; the negative projection regression injects private records.
+
+The BFF sets `X-Expected-Jurisdiction` from its compiled pack, ignoring a browser
+expectation claim and rejecting browser `X-Jurisdiction` selection. The API
+checks that expectation against its deployment before route/model work. The BFF
+verifies upstream `X-Jurisdiction` on every response, including streams and
+controls; missing SK identity or any mismatch returns explicit 502 and cancels
+the upstream body. BC tolerates absent legacy identity. There is no per-turn
+capabilities discovery call.
+
+Focused pack regression tests live in `tests/jurisdiction.test.tsx`; they inject
+both manifests without packaging two governments in production. Browser checks
+for the selected SK build use `jurisdiction.spec.mjs`; existing branding checks
+remain the default BC regression. Run either against a loopback preview using
+`PILOT_BASE_URL`, then stop that preview.

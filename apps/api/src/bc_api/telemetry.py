@@ -33,6 +33,8 @@ class Telemetry:
         self.phases = None
         self.source_checks = None
         self.source_documents = None
+        self.source_expired_documents = None
+        self.source_missing_sources = None
         self.source_expiry = None
         self.logger = logging.getLogger("bc_api.operations")
         if not self.logger.handlers:
@@ -78,6 +80,8 @@ class Telemetry:
         self.phases = meter.create_histogram("bc.run.phase_elapsed", unit="ms")
         self.source_checks = meter.create_counter("bc.sources.checks")
         self.source_documents = meter.create_histogram("bc.sources.usable_documents")
+        self.source_expired_documents = meter.create_histogram("bc.sources.expired_documents")
+        self.source_missing_sources = meter.create_histogram("bc.sources.missing_sources")
         self.source_expiry = meter.create_histogram("bc.sources.hours_to_expiry", unit="h")
 
     def sources(self, health: SourceHealth) -> None:
@@ -88,6 +92,8 @@ class Telemetry:
         if self.source_checks is not None:
             self.source_checks.add(1, attributes)
             self.source_documents.record(health.usable_documents, attributes)
+            self.source_expired_documents.record(health.expired_documents, attributes)
+            self.source_missing_sources.record(len(health.missing_source_ids), attributes)
             if health.next_expiry_at is not None:
                 hours = (
                     datetime.fromisoformat(health.next_expiry_at) - datetime.now(UTC)

@@ -5,6 +5,11 @@ targetScope = 'subscription'
 @maxLength(40)
 param environmentName string
 
+@description('Government pack baked into both application images. BC preserves existing deployment names.')
+@minLength(2)
+@maxLength(32)
+param jurisdiction string = 'bc'
+
 @description('User-confirmed Azure location. No region is selected automatically.')
 @minLength(1)
 param location string
@@ -21,6 +26,8 @@ param stagingIdentities object = {}
 param releaseCommit string = ''
 @maxLength(64)
 param releaseId string = ''
+@description('Create the idle managed-identity readiness job only after its scope and costs are reviewed.')
+param releaseProbeEnabled bool = false
 
 @description('Explicitly selected model names, versions, SKUs and capacity; no moving defaults.')
 param modelDeploymentsJson string
@@ -44,7 +51,8 @@ param aiConversationPrivacyReviewed string = 'false'
 @allowed(['false', 'true'])
 @description('Enable only for the reviewed, synthetic-only citizen-context demonstration.')
 param syntheticContextEnabled string = 'false'
-param searchIndex string = 'bc-pilot-public'
+param searchIndex string = '${jurisdiction}-pilot-public'
+param searchSemanticConfig string = '${jurisdiction}-public-guidance'
 @allowed(['false', 'true'])
 @description('Enable only after the additive provenance index schema has been verified.')
 param searchMetadataEnabled string = 'false'
@@ -74,21 +82,22 @@ param clientHashKey string = '${newGuid()}${newGuid()}'
 var suffix = take(uniqueString(subscription().id, environmentName, location), 10)
 var tags = {
   'azd-env-name': environmentName
-  project: 'bc-government-assistant'
+  project: jurisdiction == 'bc' ? 'bc-government-assistant' : '${jurisdiction}-government-assistant'
   classification: deploymentKind
 }
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
-  name: 'rg-bcassist-${suffix}'
+  name: 'rg-${jurisdiction}assist-${suffix}'
   location: location
   tags: tags
 }
 
 module pilot './modules/pilot.bicep' = {
-  name: 'bc-assistant-pilot'
+  name: '${jurisdiction}-assistant-pilot'
   scope: resourceGroup
   params: {
-    name: 'bcassist-${suffix}'
+    name: '${jurisdiction}assist-${suffix}'
+    jurisdiction: jurisdiction
     location: location
     tags: tags
     deploymentKind: deploymentKind
@@ -98,6 +107,7 @@ module pilot './modules/pilot.bicep' = {
     stagingIdentities: stagingIdentities
     releaseCommit: releaseCommit
     releaseId: releaseId
+    releaseProbeEnabled: releaseProbeEnabled
     modelDeployments: json(modelDeploymentsJson)
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
@@ -109,6 +119,7 @@ module pilot './modules/pilot.bicep' = {
     aiConversationPrivacyReviewed: aiConversationPrivacyReviewed
     syntheticContextEnabled: syntheticContextEnabled
     searchIndex: searchIndex
+    searchSemanticConfig: searchSemanticConfig
     searchMetadataEnabled: searchMetadataEnabled
     searchMetadataReviewed: searchMetadataReviewed
     searchSku: searchSku
@@ -145,3 +156,14 @@ output WEB_URL string = pilot.outputs.webUrl
 output AZURE_FRONT_DOOR_PROFILE_NAME string = pilot.outputs.frontDoorProfileName
 output AZURE_FRONT_DOOR_ENDPOINT_NAME string = pilot.outputs.frontDoorEndpointName
 output AZURE_FRONT_DOOR_RESOURCE_GROUP string = empty(sharedFrontDoorProfileName) ? resourceGroup.name : sharedFrontDoorResourceGroup
+output PYRIT_CONTEXT object = {
+  subscriptionId: subscription().subscriptionId
+  apiId: resourceId(resourceGroup.name, 'Microsoft.App/containerApps', pilot.outputs.apiName)
+  webId: resourceId(resourceGroup.name, 'Microsoft.App/containerApps', pilot.outputs.webName)
+  probeJobId: pilot.outputs.releaseProbeId
+  foundryAccountId: pilot.outputs.foundryAccountId
+  frontDoorEndpointId: resourceId(empty(sharedFrontDoorProfileName) ? resourceGroup.name : sharedFrontDoorResourceGroup, 'Microsoft.Cdn/profiles/afdEndpoints', pilot.outputs.frontDoorProfileName, pilot.outputs.frontDoorEndpointName)
+  wafPolicyId: pilot.outputs.wafPolicyId
+  registryName: pilot.outputs.registryName
+  origin: pilot.outputs.webUrl
+}

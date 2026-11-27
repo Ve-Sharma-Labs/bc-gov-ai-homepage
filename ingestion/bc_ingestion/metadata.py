@@ -14,15 +14,19 @@ EXTRACTION_METHOD = "direct-publisher-html/section-aware-v2"
 LEGACY_EXTRACTION_METHOD = "direct-publisher-html/section-aware-v1"
 SERVICE_DIRECTORY_EXTRACTION_METHOD = "bc-data-catalogue/service-directory-v1"
 RENDERED_HTML_EXTRACTION_METHOD = "controlled-rendered-html/section-aware-v1"
+SECTION_EXCERPT_EXTRACTION_METHOD = "publisher-html/complete-section-excerpt-v1"
 PUBLISHER_FEED_EXTRACTION_METHOD = "publisher-feed-html/section-aware-v1"
 LEGAL_XML_EXTRACTION_METHOD = "bc-laws-civix/legal-section-v1"
+PDF_EXTRACTION_METHOD = "direct-publisher-pdf/page-text-v1"
 EXTRACTION_METHODS = {
     EXTRACTION_METHOD,
     LEGACY_EXTRACTION_METHOD,
     SERVICE_DIRECTORY_EXTRACTION_METHOD,
     RENDERED_HTML_EXTRACTION_METHOD,
+    SECTION_EXCERPT_EXTRACTION_METHOD,
     PUBLISHER_FEED_EXTRACTION_METHOD,
     LEGAL_XML_EXTRACTION_METHOD,
+    PDF_EXTRACTION_METHOD,
 }
 DOCUMENT_TYPES = {"guidance", "legal", "service-directory", "notice"}
 LEGAL_STATUSES = {"in-force", "not-yet-in-force", "repealed", "historical", "unknown"}
@@ -116,8 +120,20 @@ def validate_metadata(value: dict) -> dict:
     }
     if not value:
         return value  # The shipped v1 snapshots predate additive metadata.
-    if not isinstance(value, dict) or value.get("schemaVersion") != 1 or set(value) - allowed:
+    if not isinstance(value, dict):
         raise AcquisitionError("Unsupported provenance metadata schema")
+    pdf = value.get("schemaVersion") == 2
+    if pdf:
+        allowed |= {"pageCount", "contentHashBasis"}
+    if value.get("schemaVersion") not in (1, 2) or set(value) - allowed:
+        raise AcquisitionError("Unsupported provenance metadata schema")
+    if pdf and (
+        value.get("mediaType") != "application/pdf"
+        or type(value.get("pageCount")) is not int
+        or not 1 <= value["pageCount"] <= 100
+        or value.get("contentHashBasis") != "original-response-bytes"
+    ):
+        raise AcquisitionError("PDF provenance v2 requires bounded page count and original-byte hash basis")
     for name in ("canonicalUrl", "sourceUrl"):
         if value.get(name) != canonicalize(value.get(name)):
             raise AcquisitionError("Provenance URLs must be canonical HTTPS URLs")
@@ -136,7 +152,7 @@ def validate_metadata(value: dict) -> dict:
         raise AcquisitionError("Unsupported document type")
     media_type = value.get("mediaType")
     document_type = value.get("documentType", "guidance")
-    if media_type not in (
+    if not pdf and media_type not in (
         "text/html", "application/xhtml+xml", "application/json",
         "application/xml", "text/xml",
     ):

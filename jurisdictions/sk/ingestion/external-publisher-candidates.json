@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "jurisdictionId": "sk",
+  "status": "pending-separate-publisher-review",
+  "candidates": [
+    {
+      "name": "eHealth Saskatchewan",
+      "verifiedHosts": [],
+      "termsEvidence": null,
+      "robotsEvidence": null,
+      "publisherGrant": null,
+      "status": "pending-exact-host-terms-robots-and-ai-use-review"
+    },
+    {
+      "name": "SGI",
+      "verifiedHosts": [],
+      "termsEvidence": null,
+      "robotsEvidence": null,
+      "publisherGrant": null,
+      "status": "pending-exact-host-terms-robots-and-ai-use-review"
+    }
+  ],
+  "notice": "Project candidate names only; no guessed host, official-domain expansion, acquisition allowlist, inherited Saskatchewan licence or RAG permission. Other linked publishers remain excluded until separately reviewed."
+}

@@ -1,4 +1,5 @@
 "use client";
+import { presentation } from "@/lib/jurisdiction";
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "react-aria-components";
@@ -85,8 +86,8 @@ const ConversationMessage = memo(function ConversationMessage({ message, catalog
     .filter((source): source is Source => !!source), [message.citations, catalog]);
   if (message.role === "assistant" && !message.content.trim()) return null;
   const heading = message.role === "user" ? "Your question"
-    : message.response?.decisionOrigin === "model" ? "BC service assistant"
-      : message.response?.origin === "application" ? "BC service assistant"
+    : message.response?.decisionOrigin === "model" ? presentation.assistantName
+      : message.response?.origin === "application" ? presentation.assistantName
       : message.response?.kind === "dialogue" ? "AI assistant" : "AI answer";
   return <article className={`message message-${message.role}`}>
     <div className="message-heading">
@@ -165,7 +166,7 @@ export function Conversation({ state, catalog, children, hasDiscoveryContext = f
         );
       })}
       {!!licenceNotices.length && <aside className="source-licence-notice" aria-label="Source licence notice">
-        <strong>BC Laws source notice</strong>
+        <strong>{presentation.licenceNotice}</strong>
         {licenceNotices.map((notice) => <p key={notice}>{notice}</p>)}
       </aside>}
       {state.warning && <p className="answer-warning conversation-warning" role="status">{state.warning}</p>}

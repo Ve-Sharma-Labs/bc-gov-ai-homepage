@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { jurisdictionEnvironment } from "./jurisdiction.mjs";
 import { assertPortAvailable, loadLocalEnvironment, localSettings, pythonFor, root } from "./runtime.mjs";
 
 try {
@@ -14,10 +15,9 @@ try {
     cwd: path.join(root, "apps", "api"),
     stdio: "inherit",
     env: {
-      ...process.env,
+      ...jurisdictionEnvironment(),
       APP_ENV: process.env.APP_ENV || "development",
       API_ALLOWED_ORIGINS: process.env.API_ALLOWED_ORIGINS || `${webUrl},http://localhost:${webPort}`,
-      CONTENT_CATALOG_PATH: process.env.CONTENT_CATALOG_PATH || path.join(root, "data", "pilot-catalog.json"),
     },
   });
   child.once("error", (error) => { console.error(error.message); process.exitCode = 1; });

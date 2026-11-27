@@ -197,6 +197,7 @@ def refresh_rows(rows, policy, store, *, initialize=False, request=transport,
         if paused:
             row["refresh"] = "deferred-budget"
             continue
+        checkpoint_failed = False
         try:
             authorized(row["url"])
             response = fetcher.fetch(row["url"])
@@ -232,6 +233,7 @@ def refresh_rows(rows, policy, store, *, initialize=False, request=transport,
             if row["refresh"] not in {"unchanged", "changed", "baseline-unavailable", "withdrawn"}:
                 row["findings"].append("refresh-unavailable")
         except CheckpointError:
+            checkpoint_failed = True
             raise
         except ProgrammeGate as exc:
             row["refresh"] = exc.code
@@ -243,7 +245,8 @@ def refresh_rows(rows, policy, store, *, initialize=False, request=transport,
             row["findings"].append("refresh-unavailable")
         finally:
             # Do not retain response bodies, private review fields or exception messages.
-            store.save(state)
+            if not checkpoint_failed:
+                store.save(state)
     return state
 
 
@@ -286,6 +289,10 @@ def main(argv=None):
     parser.add_argument("--initialize", action="store_true")
     parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "ingestion/.generated/freshness")
     args = parser.parse_args(argv)
+    from .jurisdiction import load_pack
+    pack = load_pack()
+    if pack.id != "bc":
+        pack.assert_operation("BC watchdog")
     if args.initialize and not args.refresh:
         parser.error("--initialize requires --refresh")
     from .pipeline import guarded_output

@@ -17,6 +17,7 @@ from bc_api.agents import (
     conversation_agent_definition,
     general_agent_definition,
     grounded_agent_definition,
+    require_agent_pack,
     research_agent_definition,
 )
 from bc_api.catalog import CatalogRepository
@@ -30,6 +31,7 @@ from bc_api.urls import azure_endpoint
 async def publish(
     definitions: list[dict], endpoint: str, subscription: str | None = None
 ) -> list[dict]:
+    require_agent_pack()
     endpoint = azure_endpoint(endpoint, service="foundry")
     registered: list[dict] = []
     async with AzureCliCredential(

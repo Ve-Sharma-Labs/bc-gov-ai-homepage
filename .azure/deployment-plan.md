@@ -1,3 +1,606 @@
+# Saskatchewan application hosting preparation
+
+Status: Ready for Validation (API answer-quality release)
+
+## Saskatchewan homepage and link-preview release, 2026-11-26 UTC
+
+The requested web-only release adds editable example questions and an Open
+Graph/Twitter preview titled "AI at Government of Saskatchewan". The user
+confirmed that the supplied wordmark is authorized for public link-preview
+use; this does not establish approval for other uses or imply endorsement.
+The existing pilot disclosure remains in the preview.
+
+The linux/amd64 image `sk-web-homepage-local:current`, index
+`sha256:69858469ca67565dfbd89e7bed960a93107361b0883d297ce2242e11d6e1c03a`,
+was built and locally served the Saskatchewan homepage, examples and both
+social images with the public origin. It was pushed to the existing registry as
+`gov-platform-web:sk-homepage-69858469ca67` and has not been deployed.
+The live web revision remains `ca-skassist-rywtikimq4-web--0000001`.
+The live web container has no `SITE_URL` setting. The scoped release must
+set it to the existing public Front Door origin so link-preview URLs do not
+point to localhost, while preserving all unrelated container settings.
+
+All validation checks pass:
+- [ ] Core validation: a validation-only web snapshot passed CLI,
+  authentication, Bicep compilation and provider validation. A narrower
+  preview reported only one modified web app, but predicted removal of its
+  existing secret and could not resolve the secure environment comparison.
+  The mirror must not be deployed; it does not prove that the actual PATCH
+  preserves all existing configuration.
+- [x] Docker build and local image verification.
+- [x] Existing web managed identity has `AcrPull` on the registry.
+- [ ] Azure Policy validation: eleven existing noncompliant records remain;
+  no resource-group exemptions were listed, and the web app itself returned no
+  noncompliant policy records. These are not evidence of an Azure denial. The
+  required validation workflow is incomplete.
+
+## Saskatchewan web POC released, 2026-11-27 UTC
+
+The latest `origin/main` was fetched at
+`94951b4b98e25ff0f9fbe291c0800cfe1a2dc4be` and merged into this branch as
+`7ca84588566d7ca1dc4212c422822c634f58aaa9`. The full local worktree was
+snapshotted and verified before integration; the original 26 staged BC asset
+deletions and all local files were restored. The social card combines the
+latest main behavior with the jurisdiction-specific bundled logo. Focused web
+tests passed (34), Foundry evaluation tests passed (64), Foundry/release
+workflow tests passed (36), and web TypeScript checking passed.
+
+The merged Saskatchewan web image was built for Linux amd64, locally
+smoke-tested, and pushed as
+`crskassistrywtikimq4.azurecr.io/gov-platform-web@sha256:b590fde153743eb4d37de7aa7e151edf5f01978fc92cc6ec2fb3127fc2a2e2f7`.
+Only `ca-skassist-rywtikimq4-web` was updated, to revision
+`ca-skassist-rywtikimq4-web--sk94951b4`, with the public `SITE_URL` set to
+the Front Door origin. The revision is healthy and receives 100% of web
+traffic. A comparison with the prior revision confirmed the template is
+unchanged apart from the image and added `SITE_URL`; the
+`CLIENT_HASH_KEY` secret reference is intact. The API remains on revision
+`ca-skassist-rywtikimq4-api--0000001`; the WAF, framing protection and BC
+deployment were not changed.
+
+Cache-busted public checks returned HTTP 200 for the homepage, `/chat`,
+`/api/capabilities`, `/opengraph-image` and `/twitter-image`. The live page
+shows the title “AI at Government of Saskatchewan,” the Saskatchewan example,
+and public canonical/social-image URLs; both image endpoints returned PNG.
+Capabilities reported `jurisdiction=sk`, `retrievalReady=true` and 42 usable
+documents. `X-Frame-Options: DENY` remains set.
+
+This is the requested POC web release, not completion of the broader Azure
+validation workflow. The 11 existing audit/audit-if-not-exists findings and
+the approved policy-remediation follow-up remain separate work. Search logs
+were not enabled; private networking, image scan state, source refresh,
+ownership and evidence expiry were not changed or asserted as resolved.
+
+## Current Saskatchewan image candidates, 2026-11-26 UTC
+
+The user reaffirmed immediate deployment of the public Saskatchewan pilot.
+Full PyRIT evaluation is BC-specific and is not a prerequisite for this
+Saskatchewan image update. Source refresh, operational ownership, image
+scanning and existing policy findings remain real follow-up risks; do not
+represent them as completed or extend the existing source evidence.
+
+The merged worktree was built as Linux amd64 images and published to the
+existing Saskatchewan registry:
+
+- API index `sha256:102b31eb230ecdb55e5ff4036fec962aa776c750cf072cb834cc3436018ebc34`
+- Web index `sha256:349d4788531ce63e6af621eec7b33d1e54ac8bea4d8a1d840673bb01db403410`
+
+The API build used the configured Microsoft package mirror after the PyPI
+build dependency download failed TLS. The web image served the Saskatchewan
+homepage with the public origin locally; the API health endpoint and
+Saskatchewan capabilities responded in development mode. Production startup,
+Azure configuration preservation, provider validation and rollback for these
+exact images still require verification. The existing public apps have not
+been updated. Source evidence begins expiring on 2026-12-01 at 16:06:05 UTC.
+
+## Main integration and current release blockers, 2026-11-26 UTC
+
+The fetched main branch has been merged into the local feature branch; the
+prior local work and staged asset deletions were restored. The live application
+was not changed. The new PyRIT release tooling is BC-specific: it requires
+BC-brand approval, protected main-branch execution, separately provisioned
+staging and production contexts, a private probe, matching evidence and a
+specific edge topology. It is not yet a Saskatchewan release path and must not
+be run against Saskatchewan without a separately validated adaptation.
+
+The current Azure Policy query returned eleven noncompliant resource-policy
+records under one assignment, affecting Search, Foundry, ACR and the apps and
+private-endpoint subnets. Search log collection can contain user query terms;
+the record must not be cleared by enabling unreviewed logging. Defender still
+showed 10 unhealthy records for the live web image and 16 for the live API
+image, with no records for the final candidate child digests. Missing records
+do not establish scan completion. The public homepage returned HTTP 200 and
+capabilities reported 42 usable documents, with first expiry
+2026-12-01T16:06:05Z.
+
+The public-stage WAF deployment succeeded on 2026-11-25 UTC. The live policy
+is in prevention mode with both managed rule sets and the API rate limit.
+After initially returning 403 under the previous `ValidationOnly` rule, the
+public homepage returned 200 at 05:48 UTC. Live public checks of the homepage,
+about, credits, Saskatchewan favicon and five chat questions are described
+below. Answer quality, source refresh ownership and public-facing rights
+wording remain release limitations.
+
+## Public data-plane checks, 2026-11-25 UTC
+
+- The homepage, `/about`, `/credits` and `/favicon-saskatchewan.ico` returned
+  HTTP 200; homepage metadata points both icon relations to the Saskatchewan
+  favicon. The homepage contains Saskatchewan content without a BC domain.
+- Actual public HTTPS chat requests completed for licence renewal, health card,
+  licence fee, Income Support and an unsupported question. The fee response
+  withheld conflicting amounts and linked to SGI; the unsupported question
+  returned the prescribed navigation response. Income Support included a
+  complete list and official source on this run.
+- The licence-renewal response included useful guidance and the SGI link but
+  also introduced payment options without listing them. The agent instructions
+  already prohibit unfinished lists, so prompt instructions alone are not a
+  verified fix. These checks do not establish that all questions are reliable.
+- The earliest indexed-source expiry remains 2026-12-01T16:06:05Z; ongoing
+  Saskatchewan refresh and withdrawal ownership is not established.
+- At 2026-11-25 09:22 UTC, the public homepage and capabilities endpoint
+  again returned HTTP 200; capabilities reported retrieval ready with 42
+  usable documents and the same earliest expiry.
+- A read-only Search metadata query on 2026-11-25 returned 157 active chunks
+  for 42 distinct documents, with consistent `checkedAt` across each document.
+  At the API's default seven-day maximum age, all 42 expire on 2026-12-01,
+  between 16:06:05Z and 18:20:22Z. The live container has no explicit
+  `SEARCH_MAX_AGE_DAYS` override, and the exact running API image reports a
+  seven-day default. This query did not reacquire content or
+  authorize a refresh; once all evidence expires, retrieval fails closed.
+- Public credits and about copy still describe public-release permission as
+  unapproved or unverified despite the user's attestation. Correcting the
+  manifest changes the reviewed pack identity and requires a properly rebound
+  review, index publication and image deployment; do not bypass the binding.
+- Browser approval was denied earlier, so these checks used HTTP and the
+  actual public chat protocol rather than an interactive visual browser test.
+- A later HTTP recheck returned 200 for the homepage, about, credits, the
+  linked Saskatchewan favicon and capabilities. `/favicon.ico` returned 404;
+  the page explicitly links `/favicon-saskatchewan.ico`. Canonical and Open
+  Graph URLs still point to localhost. Capabilities still reported 42 usable
+  documents and the same earliest expiry.
+- A separate network freshness monitor is not ready: the existing acquisition
+  manifests have exhausted their 15-request limits. Initializing a new monitor
+  with an independent budget would not preserve those limits, so the unfinished
+  prototype was removed. Durable budget continuity, controlled rendered-source
+  capture, review, publication and withdrawal remain unresolved.
+- A local watchdog fix prevents a second checkpoint write after an uncertain
+  write failure, so an uncommitted reservation cannot be followed by a
+  publisher request or an automatic retry of the failed write. The existing
+  watchdog remains separate from SK acquisition; this change does not
+  authorize a new budget or establish SK refresh. It has not been deployed.
+- A read-only checkpoint inspection confirms that both authorized SK acquisition
+  runs remain paused at 15 of 15 requests; the preserved synthetic run is
+  separately bound to synthetic rights and cannot be reused for live sources.
+  The deployed API has source metrics enabled, but no metric or scheduled-query
+  alerts were listed in the SK resource group. Metrics are not a refresh process
+  or a substitute for an assigned operator and notification route.
+
+## Prepared source-health alert
+
+Prepare a separately scoped scheduled log alert against the existing SK
+Application Insights metrics and Log Analytics workspace. It must warn before
+evidence expiry, on unhealthy or missing source telemetry, and never fetch
+publisher content or change a source budget. Require an existing action group
+with an assigned operator rather than silently creating a notification-free
+alert. This alert incurs Azure Monitor charges; verify price, the query, action
+group, privacy, policy compliance and exact resource-only what-if before
+deployment. It does not approve or refresh evidence.
+The prepared `infra\sk-source-health-alert.bicep` uses the SK API's exact
+Application Insights resource and role, a 15-minute observation window and a
+72-hour expiry threshold. The rule defaults to requiring the new expired-document
+and missing-source metrics, and alerts when they are absent. A temporary
+`requirePartialLossMetrics=false` compatibility mode can use the live API's
+baseline metrics to detect imminent expiry, missing baseline telemetry,
+unhealthy status or total loss; it cannot detect every partial source loss.
+Switch to strict mode after deploying the updated API.
+
+The prior strict-only template passed provider validation and a resource-only
+what-if showing one alert creation. After adding compatibility mode, Bicep
+build and lint passed and the exact KQL passed 24 synthetic cases across both
+modes, including missing baseline and partial-loss metrics. Against live
+telemetry the strict query returned one alert row and the compatibility query
+returned none. Provider validation of compatibility mode succeeded. A
+full-resource what-if showed only one creation, `sk-source-health`; its
+evaluated query used `False` for compatibility mode and returned no alert row
+against live telemetry. The synthetic cases also passed with the provider's
+boolean spelling. This preview does not clear policy, cost, ownership or
+notification-delivery checks. No action group exists
+in the SK resource group; the subscription's `AGOwner` group was used only as
+a validation placeholder, and its suitability has not been established.
+The KQL integration cases are now retained in
+`infra\tests\test_source_health_alert.py`, opt-in via a workspace customer ID;
+both configured and unconfigured test paths were checked.
+The API source-health tests also cover the inspected mixed case: one current
+document, one expired document with duplicate chunks and a missing source
+produce the corresponding partial-loss telemetry while status remains ready.
+The Azure Retail Prices API returned USD $1.50 per month for the Canada
+Central five-minute log-alert meter on 2026-11-25. The rule has no dimension
+split; Microsoft says the first time series is included. This is a retail
+estimate, not the subscription's invoice price, and excludes separately billed
+telemetry ingestion and notifications.
+Notification delivery, alert-engine behavior, price, responsible ownership and
+Azure Policy compliance remain unverified. Neither change is deployed.
+Application Insights metrics were present; no Container Apps console records
+were observed in the workspace over the checked period.
+The existing `AGOwner` group is enabled and has an email receiver and an
+Azure Owner role receiver. The signed-in account does not match the direct
+email receiver. A read-only role-assignment check found one directly assigned
+subscription-level Owner user, who is not the signed-in user; two further
+direct Owner assignments are service principals. Microsoft documents that
+[role-based email notifications](https://learn.microsoft.com/azure/azure-monitor/alerts/action-groups)
+require a subscription-level user or group assignment, and can include other
+eligible role members. This does not establish a responsible operator,
+effective delivery or an approved source-health notification route.
+
+## Private-link investigation
+
+The existing Foundry account reports private-link group `account` and requires
+the `privatelink.cognitiveservices.azure.com`, `privatelink.openai.azure.com`,
+and `privatelink.services.ai.azure.com` DNS zones. Search reports group
+`searchService` and zone `privatelink.search.windows.net`. The existing VNet
+uses Azure-provided DNS and has a separate private-endpoint subnet. On
+2026-11-25 UTC, Search reported Basic tier and both Search and Foundry reported
+public network access enabled in Canada Central. The `/24` private-endpoint
+subnet reported one existing endpoint, Redis. No matching Search or Foundry
+private DNS zones appeared in the subscription zone listing. These are
+read-only findings, not proof of working private connectivity. Before changing
+access, validate DNS and authenticated API, agent, image-pull and ingestion
+paths from their actual networks, including rollback and costs. Do not disable
+public access before those checks or affect public Front Door access.
+Microsoft's Foundry guidance distinguishes inbound private endpoints from
+outbound agent network injection and says an existing deployment cannot have
+outbound VNet injection added without redeployment:
+https://learn.microsoft.com/en-us/azure/ai-foundry/how-to/configure-private-link
+
+Prepare a separate, Search-only private endpoint and DNS integration candidate
+against the existing VNet and Search service. It must not change Search public
+access, the Foundry account, Container Apps, or the index. This is preparation
+and provider preview only, not authorization to apply the template: linking
+the private DNS zone could redirect live application traffic. Before any
+deployment, check exact-scope what-if, policy, costs, DNS conflicts, client and
+publisher connectivity, ownership and rollback, then complete the required
+Azure validation workflow.
+`infra\sk-search-private-endpoint.bicep` now compiles and lints. Provider
+validation succeeded against the SK resource group. Its full-resource what-if
+reported exactly four creations: the Search private endpoint, DNS zone,
+VNet link and endpoint DNS zone group, with no other non-ignored resources.
+This is not a connectivity test or policy approval, and no deployment occurred.
+[Microsoft's Search guidance](https://learn.microsoft.com/azure/search/service-create-private-endpoint)
+supports private endpoints on the existing Basic tier; it also confirms the
+endpoint is separately billable. A VNet link may affect DNS for other Search
+services, so inventory and test all consumers before enabling it.
+The live VNet has an apps subnet delegated to the Saskatchewan Container Apps
+environment and a private-endpoint subnet containing Redis. The SK resource
+group lists the API and web apps in that environment; this inventory does not
+establish every DNS consumer or publisher network. The subscription currently
+lists 19 private DNS zones and no `privatelink.search.windows.net` zone.
+Azure retail pricing lists a global Standard Private Endpoint at US$0.01/hour
+and private DNS zones at up to US$0.50 per zone-month for the first 25 zones.
+At 730 hours, these are approximately US$7.80/month for this endpoint and zone,
+excluding data processing, DNS queries, taxes and subscription-specific
+discounts. This is not a quote or a complete network-isolation estimate.
+
+## Prepared API answer-quality update
+
+### API-only release preview investigation
+
+A session-only Bicep probe targeting just the existing API compiled and
+produced a resource-group what-if on 2026-11-25 UTC using the live image as a
+no-op input. The API was the only non-ignored resource, but what-if reported
+modifications to identity, configuration, template, workload profile and
+tags despite supplying the live state as a secure object. It did not
+provide a sufficiently granular preservation proof. This preview did not
+deploy anything and is not release validation; do not deploy the probe.
+The live API was in single-revision mode with one `main` container and no
+configured secrets at the time of the check. A scoped release still needs a
+reliable preview, concurrency protection, rollback verification and the
+other validation gates described in this plan.
+
+A separate **redacted, preview-only** probe removed null and unsupported
+read-only fields from the live response before submission. The provider
+accepted it. With the current image, what-if reported only the 71 deliberately
+redacted environment values; with the previously pushed image candidate, it
+reported those same redactions plus the image change, and no other property
+changes. Both previews targeted only the API resource. The helper is
+`files\sk-api-redacted-whatif.ps1` in the session workspace. The old candidate
+has known Defender findings and is not the final patched image. These probes
+do not establish preservation of actual environment values, protect against
+concurrent changes, validate the final image, or clear the policy gate. The
+redacted probe must never be deployed.
+
+A second session-only probe passed the actual environment as a secure
+parameter and used a writable-only snapshot for the other fields. Its
+what-if identified only an unresolved secure environment expression with
+the current image, and that expression plus the final API candidate image
+with the candidate digest. No other resource or property changes appeared.
+The helper is `files\sk-api-secure-whatif.ps1`. The secure environment is
+not evaluated by what-if, so this is not proof of environment preservation
+or provider acceptance of those values, nor protection from concurrent
+changes. This probe is not a deployable release template and does not clear
+the policy or Defender gates.
+
+The Container Apps update API documents JSON Merge Patch, but its `containers`
+field is an array, so supplying only an image would replace the array rather
+than merge an individual container's fields. On 2026-11-25 UTC, read-only GETs
+of both live apps using API version `2025-01-01` returned no `etag` in the
+resource body or HTTP ETag header. Their latest revisions were both `--0000001`.
+These observations do not establish an atomic concurrency guard; do not assume
+an `If-Match` header protects a release or submit a partial container array.
+
+The user approved fixes and continued deployment. Build a Saskatchewan API
+image from the previously verified release snapshot with only the tested
+incomplete-options safeguard and its associated test and documentation
+changes. Retain the existing source-rights pin, knowledge index, web image,
+public Front Door stage, WAF rules, private origin and deployment identities.
+Validate the exact image and scoped deployment before replacing the API
+revision. Smoke-test public chat and preserve rollback to the prior immutable
+API image. Do not deploy the former `closed` parameter file as-is: it would
+disable the public endpoint.
+The new immutable image is
+`crskassistrywtikimq4.azurecr.io/gov-platform-api@sha256:a2c0aee4fb59f52b36f080ee7836a40df17bf6350b4d28eb17cc786413e89884`.
+This image predates the subsequent local safeguard refinement requiring the
+promised number of options when the introduction specifies one through ten.
+An offline local image `sk-api-options-count:local` was derived from that
+verified baseline by replacing only its installed `bc_api/output.py` with the
+tested source. Its local image ID is
+`sha256:9707012057da5ec397e095ee696a785d114e7ed59bf7439a00b17dad0f22aa7f`;
+this is not a pushed registry digest. A later regression exposed that a list
+immediately following its introduction without a blank line could bypass the
+count. The corrected candidate `sk-api-options-inline:local`, local ID
+`sha256:d077912cd7f55fd9b6ce1835be0539e539b88e12f9c9ea182efcf469c89fc217`,
+was rebuilt offline for linux/amd64 from the same verified baseline. Its
+installed `output.py` SHA-256 is
+`fb74ab9e5d128f714c709b7aee82929a3f08f9192a1a551fa5a5a4ad71cf6a53`.
+Offline checks confirmed it holds an incomplete adjacent list and accepts a
+complete one; 56 focused streaming, retry and evidence-boundary tests and
+the changed API files' Ruff checks passed. This candidate is not pushed or
+deployed; its context is `files\sk-options-inline-20261125`. Earlier offline
+image checks verified the module
+hash, selected Saskatchewan pack, rights binding and option-count behavior.
+This image also predates the new source-health metrics and cannot support the
+revised alert. A new offline candidate `sk-api-source-metrics:local`, local ID
+`sha256:15aeb0ec63f8bf4246301011e83bf5f37e27cb37ec2395ed0f3e74e38db897f1`,
+was built for linux/amd64 from it by replacing only `bc_api/telemetry.py`.
+The installed telemetry SHA-256 is
+`dc885acc4a48951192bfe8c61c2840500cf22302f29703b8225a23f74eed4840`,
+and the output safeguard hash remains unchanged. An offline image check
+verified the new source-count emissions. This is not a pushed registry digest
+or a validated deployment; exporter delivery and the exact combined release
+still need verification.
+The normal source Docker build failed while pip attempted to install isolated
+build dependencies; the derived build retains the baseline dependencies and is
+recorded separately. Reproduce and publish the exact image before validating a
+release; do not claim the earlier image contains the refinement.
+The original API image is retained for rollback. The release snapshot differs
+from the previously verified snapshot only in the two API files, their focused
+regression test and API documentation. The image was built for linux/amd64 and
+its selected SK jurisdiction, rights pin and options safeguard were checked.
+The 54 focused streaming, retry and evidence-boundary tests and API lint pass.
+Use `files\sk-options-fix-validation-parameters.json` for read-only validation;
+it contains a placeholder key and must never be used unchanged for deployment.
+The deployment has **not** been applied: provider validation and Bicep lint
+passed, but Azure Policy reports existing noncompliance in this resource group
+for Redis diagnostics, ACR image vulnerabilities and network isolation, and
+Search/Foundry diagnostics and network isolation. Search and Foundry currently
+have public network access enabled; the ACR is Basic and publicly reachable
+with authentication. The proposed full-hosting what-if also affects 18 resources,
+including the Front Door origin, WAF and Redis assignment; it is not sufficiently
+scoped for an API-only change. No resource deletions were returned in the
+structured what-if, but property removals and six unsupported role-assignment
+predictions require separate review. Do not mark this release validated or
+deploy it until the policy findings and deployment scope are resolved.
+
+The public homepage also emitted `localhost:3000` for canonical and social URLs.
+The Saskatchewan-only hosting configuration now supplies `SITE_URL` from the
+Front Door public origin, leaving BC unchanged. The released web image was
+verified locally with that runtime variable: canonical, Open Graph and Twitter
+image URLs used the public HTTPS origin. The local Bicep compiles and the
+Azure what-if includes the new web variable. This configuration is not deployed.
+Local web changes also replace unavailable guided-plan recovery messages and
+links with official-services guidance when guided journeys are disabled;
+the existing BC recovery is retained. These web changes require a newly built
+and validated Saskatchewan web image and are not deployed. The Saskatchewan
+production web build completed locally using the existing dependencies.
+Focused web tests
+cover both jurisdictions, stream and HTTP errors, and recovery links. A later
+policy-state query still returned the same ten noncompliant records, so the
+release gate remains blocked.
+The local Saskatchewan homepage also reports when reviewed source answers are
+unavailable, including when source loss makes AI configuration report false;
+BC's guided-plan status is unchanged. This change postdates all previously
+pushed web candidates, which do not include it and must not be represented as
+the current web release.
+The updated source-status web image was subsequently built for linux/amd64,
+served the Saskatchewan homepage locally with the public origin and no runtime
+npm, and pushed for scanning on 2026-11-25. Its index is
+`sha256:96328085789ac2b015964728f0a3e9d0b4c1dbb42c0c818038b4050e5c4f2930`,
+its linux/amd64 manifest is
+`sha256:a91d5e329fba4583f09a4b372e488f2fe586a1913b14138dbb0d1303c4b1ad18`,
+and its tag is `sk-source-status-96328085789a`. It is not deployed; Defender
+scan coverage and the release gates remain unverified. A follow-up Resource
+Graph query still found no individual assessments for the previous no-npm web
+candidate, the latest web candidate, or the patched API candidate, while returning 10 and 16 unhealthy
+assessments for the running web and API images respectively; absence is not
+proof that a candidate was scanned clean.
+The Azure validation workflow is at recipe-specific checks. A fresh
+resource-group policy-state query still reports ten noncompliant records, so
+the release is not validated. The proposed full-hosting template and existing
+preview-only API probes do not yet constitute an exact, concurrency-safe
+release for the latest image digests.
+Search diagnostic logs can include query terms; do not enable them merely to
+clear the policy finding without preserving the application's privacy controls.
+The Search service currently exposes only `OperationLogs` as a log category;
+`AllMetrics` is metrics-only. The assigned Search logging policy requires at
+least one enabled log category, so metrics alone do not satisfy it. The separate
+AI-services diagnostic policy checks for a log setting. No privacy-preserving
+Search log destination or filter has been verified.
+Microsoft's [Search monitoring guidance](https://learn.microsoft.com/azure/search/search-monitor-queries#return-query-strings-entered-by-users)
+explicitly demonstrates extracting user query strings from `Query_s` after
+resource logging is enabled. It does not establish that the current SDK's
+POST requests exclude query text from those records.
+The live Foundry account already has an inherited `allLogs` diagnostic setting
+to the management-group governance workspace, whose reported retention is 30
+days. A field-name-only query over its 265 recent `RequestResponse` records
+showed metadata keys, including `path` and token counts, but no prompt or
+response-payload key; this sample does not establish that logs can never
+contain sensitive data. The governance workspace's access controls and
+potential contents of path or other values remain unverified. Do not copy raw
+logs into reports or assume the application controls this destination.
+
+For a separate Redis audit remediation, `infra\sk-redis-diagnostics.bicep`
+targets only the existing Redis database and existing Log Analytics workspace.
+The inherited management-group policy requires an enabled `allLogs` category
+group, not merely a named category. The live Redis database currently exposes
+only `ConnectionEvents` in that group. Microsoft documents that these events
+contain connection and authentication metadata, including client IP addresses,
+not Redis command bodies. The group can expand in future, so category membership,
+workspace access and retention must be reviewed before deployment and monitored
+afterward. A read-only check on 2026-11-25 found the pilot Log Analytics
+workspace has 30-day default retention and public ingestion and query endpoints
+enabled. Inherited subscription and management-group roles include Owners,
+Contributors and a Log Analytics Contributor; principal identities, group
+membership, effective data access and any future table-specific retention remain
+unverified. The Redis resource exposed `ConnectionEvents` at that check, and
+no Redis-named table was present in the workspace table listing. These facts
+do not establish acceptable access or retention for future logs. The validation
+helper passed compilation, provider validation and
+what-if for this template on 2026-11-25 UTC. The structured full-resource
+what-if identified exactly one creation: the database diagnostic setting;
+it identified no other modifications or deletions. Bicep emitted BCP081 for
+the existing Redis API types, which provider validation accepted. The helper's
+text summary counted two creates; the structured result is authoritative.
+This is not a completed policy validation or deployment: all policy failures
+and the privacy implications remain open.
+
+The Search service currently exposes only `OperationLogs` and `AllMetrics`.
+Microsoft documents that Search operation logs can capture query strings and
+that this log category does not support ingestion-time transformations. Do not
+enable it or claim redaction without a separately verified privacy-preserving
+design. The retrieval path currently supplies the user's query as
+`search_text`; `logging_enable=False` disables SDK logging but is not evidence
+that Azure resource diagnostics omit it. Microsoft's query-log documentation
+shows `Query_s` containing query strings, and does not establish that POST
+request bodies are excluded in all service logs. A change to POST alone is not
+a proven privacy control. The two assigned Search logging policies require log entries in a
+diagnostic setting, with one explicitly requiring an enabled log; metrics
+alone do not satisfy them. The service currently exposes no separate audit-log
+category. References: [Search query logs](https://learn.microsoft.com/azure/search/search-monitor-queries#return-query-strings-entered-by-users),
+[Search monitoring data](https://learn.microsoft.com/azure/search/monitor-azure-cognitive-search-data-reference#resource-logs),
+and [Redis connection logs](https://learn.microsoft.com/azure/redis/monitor-diagnostic-settings#contents-of-the-connection-logs).
+The latest policy-state query found ten noncompliant records across Redis, ACR,
+Search and the AI account. Defender for Containers is Standard with registry
+vulnerability assessment enabled, but the registry assessment queried by the
+policy was not found in the prior registry-level query. A later subscription
+assessment query found unhealthy image-level findings. Manifest inspection maps
+16 findings to the running API's linux/amd64 image and 10 to the running web's
+linux/amd64 image; these include findings rated Critical in OS packages. The
+previously pushed API candidate has 16 image-level findings and is not a clean
+replacement. These are scanner findings, not proof of exploitability. The local
+web dependencies now pin Next.js 16.4.5 and Azure Identity 4.14.1, resolving
+MSAL Node 7.2.2. The API lock updates oauthlib, OpenTelemetry and soupsieve to
+scanner-recommended fixed versions. Python and Node base images were refreshed;
+the web runtime upgrades Alpine packages. The built linux/amd64 API image
+`sha256:59d333ea075684cfb67842960a5430ae44998e4498a243df627ac43af5a89c5d`
+contains the updated Python packages and Debian versions meeting the observed
+OS fix versions, and passed `pip check` and a development-mode health check. The
+web image `sha256:a2f919901a9301de9ceb0d6e484b7fa4718553fba22753c19c8238932c97fb83`
+contains the updated Node packages, Alpine OpenSSL 3.5.9-r1 and zlib 1.4-r0.
+The final web image served the SK homepage with the configured origin locally.
+Both SK and BC images built, and 69 focused web tests and 82 focused API tests
+passed locally. These images came from the current worktree, not the previously
+verified release snapshot. A file-by-file SHA-256 comparison found the API's
+installed API modules, six ingestion modules and all 27 selected jurisdiction
+files identical to the preceding prepared source-metrics candidate; dependency
+and base-image changes remain intentional. The images were pushed to the SK
+registry for Defender scanning on 2026-11-25 UTC, but are **not deployed**:
+
+- API index `sha256:59d333ea075684cfb67842960a5430ae44998e4498a243df627ac43af5a89c5d`,
+  linux/amd64 manifest `sha256:2ee208a4121d25fd1724ddbaaffa9961a31e9ac38111ab0b059543a9522a9d6e`,
+  tag `sk-security-59d333ea075684cf`.
+- Web index `sha256:a2f919901a9301de9ceb0d6e484b7fa4718553fba22753c19c8238932c97fb83`,
+  linux/amd64 manifest `sha256:b641dfeb81a0a002279053c631384aab5e09acdeb2e217db796a0701395996e5`,
+  tag `sk-security-a2f919901a9301de`.
+
+A subsequent Resource Graph inspection found the subscription exposes
+individual `microsoft.security/assessments` rather than subassessments; prior
+zero-subassessment queries could not establish scan coverage. The web
+candidate's linux/amd64 digest has six unhealthy individual findings, three
+rated High: `brace-expansion`, `minimatch` and `undici`. The remaining three
+are rated Medium. All six detected package versions were verified under the
+globally installed npm in the previous web image. No individual assessment for the API
+candidate was found; that does not prove a completed clean scan.
+
+The final web runtime now removes the unused globally installed npm and its
+`npm`/`npx` entry points after dependencies have been installed in the separate
+target-platform stage. Both SK and BC linux/amd64 images built and served their
+respective homepage locally; the SK homepage used the configured origin. The
+new web index digest is
+`sha256:cdd46f98ad849dead4bf44f1ed39a2b36742d6813321c600546b14ac39eb3996`
+and its linux/amd64 manifest is
+`sha256:9e69240d761dd1c34dff11d2129b67289bfbfb7bbd394447b7f643dab4a5960d`,
+tagged `sk-security-no-npm-cdd46f98ad84`. It was pushed for scanning and is
+**not deployed**. Independent Defender coverage, any remaining findings,
+live-backend behavior, policy convergence and release validation remain open.
+The legacy
+ContainerRegistry pricing entry is Free and is not evidence that the enabled
+Containers plan is off.
+
+An isolated, offline branding re-review has been prepared under
+`files\sk-brand-review-source`: it records the user's permission attestation
+without claiming independent publisher verification, and rebinds the changed
+manifest to a new rights review. Its plan covers 42 documents and 157 chunks,
+retaining the original acquisition timestamps; this is not a fresh collection.
+The first plan contains 157 prior-index deletion candidates and must **not**
+be published to a shadow index as-is. A separate offline
+`brand-shadow-20261125` plan has 42 documents, 157 chunks and no deletions;
+source identities, content hashes and checked times match the live baseline.
+An authenticated read-only Search lookup returned 404 for the proposed
+`sk-pilot-brand-review` index and 200 for `sk-pilot-public`, confirming the
+shadow index did not exist at that check. The staged API validates the new
+review pin, authorizes the reviewed hosts and matches every staged row's
+rights hash. The production manifest, review and Search index remain untouched.
+Before publication, recheck the target, retain the previous index for rollback,
+deploy an API with the new exact pin, and verify both index and live chat.
+
+## Scope
+
+Prepare the Saskatchewan web/API deployment using the shared monorepo and the
+existing isolated Saskatchewan Search and Foundry resources. Preserve BC
+production, staging, source indexes, and CI/CD. The user has approved deployment.
+
+## Requirements and proposed Azure context
+
+| Attribute | Proposed value |
+| --- | --- |
+| Classification | Small Saskatchewan assistant pilot; not a transaction service |
+| Approach | Modify the shared platform; add isolated SK hosting |
+| Subscription | `ME-MngEnvMCAP744360-sharmave-1` (`ad92e163-a85e-40cc-bb50-054b0b8197a8`) |
+| Region | Canada Central, matching the existing SK Search and Foundry resources |
+| Resource group | Reuse `rg-skassist-rywtikimq4`; no BC resource-group writes |
+| Budget | Balanced pilot. Front Door Premium is approximately US$330/month before usage; registry, Redis, compute, monitoring, Search and model costs are additional. Actual subscription pricing may differ. |
+| Exposure | Closed bootstrap, then protected validation and an anonymous HTTPS pilot after operational and safety checks |
+
+The user approved the Saskatchewan subscription and the deployment plan,
+including Canada Central; the user subsequently approved any region, including
+US regions. The closed hosting bootstrap and application images have been deployed.
+Public access was released with WAF prevention mode; the later API and web
+updates described above have not been released.
+
+The user has now explicitly approved a public deployment and asked that the
+application work end to end. Release the existing Front Door WAF policy in
+`public` stage, removing the temporary IP-validation rule while retaining
+prevention mode, managed rules, and the API rate limit. This release modifies
+only the existing SK WAF policy; the already-enabled endpoint and deployed
+images remain unchanged. Validate the exact public-stage policy and its
+what-if before deployment, then check live homepage, favicon, API and grounded
+chat over HTTPS. The user attests to written branding and AI/RAG permissions;
+existing public-facing wording still describes those permissions as
+unverified and needs a separately reviewed correction without breaking the
+source-review binding.
+
+---
+
+## Previous deployment plans from merged branches
+
 # Isolated PyRIT staging
 
 Status: Deployed and connected
@@ -686,6 +1289,76 @@ unchecked cloud checks remain blockers, not waived requirements.
 The record below concerns the existing pilot. Its earlier validation and
 approvals do not authorize the proposed staging deployment.
 
+---
+
+# PyRIT release preparation
+
+Status: Ready for Validation
+
+Prepare isolated staging, required fixed and adaptive PyRIT checks, and paired
+Container Apps revisions for production promotion. Implementation is limited to
+repository changes and offline validation. Do not provision resources, change
+GitHub environment settings, enable schedules, or make paid model calls.
+
+Staging needs separately approved Azure context, model capacity, source
+publication, OIDC identities, spending limits, and a fixed-egress runner. Keep
+production traffic on its current revisions until the exact candidate passes.
+Preserve private ingress, WAF rules, identities, secrets, and admission budgets.
+
+Offline implementation now includes the isolated harness, threat-level Actions
+steps, exact-candidate evidence checks, separate staging configuration, a private
+managed-identity readiness job, paired revision promotion, and rollback.
+
+The local offline campaign completed all 24 cases without model calls. Harness,
+API transport, web proxy, workflow contract, and mocked rollout checks have run.
+Bicep compilation succeeds; the installed compiler still warns about the
+repository's pre-existing Redis API version types.
+
+Validation scope remains offline only. Cloud validation, cutover, conversation continuity, and rollback remain
+unverified until a separately approved activation. The earlier IQ record below
+is retained as historical evidence; it does not qualify this release path.
+
+## All validation checks pass
+
+This gate is not complete. Azure activation was explicitly deferred.
+
+| AZD validation step | Current scope |
+|---|---|
+| AZD installation | Local CLI verified |
+| Schema validation | Bicep compiled; workflow semantics checked |
+| Environment setup | Deferred to approved staging activation |
+| Authentication check | Deferred; no account or subscription inferred |
+| Subscription/location check | Deferred to the operator's selected context |
+| Aspire pre-provisioning checks | Not applicable |
+| Provision preview | Deferred; no cloud preview requested |
+| Build verification | Local tests, type checking, and build checks |
+| Docker build context validation | Existing locked manifests and target-platform dependency stages preserved |
+| Package validation | Azure packaging deferred |
+| Azure Policy validation | Deferred |
+| Aspire post-provisioning checks | Not applicable |
+
+## PyRIT validation proof
+
+| Check | Result |
+|---|---|
+| Full offline threat campaign | 24/24 cases passed against the real API with fixture inference |
+| Evaluator unit/integration checks | 42 passed |
+| Repository tooling and workflow contracts | 115 passed |
+| API release identity and native transport | 27 passed |
+| Web proxy | 44 passed on Node 24 |
+| Web production build and type checking | Passed |
+| New/changed Bicep | Compiled; pre-existing Redis API type warnings remain |
+| Ordinary Actions workflows | Actionlint passed |
+| GH-AW reporting workflow | Strict compilation passed; generated output references verified |
+
+The installed standalone actionlint predates GH-AW's `copilot-requests` permission
+and `concurrency.queue` fields. Only those two known generated-feature diagnostics
+were filtered when checking the compiled workflow; ordinary workflows used no
+filters. Cloud environment, IAM, policy, packaging, paid scans, and live cutover
+checks remain deferred. This plan is not marked `Validated`.
+
+# Optional IQ rollout
+
 Status: Validated
 
 Current execution selection: Stage C2 configuration-only validation. The C1
@@ -1312,127 +1985,372 @@ Validation recorded at `2026-11-06T05:10:10Z`; detailed command-completion
 timestamps and evidence paths are in the ignored `.azure/validation-proof.json`.
 
 All validation checks pass:
+- [ ] 1. Core Validation (CLI, auth, build, validate, what-if) for the API release.
+- [ ] 2. Bicep linting.
+- [ ] 3. Azure Policy Validation.
 
-1. Core validation: CLI authentication, compilation, ARM validation and what-if
-   for `.azure/app-update.bicep`, containing only the two existing apps.
-2. Docker build and image inspection for both Linux amd64 candidates.
-3. Azure policy validation through the target-scope validation/what-if and
-   preservation of existing location, tags, identities, ingress and limits.
-4. Static and live role verification for unchanged registry, Foundry, Search,
-   Redis, API authentication and telemetry access.
+The earlier public WAF policy validation is recorded in Validation Proof below;
+it does not validate this new image release.
 
-The code work already passed API regression/lint, web build/typecheck, targeted
-and full web unit checks (one timeout passed in isolated rerun), 14 task-browser
-cases, Bicep compilation, and release-probe tests. These do not replace fresh
-Azure identity, resource, source, image, and live-outcome checks.
+## Existing state and components
 
-Fresh results:
+The Saskatchewan application runs locally and in protected Azure hosting. Its reviewed knowledge
+index contains 42 documents and 157 chunks. The general Foundry prompt agent is
+bound to immutable version 4. The final 25-case chat run completed: 23 cases
+passed, including all six core service topics across three rounds, licence
+follow-up, angling, hunting and unsupported-question navigation. Income Support
+failed critical-claim validation before emitting an answer. The fee case
+quoted contradictory SGI payment guidance instead of withholding the amounts.
+The user explicitly accepted these known chat-quality failures for the pilot.
+Safeguards for the contradictory fee and initial validation failure have since
+been added. One live in-process check returned the SGI fee handoff without an
+amount, and one Income Support check returned a cited answer. The full
+25-case run has not been repeated; do not represent the prior run as passing.
+The previous PyRIT plan is preserved in
+`deployment-plan-pyrit-preserved-before-sk.md`.
 
-- The Azure validation helper reports `OVERALL: PASS`: authentication, Bicep
-  compilation, target-scope validation, and what-if completed successfully.
-- Structured what-if identifies only the two existing Container Apps as modified.
-  Actual rollout bodies are more narrowly restricted to `properties.template`;
-  a separate exact comparison proves all other environment values, scale and
-  resource allocations are retained. Configuration, secrets, identity, network
-  and tags are not included in the live patch.
-- The provider validation required removing response-only `imageType` and
-  `ephemeralStorage` fields and the duplicate empty value on a secret reference.
-  The existing secret was used only as a secure validation parameter and is
-  absent from the actual rollout patch.
-- Both built images are Linux amd64 and non-root, labelled with the verified
-  source commit. The API image imports successfully and serves health plus all
-  seven guides. The web image serves HTTP and renders the runtime version-5
-  bootstrap correctly.
-- Source publication dry run: 20 uploads, zero deletions, zero withheld
-  documents. The old 12 keys and schema are backed up; additive-schema validation
-  preserves all existing definitions. Check dates are unchanged from acquisition.
-- Registry authentication works using a scoped, temporary credential file after
-  the desktop credential helper failed. This file must be removed after push.
+| Component | Technology | Existing path or resource |
+| --- | --- | --- |
+| Web/BFF | Next.js on Node 24 | `apps\web` |
+| Read-only API | FastAPI/Python | `apps\api` |
+| Knowledge | Azure AI Search, lexical retrieval | `srch-skassist-rywtikimq4`, index `sk-pilot-public` |
+| Model/agent | Foundry prompt agent | Project `sk-service-pilot`, `sk-service-general` version `4`, model `sk-fast` |
+| Source refresh | Reviewed Python ingestion | `ingestion`; retain original ledgers and evidence |
 
-Role Assignment Verification: Passed. Existing API/web registry-pull identities,
-API Foundry/Search/Redis/telemetry access, and web-to-API audience/caller checks
-are retained. No role, credential, privilege or network expansion is planned.
+The SK resource group includes the provisioned hosting environment, registry,
+web/API apps, Redis, Front Door and monitoring, in addition to the existing
+Search and Foundry resources. The Front Door endpoint is enabled but restricted
+by the public-stage WAF policy and serves the public pilot. The prepared
+post-release fixes and operational safeguards remain outstanding.
 
-### API-only follow-up correction
+## Recipe and hosting architecture
 
-The corrected API is commit `f7ef408c13d48c5fef2b52aafa3aabef38b8f87d`,
-image `sha256:16c9d7b74770c6a3d7ab7a7268101863af389159fa83a1e61e85c4317013f960`.
-The deployed web image is unchanged.
+Proposed recipe: dedicated Bicep plus guarded Azure CLI release preparation,
+reusing the repository's proven modules and Dockerfiles. Do not redirect the
+existing BC `azure.yaml` or its CI/CD into Saskatchewan.
 
-- Core validation again reports `OVERALL: PASS`; see
-  `.azure/api-followup-validation.log`.
-- The structured what-if has exactly one modified resource, the existing API,
-  and no creates or deletes. The actual patch is narrower than the validation
-  template: only `properties.template`, with an exact two-field delta of image
-  and revision suffix. All environment, scale and resource values are preserved.
-- The image is Linux amd64, non-root, and labelled with the source commit.
-  An isolated, network-disabled container passed imports, `/healthz`, the seven
-  catalogue guides, and presence of the corrected city guard. The smoke uses
-  the allowed loopback host, not TestClient's disallowed default `testserver`.
-- The 124 targeted API cases and all nine release-probe tests pass.
-- The unchanged API identity still has resource-scoped Foundry/OpenAI, Search,
-  telemetry and registry-pull roles. No infrastructure access change is needed.
-- The pushed registry digest matches the built image. Its temporary registry
-  credential file has been removed.
+Use a hosting-only entry point rather than deploying `infra\main.bicep`
+unchanged. `infra\modules\ai-services.bicep` still hard-codes
+`bc-service-pilot`; invoking it would provision the wrong project under the SK
+account rather than reuse `sk-service-pilot`. Reference the existing SK account,
+project and Search as existing resources. Do not recreate, reconfigure or
+republish their models or index as a hosting side effect.
 
-## 8. Execution record
+Proposed additions:
 
-- Published the reviewed four-document replacement: 20 active chunks, with the
-  12 exact prior chunks reversibly superseded and none deleted. Runtime source
-  health is ready with four usable documents and no expired or rejected active
-  chunks. The recorded acquisition timestamps were not modified.
-- Deployed API/web `renewal-2616376` revisions, preserving identities, secrets,
-  limits and ingress. Version-5/task flags are enabled consistently; version 6
-  and local evidence evaluation remain disabled. Private web-to-API readiness
-  passed using the existing managed identity.
-- The first public live probe passed the reported renewal request and four
-  follow-ups, then failed on the additional-requirements question. A regression
-  reproduced an unchanged known city being rejected as an unsupported update
-  and an informational question rewinding progress. The bounded API correction
-  passes 124 targeted task, grounded-compatibility and answer cases.
-- Front Door was re-enabled after private readiness. Its configuration reports
-  Enabled/Succeeded, but public requests subsequently returned
-  `404 CONFIG_NOCACHE`. Routing diagnosis and final acceptance remain open.
-- This led to the API-only correction recorded below, preserving the deployed
-  web image, settings, source publication and protected exposure procedure.
+- One private, VNet-connected Container Apps environment and two apps: web/BFF
+  on port 3000 and an internal API on port 8000. Initially cap each at one
+  replica, using the existing 0.5 vCPU / 1 GiB allocation.
+- An SK-only Basic container registry with administrator access disabled and
+  authenticated access over its public registry endpoint. The Container Apps
+  environment, not this registry endpoint, has public network access disabled.
+  Build SK `linux/amd64` images explicitly; use managed identity for pulls.
+- Separate SK web and API managed identities; no BC identity reuse. Add a
+  publisher identity only if the hosting release also includes a separately
+  approved scheduled refresh job.
+- A private, Entra-only Azure Managed Redis instance with high availability and
+  no eviction for shared rate, budget, replay, cancellation and run ownership
+  controls. Canada Central capacity was unavailable; use Canada East for the
+  Redis service and keep the private endpoint with the Canada Central VNet.
+  The user has approved use of other regions.
+- A dedicated Front Door Premium profile, private origin and WAF. Do not share
+  or modify BC's existing profile, routes, policies or diagnostics.
+- SK-only Log Analytics/Application Insights, preserving metadata-only
+  application telemetry and no prompt/transcript payload logging.
+- A dedicated secretless internal API Entra application/audience. Only the SK
+  web identity can call the internal API. No citizen authentication,
+  transactions or directory-data permissions are included.
 
-Follow-up rollout:
+No additional Search, Foundry project, model deployment, embeddings, Web IQ,
+guided journeys, contextual demos, custom government domain or Blob staging is
+proposed. Canada Central hosting does not imply that the existing GlobalStandard
+model inference remains within Canada.
 
-- API `renewal-f7ef408` is Healthy at 100% Container Apps traffic, with the web
-  still on `renewal-2616376`. Structural comparison verifies no changes to
-  configuration, user-assigned identity, tags, environment, scale or resource
-  allocations outside the API image/revision suffix.
-- The corrected six-turn renewal flow, guardianship and disability starters
-  passed privately. An informational job-loss request legitimately used the
-  existing reviewed WorkBC handoff rather than asking an intake question.
-  The probe was corrected to accept that supported outcome while still
-  requiring the explicit follow-up to work; API coverage and ten probe tests
-  pass. No application behavior was changed for this probe correction.
-- Private continuation then passed job-loss follow-through, the non-B.C. issuer
-  route and a genuinely grounded, cited Health Connect Registry answer.
-  Synthetic sessions were cleared. The staged private script was removed
-  before execution; a transport `Retry-After: 600` was respected.
-- Public closure was observed as HTTP 404 before reactivation. The endpoint
-  was reopened at `2026-11-06T06:31:04Z`. A bounded read-only observer waited for
-  two stable release-contract passes before the one full public 16-turn run.
-  No WAF, network, budget or source-policy relaxation is involved.
+The user attested to written permission for Saskatchewan branding and RAG.
+The existing brand attribution still says public release is unapproved; reconcile
+that record with the user attestation before public exposure without asserting
+that the written permission was independently verified.
 
-Final acceptance:
+## Capacity inventory and evidence
 
-- Public routing recovered at 06:42 UTC. The complete 16-turn public acceptance
-  run passed at `2026-11-06T06:45:40Z`: renewal continuation, guardianship,
-  disability, job loss, non-B.C. issuer and a cited Health Connect Registry
-  answer. All six synthetic conversations were cleared.
-- A real-browser replay passed the exact renewal request and four follow-ups.
-  Details retained Vancouver and the reviewed ID step after the information
-  question. Optional personal sharing remained off. Start over cleared only
-  that synthetic conversation and returned to the homepage.
-- Final public capabilities expose `[1, 2, 3, 5]`, ready conversation and task
-  assistance, and four usable reviewed documents with no expired documents or
-  rejected active chunks. Missing ICBC detail still uses its specific official
-  handoff; no unsupported requirements, transactions or eligibility decisions
-  have been introduced.
-- `.azure/public-release-result.json` and
-  `.azure/final-public-capabilities.json` retain the actual public results.
-  Temporary registry credentials are absent; private rollback and publication
-  evidence is retained. No GitHub push, pull request or merge was performed.
+Read-only checks were run against the explicit SK subscription, not the
+machine's incidental default. The `Microsoft.App`, `Microsoft.Cache` and
+`Microsoft.ContainerRegistry` providers list Canada Central. Regional
+capacity and policy can change, and an environment-specific core quota cannot
+be queried until the environment exists.
+
+| Resource | Proposed addition | Observed usage | Proposed total | Limit / remaining verification |
+| --- | --- | --- | --- | --- |
+| Container Apps environments | 1 | 4 | 5 | 50; confirmed through `az quota` |
+| Virtual networks | 1 | 2 | 3 | 1000; confirmed through `az quota` |
+| Private endpoints | 1 explicit Redis endpoint | 5 | 6 | 65536; confirmed through `az quota`; review platform-created network resources separately |
+| Network interfaces | 1 explicit endpoint NIC | 5 | 6 | 65536; confirmed through `az quota` |
+| Container Apps | 2 | 7 | 9 | One 0.5-core replica each; verify Consumption core quota after the new environment exists |
+| Container registries | 1 | 4 | 5 | Quota API returned BadRequest; verify Basic availability and exact ARM validation |
+| Azure Managed Redis | 1 Balanced B0 in Canada East | 1 Managed Redis | Separate instance | Canada East provider validation passed; actual capacity remains subject to provisioning |
+| Managed identities | 2 | 15 | 17 | Tenant directory headroom is not exposed by the regional quota API |
+| Front Door profiles | 1 | 1 | 2 | Verify Premium and Private Link availability in exact-scope ARM validation |
+| WAF policies | 1 | 2 | 3 | Verify dedicated-profile associations in exact-scope ARM validation |
+| Log Analytics workspaces | 1 | 4 | 5 | Confirm retention and exact-scope ARM validation |
+| Application Insights components | 1 | 3 | 4 | Confirm exact-scope ARM validation |
+| Search services / Foundry accounts / projects / model deployments | 0 | Existing SK resources | Unchanged | No model quota increase or service recreation proposed |
+
+Regional counts above combine Canada Central resources and global resources
+where applicable. They are not tenant-wide object counts. Read-only policy
+discovery also found inherited management-group policies, including MFA for
+writes and restrictions on classic resources, VM/AKS/SQL and other services.
+No policy exemptions or network-policy relaxation is authorized; nested
+resources still require policy evaluation during closed deployment.
+
+References:
+https://learn.microsoft.com/azure/azure-resource-manager/management/azure-subscription-service-limits
+https://learn.microsoft.com/azure/container-registry/container-registry-skus
+
+## Release preparation and execution sequence
+
+1. Confirm the existing SK subscription and region and obtain approval of this
+   plan before generating hosting code. Recheck service availability and
+   capacity during exact-scope validation.
+2. Keep citation and critical-claim gates intact, verify that ambiguous SGI fee
+   amounts are withheld, and preserve the failed acceptance evidence. The
+   user has accepted remaining chat-quality failures for this pilot.
+3. Prepare a hosting-only Bicep entry point, an existing-resource access module,
+   SK-only parameters and a guarded release preparation command. Preserve
+   default BC behaviour and existing workflow definitions.
+4. Build and smoke-check both SK container images before deploying application
+   images. Explicitly pass
+   `JURISDICTION=sk`; pass the current exact review SHA to the API build.
+   The root `azure.yaml` currently does not express those build arguments and
+   must not silently produce BC-default images. Record the exact build source,
+   immutable image digests and agent binding before deploying application images without
+   committing unrelated worktree changes.
+5. Validate production configuration using managed identity, not the local
+   Azure CLI credential. Require Redis and internal API bearer validation,
+   SK namespaces, correct allowed hosts/origin, correct source-review pin, and
+   matching baked/runtime jurisdiction. Preserve lexical retrieval; normalize
+   infrastructure metadata-review flags to `0` rather than local `false`.
+6. Set status to Ready for Validation and invoke `azure-validate`. Require Bicep
+   compilation, exact-scope ARM/provider validation and what-if for the closed
+   bootstrap. Image provenance, source freshness, chat safety and operational
+   checks remain mandatory before releasing images or opening access. Record
+   accepted chat-quality failures rather than misreporting them as passing.
+   Reject any BC writes, model/index changes, or unexpected deletions.
+7. Invoke `azure-deploy` after validation. Bootstrap
+   closed, approve/read back the exact private origin, then run protected
+   validation using the deployed managed identities. Verify health, readiness,
+   chat, citation checks, disconnect/cancellation and rate/budget controls.
+8. Open anonymous pilot access only after operational, security and source
+   safety checks pass; do not set approval flags merely to bypass preflight.
+   Record the user's attestation of written brand and RAG permission without
+   claiming independent verification. Retain immutable images for rollback.
+
+Source freshness is a separate operational requirement: the earliest current
+source expiry reported by the API is December 1, 2026. Revalidate before rollout
+and define refresh/withdrawal ownership; do not extend an expiry by configuration
+alone or reset charged budgets.
+
+## Files proposed after approval
+
+| File | Purpose |
+| --- | --- |
+| `infra\sk-hosting.bicep` | Hosting-only SK entry point referencing existing AI resources |
+| `infra\modules\government-ai-access.bicep` | Scoped access to an existing government Foundry project/Search |
+| `scripts\prepare-sk-release.ps1` | Explicit SK image builds, provenance and release parameter preparation |
+| `jurisdictions\sk\deployment.env.example` | Correct deployment-only settings and truthful current source policy |
+| `infra\README.md` | Isolated SK rollout, validation and rollback instructions |
+| Existing deployment/jurisdiction tests | Focused regressions for SK identity, existing-resource selection and BC preservation |
+
+Finalize paths and module reuse after approval; do not create redundant wrappers
+if existing tooling supplies the required boundary.
+
+## Validation proof and current status
+
+Validation in this section applies to the closed infrastructure bootstrap and
+the closed candidate image release, not to public traffic.
+
+### All validation checks pass
+
+- [x] 1. Core Validation (CLI, auth, build, validate, what-if) for the cross-region revision.
+- [x] 2. Linting for the cross-region revision.
+- [x] 3. Azure Policy and provider validation for the Canada East Redis module, subject to live provisioning.
+
+Confirmed: existing SK resource inventory and healthy resource group, enabled
+subscription, Container Apps environment headroom, VNet/private-endpoint/NIC
+headroom, existing provider registrations, the completed local 25-case
+acceptance with its two recorded failures, focused API regression checks, and
+the two in-process live checks described above.
+
+Not yet performed: subscription-specific price quote, environment-specific
+Consumption core check, full acceptance rerun, production managed-identity
+validation, complete nested-resource what-if, or an application-image release. The local
+API process has not been restarted to load the latest safeguards.
+
+The user approved the Saskatchewan subscription, deployment plan and deployment.
+The `linux/amd64` SK API image was built and its jurisdiction and review pin
+verified; the SK web image returned HTTP 200 with Saskatchewan content. Template
+and provider validation with placeholder parameters succeeded, as did a scoped
+what-if after using a distinct parent deployment name. The what-if skipped the
+nested AI access, Redis, hosting and route modules, so it is not complete proof
+of those resources. Production image registry digests, protected deployment validation, and an
+application-image release remain pending.
+The attempted closed bootstrap failed because Azure reported insufficient
+Canada Central capacity for Managed Redis `Balanced_B0`. Independent provider
+validation also rejected `Balanced_B1`, `Balanced_B3`, `Balanced_B5`,
+`MemoryOptimized_M10`, and `ComputeOptimized_X3` for lack of capacity. The SK
+network, two managed identities, disabled Front Door endpoint and WAF, and the
+dedicated API Entra application were created; the web/API hosting was not.
+These resources may incur charges. The public endpoint remains closed.
+The attempted Azure Cache for Redis Standard C1 fallback was rejected during
+creation because Azure no longer permits new legacy instances in this
+subscription. The replacement uses Managed Redis in Canada East and a private
+endpoint in Canada Central. The closed bootstrap subsequently succeeded; Redis
+and its database are provisioned, the private endpoint is approved, public
+Redis access and database access keys are disabled, and transport is encrypted.
+Live application authentication remains unverified.
+
+On November 25, the Front Door endpoint was confirmed disabled and its WAF
+enabled in prevention mode. Both application identities have the registry
+`AcrPull` role; the API identity also has the expected Search, Foundry and
+metrics roles. Placeholder images remain in both apps. The final source archive
+SHA-256 is `ec9847f30b9671beb5a853f689cd736aefcfc4163b56f23ee9b39a51319c404c`;
+all 2,431 archived files matched the build directory, with no extra files.
+The resulting local `linux/amd64` image IDs are API
+`sha256:8c1f6d1f719dae209ce5d23f262e6b67d3fd70e9f50371151b8f80cc0812f902`
+and web `sha256:52c4288e8637d9121e5223e70152c6d817f6eddb7be1a4f85416b86e702f8157`.
+The API reported Saskatchewan and the expected review pin; the web served
+Saskatchewan content and the supplied favicon. These observations do not
+validate an image deployment or public release.
+
+The closed image deployment subsequently succeeded. Both immutable image
+revisions report healthy, each with one running replica. The API startup source
+check reported 42 usable documents, zero expired documents, and coverage of
+the Saskatchewan, SGI and eHealth sources; the next expiry is
+2026-12-01T16:06:05Z. The reviewed private Front Door connection was approved.
+The IP-restricted validation deployment succeeded, with the enabled WAF
+configured to restrict requests to the validation address. Front Door's
+endpoint and route still report `NotStarted` deployment status despite
+successful provisioning, and requests to the default hostname returned 404
+with `CONFIG_NOCACHE`. Edge enforcement, Redis authentication and grounded
+chat are not verified; this is not a working public pilot.
+
+Subsequent checks on 2026-11-25 UTC confirmed that the WAF is actively blocking
+requests outside the validation allowlist. The local IP-check service reported
+`209.91.110.210`, but Front Door WAF logs recorded different, rotating source
+addresses for requests from the same host. Three requests from the private API
+container also used two different outbound addresses (`20.200.119.159` and
+`20.200.119.172`). Therefore the current
+one-address rule does not provide a reliable end-to-end validation path. It
+has not been widened or disabled. Endpoint, route and origin deployment status
+still report `NotStarted`, despite successful provisioning.
+
+An isolated validation client with its own static egress could provide a
+testable `/32` without admitting a shared Azure outbound range. Azure Container
+Instances requires a NAT gateway for stable egress; that additional
+infrastructure is not part of this approved hosting plan and has not been
+provisioned. A browser-based validation attempt was not approved by the
+browser, so it was not retried through another browser.
+
+From inside the API container, the production `SharedControls` client
+authenticated to private Managed Redis using its configured managed identity
+and returned `PING True`. A private service-to-service test reached the
+Saskatchewan homepage and completed three chat cases for licence renewal,
+health card application, and withholding contradictory licence fees. The chat
+test simulated the Front Door identity and socket-IP headers inside the private
+environment; it did not test real Front Door routing or validate external
+access. A request without those trusted headers returned 502 as expected from
+the web proxy's ingress checks, not proof of an API connectivity failure.
+Two further private cases returned a cited Income Support answer and the
+expected navigation response for an unsupported question. The Income Support
+answer ended with an incomplete "provide ALL of this information" sentence;
+the citation check alone does not establish that the answer is complete.
+
+The approved Front Door private connection was rechecked on 2026-11-25 UTC.
+`OriginHealthPercentage` reported 100% in each hourly bucket from 02:17
+through 04:17 UTC. The governance workspace's latest individual probe log was
+earlier, at 02:10 UTC, and showed an origin error; no newer individual probe
+records were available there. The aggregate metric does not replace an
+end-to-end request through the WAF.
+
+## Functional verification
+
+The local SK application and chat were exercised as described above; the user
+accepted the recorded chat-quality limitations. Release-image checks confirmed
+the API jurisdiction and pinned source-review SHA, and the web image served
+Saskatchewan content over HTTP. Private managed-identity Redis authentication and three grounded chat cases
+have passed as described above. The existing public Front Door and its live
+images have since served the public checks recorded above. The newer candidate
+images and their intended production release remain unverified and undeployed.
+
+## Section 7: Validation Proof
+
+- On 2026-11-25 UTC, the Bicep validation helper passed CLI, authentication,
+  compilation, provider validation and what-if for `infra\modules\edge-policy.bicep`
+  with `sk-waf-public-parameters.json`; Bicep lint passed. The full-resource
+  preview showed one WAF policy modification and 24 ignored resources, with
+  no resource deletions. The intended change removes the `ValidationOnly`
+  restriction and retains `ApiRateLimit` and managed rule sets. Provider-default
+  properties are also reported as removed. This policy template contains no
+  RBAC changes. `az policy state list` returned no records for this WAF;
+  provider validation passed, but the empty list is not proof of compliance.
+- Validation date: 2026-11-24, Canada Central target.
+- For the prior legacy-cache template on 2026-11-24, the Bicep validation helper passed CLI, authentication,
+  compilation, provider validation and what-if against the SK resource group
+  using the dedicated API application ID, the existing policy-assigned subnet
+  NSG and a placeholder hash key. A separate full-resource what-if showed no
+  resource deletions and preserved the subnet NSG. Some role assignments were
+  reported as Unsupported; live RBAC and policy validation remain required.
+  The helper's deletion count includes property-level changes, not just
+  resource deletions; observed remaining removals concern provider-returned
+  default properties on the endpoint, identities, WAF and VNet.
+- The prior template passed `az bicep lint --file infra\sk-hosting.bicep`.
+- Azure Policy assignment review found inherited management-group controls in
+  addition to subscription policies. Their known deny rules cover classic
+  resources, VM/AKS/SQL and other services rather than the planned resource
+  types; unresolved nested resources still require live evaluation.
+- Static identity review confirmed the SK API's Foundry User, Cognitive
+  Services OpenAI User and Search Index Data Reader role definitions, scoped
+  to the existing project/account/index service, Redis access policy, and
+  separate web/API managed identities. Image-pull assignments are supplied by
+  the Container Apps module; runtime RBAC still requires live verification.
+- Local image IDs: API `sha256:43d62e57a4459289e86c65ddad7e74857ef1b700f972e37c0d6631839d4c955f`;
+  web `sha256:0f26b3c8b14246f701700edb7a0de4980438207a84111d10dfdea73e9d748a78`.
+  The rebuilt API's Saskatchewan jurisdiction and review pin were checked.
+  Registry digests and exact source provenance remain release gates.
+- `az deployment group validate` passed for the concrete Managed Redis module
+  with Canada East cache and Canada Central private endpoint. Live
+  provisioning, authentication and policy behavior remain unverified.
+- On 2026-11-24, the validation helper passed compilation, provider validation
+  and what-if for the cross-region revision. Full-resource what-if showed no
+  resource deletions and preserved both policy-assigned subnet NSGs. Its
+  unsupported role assignments require live verification after provisioning.
+  Bicep emitted BCP081 warnings because its local type library does not yet
+  include the Redis API version; direct provider validation passed.
+- On 2026-11-25 UTC, the Bicep validation helper passed CLI, authentication,
+  compilation, provider validation and what-if for the closed image release,
+  using the two immutable image digests and a nondeployment placeholder key.
+  `az bicep lint --file infra\sk-hosting.bicep` passed. A separate full-resource
+  what-if showed no resource deletions; nine existing resources were ignored
+  and six role assignments unsupported. Observed property removals include
+  provider-returned defaults; unresolved references affect the Redis identity,
+  origin hostname and Log Analytics workspace ID. Live API identity roles and
+  the Redis assignment were verified, and the VNet diff did not change subnet
+  NSG associations. Runtime connectivity and safety validation remain open.
+- Both candidate images were pushed to the SK registry and registry readback
+  matched their local digests. The restricted temporary Docker credential file
+  was removed. Local API identity/review-pin and web content/favicon checks
+  passed. The review pin is baked into the API image; the source archive, not
+  an unrelated Git commit, identifies the dirty-worktree build.
+- On 2026-11-25 UTC, the Bicep validation helper passed compilation, provider
+  validation and what-if for the existing WAF policy with a single current
+  IPv4 validation address. A separate full-resource what-if showed one WAF
+  modification, no resource deletions and the existing API rate-limit rule
+  retained. The plan is to apply and verify this rule while Front Door remains
+  disabled, before considering a restricted validation window. The address and
+  access rule must be rechecked immediately before use; public release remains
+  unvalidated.
+- The protected-validation full template was independently validated on
+  2026-11-25 UTC using the same immutable images, a placeholder secret and the
+  same one-address WAF restriction. Full-resource what-if showed no resource
+  deletions, preserved the subnet NSGs and predicted enabling the endpoint with
+  the WAF restriction already present. The private-origin connection is
+  approved. This validates only restricted testing, not anonymous release.

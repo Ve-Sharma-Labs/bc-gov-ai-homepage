@@ -153,7 +153,7 @@ def token_hash(token: str) -> str:
 class SharedControls:
     def __init__(self, settings: Settings, *, client: Redis | None = None):
         self.settings = settings
-        self.prefix = f"bc:{{{settings.api_control_namespace}}}:"
+        self.prefix = f"{settings.jurisdiction}:{{{settings.api_control_namespace}}}:"
         if client is not None:
             self.client = client
             return

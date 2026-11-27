@@ -2,6 +2,7 @@ targetScope = 'resourceGroup'
 
 param name string
 param location string
+param privateEndpointLocation string = location
 param tags object
 param sku string
 param apiPrincipalId string
@@ -41,7 +42,7 @@ resource access 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignmen
 }
 resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
   name: 'pe-${cache.name}'
-  location: location
+  location: privateEndpointLocation
   tags: tags
   properties: {
     subnet: { id: subnetId }

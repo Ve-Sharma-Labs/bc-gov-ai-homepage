@@ -57,6 +57,7 @@ import {
   type StreamState,
 } from "@/lib/stream";
 import { useResearch } from "./use-research";
+import { jurisdiction } from "@/lib/jurisdiction";
 
 export interface AssistantState {
   research: ReturnType<typeof useResearch>;
@@ -149,6 +150,7 @@ function activeConsent(receipt: ConsentReceipt | null): receipt is ConsentReceip
 }
 
 export function AssistantProvider({ children, conversationBootstrap }: AssistantProviderProps) {
+  if (jurisdiction.id !== "bc") conversationBootstrap = undefined;
   const research = useResearch();
   const stopResearch = research.stop;
   const resetResearch = research.reset;
@@ -363,7 +365,11 @@ export function AssistantProvider({ children, conversationBootstrap }: Assistant
       setCatalog(content.value);
       setCatalogError("");
     } else {
-      setCatalogError("The guided-plan catalogue is temporarily unavailable. Official service links below still work.");
+      setCatalogError(content.reason instanceof ApiError && content.reason.code === "JURISDICTION_MISMATCH"
+        ? content.reason.message
+        : jurisdiction.features.guidedJourneys
+          ? "The guided-plan catalogue is temporarily unavailable. Official service links below still work."
+          : "The source catalogue is temporarily unavailable. Official service links remain available.");
     }
     const nextCapabilities = connection.status === "fulfilled" ? connection.value : bootstrapCapabilities.current;
     capabilitiesRef.current = nextCapabilities;

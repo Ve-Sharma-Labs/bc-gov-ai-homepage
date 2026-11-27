@@ -2,17 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { OfficialLink } from "@/components/official-link";
+import { jurisdiction, presentation } from "@/lib/jurisdiction";
 
 export const metadata: Metadata = { title: "Browse official services" };
 
-const services = [
-  { name: "Driver licensing and BCID", publisher: "ICBC", description: "Check the official requirements for licensing, identification and office visits.", url: "https://www.icbc.com/driver-licensing" },
-  { name: "Rental assistance and housing", publisher: "BC Housing", description: "Explore programmes and check current application guidance directly with BC Housing.", url: "https://www.bchousing.org/housing-assistance" },
-  { name: "MSP and PharmaCare", publisher: "Government of B.C.", description: "Find the official starting points for medical and prescription drug coverage.", url: "https://www2.gov.bc.ca/gov/content/health/health-drug-coverage" },
-  { name: "Finding primary care", publisher: "HealthLink BC", description: "Learn about the Health Connect Registry and official support routes.", url: "https://www.healthlinkbc.ca/health-connect-registry" },
-  { name: "Service BC locations", publisher: "Service BC", description: "Find office details and confirm which services are offered before you go.", url: "https://www2.gov.bc.ca/gov/content/governments/organizational-structure/ministries-organizations/ministries/citizens-services/servicebc" },
-  { name: "All government services", publisher: "Government of B.C.", description: "Browse the provincial website for topics outside this pilot’s curated guided plans.", url: "https://www2.gov.bc.ca/gov/content/home" },
-];
+const services = presentation.services;
 
 export default function ServicesPage() {
   return (
@@ -30,7 +24,8 @@ export default function ServicesPage() {
           </section>
         ))}
       </div>
-      <Link className="primary-button inline-button" href="/#journeys">Explore guided plans <ArrowUpRight size={17} aria-hidden="true" /></Link>
+      {jurisdiction.features.guidedJourneys ? <Link className="primary-button inline-button" href="/#journeys">Explore guided plans <ArrowUpRight size={17} aria-hidden="true" /></Link>
+        : <p className="inline-notice">{presentation.emptyJourneys}</p>}
     </div>
   );
 }

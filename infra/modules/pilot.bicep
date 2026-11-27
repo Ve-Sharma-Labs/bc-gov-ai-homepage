@@ -1,6 +1,7 @@
 targetScope = 'resourceGroup'
 
 param name string
+param jurisdiction string = 'bc'
 param location string
 param tags object
 param deploymentKind string = 'pilot'
@@ -10,6 +11,7 @@ param frontDoorPrivateLinkLocation string = ''
 param stagingIdentities object = {}
 param releaseCommit string = ''
 param releaseId string = ''
+param releaseProbeEnabled bool = false
 param modelDeployments array
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
@@ -21,6 +23,7 @@ param taskAssistanceEnabled string
 param aiConversationPrivacyReviewed string
 param syntheticContextEnabled string
 param searchIndex string
+param searchSemanticConfig string = '${jurisdiction}-public-guidance'
 param searchMetadataEnabled string
 param searchMetadataReviewed string
 param searchSku string
@@ -150,10 +153,12 @@ module hosting './hosting.bicep' = {
   name: 'hosting'
   params: {
     name: name
+    jurisdiction: jurisdiction
     location: location
     tags: tags
     releaseCommit: releaseCommit
     releaseId: releaseId
+    releaseProbeEnabled: releaseProbeEnabled
     foundryProjectEndpoint: ai.outputs.projectEndpoint
     foundryAgentsJson: foundryAgentsJson
     foundryGeneralAgentJson: foundryGeneralAgentJson
@@ -166,6 +171,7 @@ module hosting './hosting.bicep' = {
     syntheticContextEnabled: syntheticContextEnabled
     searchEndpoint: ai.outputs.searchEndpoint
     searchIndex: searchIndex
+    searchSemanticConfig: searchSemanticConfig
     searchMetadataEnabled: searchMetadataEnabled
     searchMetadataReviewed: searchMetadataReviewed
     modelEndpoint: ai.outputs.modelEndpoint
@@ -175,12 +181,12 @@ module hosting './hosting.bicep' = {
     apiApplicationClientId: apiApplicationClientId
     apiImageName: apiImageName
     webImageName: webImageName
-    apiIdentityName: apiIdentity!.name
-    apiIdentityId: apiIdentity!.id
+    apiIdentityName: existingIdentities ? last(split(stagingIdentities.api.id, '/')) : apiIdentity!.name
+    apiIdentityId: existingIdentities ? stagingIdentities.api.id : apiIdentity!.id
     apiPrincipalId: apiPrincipalId
     apiClientId: apiClientId
-    webIdentityName: webIdentity!.name
-    webIdentityId: webIdentity!.id
+    webIdentityName: existingIdentities ? last(split(stagingIdentities.web.id, '/')) : webIdentity!.name
+    webIdentityId: existingIdentities ? stagingIdentities.web.id : webIdentity!.id
     webPrincipalId: webPrincipalId
     webClientId: webClientId
     infrastructureSubnetId: network.outputs.appsSubnetId
@@ -220,8 +226,11 @@ output foundryProjectId string = ai.outputs.projectId
 output searchEndpoint string = ai.outputs.searchEndpoint
 output storageEndpoint string = ai.outputs.storageEndpoint
 output storageContainer string = ai.outputs.storageContainer
-output publisherIdentityId string = publisherIdentity!.id
+output publisherIdentityId string = existingIdentities ? stagingIdentities.publisher.id : publisherIdentity!.id
 output publisherClientId string = publisherClientId
 output webUrl string = publicOrigin
 output frontDoorProfileName string = profileName
 output frontDoorEndpointName string = endpointName
+output releaseProbeId string = hosting.outputs.releaseProbeId
+output foundryAccountId string = ai.outputs.accountResourceId
+output wafPolicyId string = sharedEdge ? stagingPolicy!.outputs.policyId : edge!.outputs.wafPolicyId

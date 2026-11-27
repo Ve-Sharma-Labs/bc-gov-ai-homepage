@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "jurisdictionId": "sk",
+  "status": "pending-rag-permission",
+  "inventoryStatus": "offline-proposal-only",
+  "documents": [],
+  "snapshots": [],
+  "rightsReviews": [],
+  "publicationReviews": [],
+  "networkRequestsPerformed": 0,
+  "coverageTargetMet": false,
+  "notice": "No live Saskatchewan inventory, acquired publisher responses, exact snapshots, extraction hashes, reviews or indexed documents are asserted. Programme configuration and attributed prior robots observations are not corpus provenance. Preserve future immutable responses and cumulative isolated run ledgers."
+}

@@ -319,8 +319,23 @@ in `dialogue.py`; added factual content still requires evidence and citations.
 Real retrieval status and keepalives stream immediately. Complete, self-contained
 answer sections pass the same citation/critical-claim checks used at completion
 and then stream while generation continues. Incomplete Markdown or late-only
-citations remain held until verifiable. Already emitted text is not replayed at
-completion; a later error leaves the validated partial answer explicitly incomplete.
+citations remain held until verifiable. Introductions promising the following
+options are held until their list is present; when an introduction specifies
+one through ten options, at least that many list items are required, whether
+or not a blank line separates the introduction from the list.
+Already emitted text is not replayed at completion. Later unverified critical
+details or incomplete options are withheld with a
+`DETAILS_WITHHELD` warning and normal completion when safe sections were already
+sent. Saskatchewan uses the same guarded recovery for a later unverified link;
+the link is never emitted. Before any safe text, Saskatchewan general chat may
+make one bounded correction using the same model budget and without exposing the
+rejected draft; a failed correction remains an error. Retried runs charge the
+full reservation. BC link handling is unchanged.
+
+SGI renewal payment guidance currently contains an inconsistent instalment
+total. When the conflicting reviewed passage is retrieved for a renewal-fee
+question, the API links to SGI without quoting amounts. The output gate also
+withholds monetary claims attributed to that conflicting passage.
 
 `CUSTOM/status` carries `{version:1,phase,message}` using server-owned phase
 labels, including real `Thinking...` and source lookup. `CUSTOM/bc.artifact`
@@ -615,17 +630,17 @@ and timeout cleanup. `test_embeddings.py` exercises the native embedding HTTP
 wire contract, Entra scope and vector validation. No Azure or Web IQ calls occur.
 
 The Dockerfile uses the **repository root** build context, copies the shared
-catalogue to `/app/data`, and runs as a non-root user. The Linux amd64 API image
-has been built and exercised: real catalogue delivery, disconnected capability
-status, production fail-closed controls and absence of the temporary package
-mirror secret were verified. The optional `pip_config` BuildKit secret supports
-an operator-approved package mirror without embedding its configuration.
+catalogue to `/app/data`, and runs as a non-root user. BC and Saskatchewan
+Linux amd64 API images have been built and checked offline for catalogue,
+capability and jurisdiction isolation. Production release still requires its
+own configuration and authorization checks. The optional `pip_config` BuildKit
+secret supports an operator-approved package mirror without embedding its
+configuration.
 
-The web image also builds for Linux amd64 and works with the packaged API over
-HTTP. JavaScript compilation runs on the build host's native architecture, while
+JavaScript compilation runs on the build host's native architecture, while
 production dependencies are installed separately for the target architecture.
 The amd64 runtime loads the identity SDK and native image-processing addon;
-an ARM64 image is not substituted for the Azure target.
+an ARM64 image must not be substituted for an amd64 Azure target.
 
 Official API references checked during implementation:
 
@@ -633,3 +648,128 @@ Official API references checked during implementation:
 - [Agent Framework AG-UI and annotations](https://learn.microsoft.com/agent-framework/integrations/ag-ui/)
 - [Azure OpenAI v1 embeddings](https://learn.microsoft.com/azure/foundry/openai/how-to/embeddings)
 - [Azure AI Search Python SDK](https://learn.microsoft.com/python/api/overview/azure/search-documents-readme)
+
+## Jurisdiction packs
+
+`JURISDICTION=bc` preserves the existing `data/` paths, seven journeys, prompt
+policy and client/header names. The shared Python loader validates the same
+`jurisdictions/<id>/jurisdiction.json` contract as the root scripts. Installed
+packages discover packs through source or working-directory ancestry, or `/app`;
+missing, unknown, escaping and mismatched packs fail explicitly.
+
+Build a selected API image with `--build-arg JURISDICTION=sk`. Only the selected
+pack's content is packaged. The image stamps its pack; changing `JURISDICTION`
+at runtime is rejected. Capabilities and catalogue include additive `jurisdiction`
+identity; HTTP responses also carry `X-Jurisdiction`. Clients must reject a
+different deployment pack. No client-supplied jurisdiction or index is accepted.
+
+The BFF sets `X-Expected-Jurisdiction` from its compiled selected pack, never from
+browser input. A mismatched expectation returns `409 JURISDICTION_MISMATCH` before
+route/model work; a matching expectation is not jurisdiction selection.
+`X-Jurisdiction` remains forbidden as an input selector and is emitted on API
+responses, including security failures. The BFF verifies that response header
+before consuming any body (including SSE/control replies), rejecting/cancelling
+missing or mismatched SK identity. Missing legacy BC identity remains compatible.
+
+The generic Docker staging step reads packs/data only in an intermediate stage.
+`python -m bc_api.jurisdiction --root <source> --stage <empty-output>` validates
+the selected pack and copies only its directory plus exact manifest content
+references. The final image receives that tree, preserving BC `/app/data` paths.
+Adding a pack does not require another Docker stage; foreign paths, symlinks,
+overlapping trees and non-empty destinations are rejected.
+
+Saskatchewan's isolated index currently contains **42 documents and 157 lexical
+chunks** from Government of Saskatchewan, SGI and eHealth Saskatchewan. Operation
+rights are pinned to user-attested authorization; new snapshots carry explicit
+automated source reviews, not claimed human approval. There are no Saskatchewan
+guided programmes, office rows, grounding packs, personas or rules. Disabled
+persona/rule inventories use the schema
+`{schemaVersion: 1, jurisdiction: "sk", available: false, personas: []}` (or
+`rules: []`); these are not synthetic fixtures or executable screening rules.
+Version-2 general chat answers with current indexed evidence; greetings and
+unavailable-source replies use deterministic navigation or official handoffs.
+Guided and advanced contextual/planner flows
+remain BC-only, registered by `jurisdictions/bc/flows/registry.json`; their
+compatibility implementations still live in `bc_api`.
+
+The portable `Journey`/`Catalog` and capability dictionaries accept pack-owned
+journey identifiers, while BC still requires its exact seven catalogue journeys.
+Legacy request options, planner taxonomies and synthetic contracts retain their
+BC literals until those modes gain reviewed pack-specific implementations.
+
+`pending-rag-permission` blocks model/index activation, embeddings, optional
+research and local-evidence evaluation, including environment-toggle attempts.
+Do not change this policy merely to enable a model: recorded publisher
+RAG/embedding rights and reviewed source snapshots are prerequisites. Non-BC
+catalogue overrides must equal the manifest path; indexes/knowledge resources
+must have the `<id>-` prefix and agent/control namespaces must use `<id>-` or
+`<id>assist-` (for example `sk-pilot` or `skassist-<suffix>`). The unconfigured
+SK control namespace defaults to `sk-pilot`; no BC state namespace is inherited.
+The inactive SK index/semantic names default to `sk-pilot-public` and
+`sk-public-guidance`. Names alone do not activate retrieval: configuring a Search
+endpoint, model/embedding binding, source-evaluation mode or experimental index
+while RAG permission is pending fails closed.
+Azure endpoint hostnames also accept the infrastructure's service prefixes:
+`srch-<id>assist-` for Search and `ai-<id>assist-` for Foundry/OpenAI.
+Future reviewed SK advanced flows require implementation and registration,
+not flipping the manifest feature flags alone.
+
+Generic approved-source chat is not BC-only. Once a pack has legitimately cleared
+publisher rights, reviewed catalogue/index content, appropriate pack prompts and a
+pinned general agent, the shared API probes that agent and source readiness and
+uses the normal cited-answer path. Packs without guided flows expose only general
+search tools, never BC programme/office schemas. Missing current evidence still
+produces an honest official handoff; it does not claim permission is pending after
+rights clearance. The Saskatchewan pack selects `reviewed-operation-grants`;
+runtime activation still requires the exact review pin and matching indexed rows.
+
+### Approved source-policy contract
+
+Only `existing-reviewed-snapshots-only` is supported for BC. Other jurisdictions
+support `pending-rag-permission` or `reviewed-operation-grants`; unknown/typo
+statuses fail closed. A recognized reviewed string alone never grants access:
+
+```json
+{
+  "approvalStatus": "reviewed-operation-grants",
+  "trainingAllowed": false,
+  "operationReview": {
+    "path": "jurisdictions/sk/content/rights/review.json"
+  }
+}
+```
+
+The locator contains **only `path`**, inside the selected pack's `content/` or
+`ingestion/`. Supply `OPERATION_RIGHTS_REVIEW_SHA256` independently at build/runtime
+(Docker build arg of the same name). This is the SHA-256 of exact review file
+bytes, not its canonical JSON hash. Staging stamps that pin into the image.
+
+The shared ingestion `OperationRightsProvider` strictly validates v3 review
+identity, `jurisdictionId`, `programmeHash`, and `packIdentity` containing the full
+manifest's canonical SHA-256 (sorted keys, compact separators, UTF-8,
+`ensure_ascii=false`). **No manifest fields are excluded.** Keeping the review
+pin outside the manifest avoids a circular review/manifest hash.
+Captured terms, robots and explicit publisher-licence/written-permission evidence
+must have pinned local bytes, accountable references and capture dates. Reviews
+expire within 30 days, retain revocation records and independently decide each
+host/path/format operation. Terms, robots and internal approvals never supply
+publisher model permission. RAG, generated-summary and publication must each be
+granted with matching publisher evidence; vector use additionally needs embedding.
+Training/fine-tuning stay denied.
+
+API catalogue URLs and retrieved chunk URLs must fall within those grants.
+Non-BC chunks require exact snapshot-review metadata, `rightsReviewId` matching
+the v3 review and `rightsHash` equal to the **canonical review JSON hash** used by
+ingestion. Missing/changed/expired/revoked evidence is rejected at source use.
+Catalogue/bootstrap checks establish only that some reviewed HTML/PDF scope is
+available; they do not guess the format of an unacquired document. Retrieval
+selects grants from validated published provenance matching the pinned operation
+review. PDF v2 requires `application/pdf`, the registered PDF extractor, bounded
+page count, `original-response-bytes` hash basis and identical response/content
+hashes, including extensionless returned-MIME PDFs. HTML/v1 cannot carry PDF
+extractor/page/hash-basis markers or borrow PDF rights because of a filename.
+The provider conservatively rejects HTML at a misleading `.pdf` URL, even when
+PDF grants exist. BC legacy metadata selection and wire contracts are unchanged.
+Root JavaScript/preflight must apply the same status allowlist, independently
+pinned v3 review/evidence verification and canonical identity rules, rather than
+treating any status string as a blanket publisher grant.

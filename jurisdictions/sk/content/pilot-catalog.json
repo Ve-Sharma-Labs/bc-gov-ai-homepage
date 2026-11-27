@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "jurisdiction": "sk",
+  "asOf": "2026-11-24T16:15:56Z",
+  "sources": [
+    {
+      "id": "sk-public-content",
+      "title": "Saskatchewan public guidance",
+      "publisher": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/",
+      "description": "The limited reviewed Saskatchewan public guidance in the isolated pilot index.",
+      "checkedAt": "2026-11-24T16:15:56Z",
+      "publisherUpdatedAt": null,
+      "status": "limited",
+      "topics": [
+        "resident",
+        "business",
+        "government"
+      ]
+    },
+    {
+      "id": "sk-sgi-content",
+      "title": "SGI licensing and vehicle registration",
+      "publisher": "Saskatchewan Government Insurance",
+      "url": "https://sgi.sk.ca/renew-licence",
+      "description": "Public SGI guidance on licensing, renewal, registration and identity documents. Account access and transactions remain on SGI.",
+      "checkedAt": "2026-11-24T18:20:00Z",
+      "publisherUpdatedAt": null,
+      "status": "limited",
+      "topics": ["driving", "transportation"]
+    },
+    {
+      "id": "sk-ehealth-content",
+      "title": "eHealth Saskatchewan",
+      "publisher": "eHealth Saskatchewan",
+      "url": "https://www.ehealthsask.ca/residents/health-cards",
+      "description": "Public health-card and birth, marriage and death certificate guidance. Personal records and applications stay with eHealth.",
+      "checkedAt": "2026-11-24T16:44:00Z",
+      "publisherUpdatedAt": null,
+      "status": "limited",
+      "topics": ["health", "vital-records"]
+    }
+  ],
+  "journeys": [],
+  "locations": []
+}

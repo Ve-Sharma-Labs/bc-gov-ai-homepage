@@ -80,9 +80,43 @@ def create_app(
     control_store: SharedControls | None = None,
     context_service: SyntheticContextService | None = None,
 ) -> FastAPI:
+    from bc_api.grounding_packs import load_grounding_packs
+    from bc_api.jurisdiction import load_jurisdiction, pack_scope
+
+    settings = settings or Settings()
+    # model_copy is used by offline tests; do not permit it to bypass pack isolation.
+    if settings.jurisdiction != "bc":
+        settings = Settings.model_validate(settings.model_dump(by_alias=True))
+    pack = load_jurisdiction(settings.jurisdiction)
+    if runtime is not None and runtime.settings.jurisdiction != pack.id:
+        raise ValueError("Injected runtime belongs to another jurisdiction.")
+    if control_store is not None and control_store.prefix != (
+        f"{pack.id}:{{{settings.api_control_namespace}}}:"
+    ):
+        raise ValueError("Injected control store belongs to another jurisdiction namespace.")
+    if context_service is not None and context_service.settings.jurisdiction != pack.id:
+        raise ValueError("Injected context service belongs to another jurisdiction.")
+    with pack_scope(pack):
+        if pack.id != "bc":
+            CatalogRepository(settings.catalog_path, pack).get()
+            pack.validate_disabled_content("personas")
+            pack.validate_disabled_content("programmeRules")
+            load_grounding_packs()
+        return _create_app(
+            settings, runtime=runtime, control_store=control_store, context_service=context_service
+        )
+
+
+def _create_app(
+    settings: Settings | None = None,
+    *,
+    runtime: FoundryRuntime | None = None,
+    control_store: SharedControls | None = None,
+    context_service: SyntheticContextService | None = None,
+) -> FastAPI:
     settings = settings or Settings()
     configure_safe_logging()
-    catalog = CatalogRepository(settings.catalog_path)
+    catalog = CatalogRepository(settings.catalog_path, settings.pack)
     controls = PreviewControls(settings)
     runs = RunRegistry(settings)
     shared = control_store or (SharedControls(settings) if settings.redis_endpoint else None)
@@ -111,7 +145,7 @@ def create_app(
         )
         context_service = SyntheticContextService(
             settings,
-            DemoPersonaRepository(),
+            DemoPersonaRepository(settings.pack.path("personas")),
             context_sessions,
             audit=context_audit,
         )
@@ -174,7 +208,11 @@ def create_app(
             await asyncio.to_thread(telemetry.close)
 
     app = FastAPI(
-        title="BC Government assistant pilot",
+        title=(
+            "BC Government assistant pilot"
+            if settings.jurisdiction == "bc"
+            else settings.pack.manifest["siteTitle"]
+        ),
         version="0.1.0",
         lifespan=lifespan,
         docs_url=None,
@@ -182,6 +220,7 @@ def create_app(
         openapi_url=None,
     )
     app.state.catalog = catalog
+    app.state.jurisdiction = settings.pack
     app.state.runtime = runtime
     app.state.runs = runs
     app.state.controls = controls
@@ -208,6 +247,9 @@ def create_app(
         ],
         allow_credentials=True,
     )
+    from bc_api.jurisdiction import JurisdictionMiddleware
+
+    app.add_middleware(JurisdictionMiddleware, pack=settings.pack)
     app.add_middleware(SecurityMiddleware, settings=settings, controls=controls, shared=shared)
 
     @app.exception_handler(ApiError)
@@ -238,6 +280,7 @@ def create_app(
         return JSONResponse(
             ApiError(500, "INTERNAL_ERROR", "The request could not be completed.").payload(),
             status_code=500,
+            headers={"X-Jurisdiction": settings.jurisdiction},
         )
 
     @app.get("/healthz")
@@ -273,12 +316,27 @@ def create_app(
         if settings.release_id:
             response.headers["X-BC-API-Deployment"] = settings.release_id
         catalog.get()
+        pack = settings.pack
+        if pack.rag_pending:
+            return Capabilities(
+                jurisdiction=pack.id,
+                guided_journeys_available=False,
+                registered_flows=[],
+                source_policy_status=pack.manifest["sourcePolicy"]["approvalStatus"],
+                mode="guided",
+                ai_configured=False,
+                message="No reviewed source catalogue is available. Publisher RAG permission "
+                "is pending; factual AI answers, indexing, guided journeys, synthetic context "
+                "and live research are disabled. Use the official "
+                f"{pack.manifest['shortName']} contact.",
+                request_versions=[2],
+            )
         grounded_client = (
             request.headers.get("x-bc-client-version") == "6"
             and settings.grounded_conversation_enabled
         )
-        labels = ["pathways"]
-        checks = [runtime.ensure_ready()]
+        labels = ["pathways"] if pack.guided_journeys else []
+        checks = [runtime.ensure_ready()] if pack.guided_journeys else []
         if settings.general_agent_configured:
             labels.append("general")
             checks.append(runtime.ensure_general_ready())
@@ -308,7 +366,7 @@ def create_app(
             if isinstance(result, BaseException) and not isinstance(result, ApiError):
                 raise result
         outcomes = dict(zip(labels, results, strict=True))
-        pathways_ready = not isinstance(outcomes["pathways"], ApiError)
+        pathways_ready = "pathways" in outcomes and not isinstance(outcomes["pathways"], ApiError)
         general_ready = settings.general_agent_configured and not isinstance(
             outcomes.get("general"), ApiError
         )
@@ -327,12 +385,22 @@ def create_app(
                 outcomes.get("grounded"), ApiError
             )
         connected = connected or conversation_ready
+        if not pack.guided_journeys:
+            connected = general_ready and sources_ready
         if grounded_client:
             connected = conversation_ready
         return Capabilities(
+            jurisdiction=pack.id,
+            guided_journeys_available=pack.guided_journeys,
+            registered_flows=list(pack.flow_registry()),
+            source_policy_status=pack.manifest["sourcePolicy"]["approvalStatus"],
             mode="foundry" if connected else "guided",
             ai_configured=connected,
-            general_chat_configured=conversation_ready if grounded_client else general_ready,
+            general_chat_configured=(
+                conversation_ready if grounded_client
+                else general_ready if pack.guided_journeys
+                else general_ready and sources_ready
+            ),
             retrieval_ready=sources_ready,
             source_health=runtime.source_health,
             research=research_capabilities(settings) if settings.research_requested else None,
@@ -356,8 +424,12 @@ def create_app(
                 if connected
                 else "Curated guided plans are available. AI answers are not connected. "
                 "Live web research and transactions are disabled."
+                if pack.guided_journeys
+                else "Current approved source retrieval is unavailable. Use the official "
+                f"{pack.manifest['shortName']} contact. Guided journeys, synthetic context "
+                "and transactions are disabled."
             ),
-            journeys=runtime.journey_availability() if connected else {},
+            journeys=runtime.journey_availability() if connected and pack.guided_journeys else {},
             synthetic_context_available=context_service.available(),
             discovery_available=settings.conversation_discovery_enabled,
             conversation_available=settings.ai_conversation_enabled,
@@ -365,7 +437,7 @@ def create_app(
             task_assistance_available=settings.ai_conversation_enabled
             and settings.task_assistance_enabled,
             local_evidence_evaluation=settings.local_evidence_evaluation_enabled,
-            request_versions=[1, 2, 3]
+            request_versions=([1, 2, 3] if pack.guided_journeys else [2])
             + ([4] if settings.conversation_discovery_enabled else [])
             + ([5] if settings.ai_conversation_enabled else [])
             + ([6] if grounded_client else []),
@@ -426,6 +498,8 @@ def create_app(
     @app.get("/api/demo/personas", response_model=list[DemoPersonaSummary])
     async def get_demo_personas(request: Request) -> list[DemoPersonaSummary]:
         reject_context_query(request)
+        if not settings.pack.synthetic_context:
+            return []
         return context_service.public_personas()
 
     @app.post(
@@ -546,10 +620,20 @@ def create_app(
         reply = (
             discovery_plan.reply
             if discovery_plan is not None
-            else dialogue_reply(data.messages[-1].content)
+            else dialogue_reply(data.messages[-1].content, settings.pack)
             if options.version == 2
             else None
         )
+        pack = settings.pack
+        if pack.rag_pending or (
+            not pack.guided_journeys and (
+                not settings.general_agent_configured or not settings.search_configured
+                or not any(s.status in ("available", "limited") for s in catalog.get().sources)
+            )
+        ):
+            from bc_api.dialogue import source_handoff
+
+            reply = reply or source_handoff(data.messages[-1].content, catalog)
         if (
             reply is None
             and options.mode not in ("general", "contextual-demo")
@@ -636,6 +720,11 @@ def create_app(
                 else None
             ),
         )
+        if settings.release_commit:
+            response.headers["X-BC-API-Release"] = settings.release_commit
+        if settings.release_id:
+            response.headers["X-BC-API-Deployment"] = settings.release_id
+        return response
 
         if settings.release_commit:
             response.headers["X-BC-API-Release"] = settings.release_commit

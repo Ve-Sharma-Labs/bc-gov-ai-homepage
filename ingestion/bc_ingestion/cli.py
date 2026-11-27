@@ -41,12 +41,15 @@ def parser() -> argparse.ArgumentParser:
             "index-schema",
             "shadow-index",
             "programme",
+            "source-policy",
+            "rights-status",
         ),
     )
-    result.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
+    result.add_argument("--jurisdiction", help="Pack id; defaults to JURISDICTION or bc")
+    result.add_argument("--catalog", type=Path)
     result.add_argument("--url", action="append", default=[], metavar="SOURCE_ID=HTTPS_URL",
                         help="An explicit public page; repeat up to the 25-request run budget")
-    result.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    result.add_argument("--output", type=Path)
     result.add_argument("--max-pages", type=int, default=25)
     result.add_argument("--review-manifest", type=Path)
     result.add_argument("--review-page-size", type=int, default=100, help="Bounded Blob candidate-review export page")
@@ -55,14 +58,14 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--approved", action="store_true")
     result.add_argument("--create-index", action="store_true")
     result.add_argument("--stage-blob", action="store_true")
-    result.add_argument("--index-name", default="bc-pilot-public")
+    result.add_argument("--index-name")
     result.add_argument("--vector-dimensions", type=int)
     result.add_argument("--existing-schema", type=Path, help="Offline additive migration from an exported Search schema")
     result.add_argument("--search-endpoint", help="HTTPS Azure AI Search service endpoint; defaults to AZURE_SEARCH_ENDPOINT")
     result.add_argument("--shadow-action", choices=("get", "validate", "create"), default="validate")
     result.add_argument("--shadow-index-name", default="bc-pilot-public-v2")
     result.add_argument("--live-index-name", default="bc-pilot-public")
-    result.add_argument("--programme", type=Path, default=DEFAULT_PROGRAMME)
+    result.add_argument("--programme", type=Path)
     result.add_argument("--programme-manifest", type=Path, help="Separate full-programme manifest.json; never the sample ledger")
     result.add_argument("--programme-store", choices=("local", "azure-blob"), default="local")
     result.add_argument("--blob-account-url", help="HTTPS account endpoint only; no keys, SAS or connection strings")
@@ -99,7 +102,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--max-retries", type=int)
     result.add_argument("--batch-requests", type=int, default=25)
     result.add_argument("--run-seconds", type=int, default=120)
-    result.add_argument("--credential", choices=("managed-identity", "azure-cli"),
+    result.add_argument("--credential", choices=("managed-identity", "azure-cli", "azure-developer-cli"),
                         default="managed-identity", help="Explicit publisher identity; never an automatic fallback")
     return result
 
@@ -215,7 +218,7 @@ def _programme(args, catalog, *, publishing=False):
     return _run_programme(args, catalog, store, rights, publishing=publishing)
 
 
-def _run_programme(args, catalog, store, rights, *, publishing=False, remote=False):
+def _run_programme(args, catalog, store, rights, *, publishing=False, remote=False, policy=None):
     from .programme import ProgrammeRun
     from .programme_policy import ProgrammePolicy
     if args.pause:
@@ -223,10 +226,11 @@ def _run_programme(args, catalog, store, rights, *, publishing=False, remote=Fal
             raise AcquisitionError("Pause targets an existing programme and cannot also acquire or publish")
         store.request_pause()
         return {"mode": "full-programme", "pauseRequested": True}
-    if publishing and rights is None:
+    if publishing and rights is None and policy is None:
         raise AcquisitionError("Programme publishing requires its explicit --rights-review; omission is not a withdrawal decision")
     programme = json.loads(args.programme.read_text(encoding="utf-8"))
-    policy = ProgrammePolicy(programme, catalog, rights)
+    policy = policy or ProgrammePolicy(programme, catalog, rights)
+    candidate_pack = getattr(policy, "jurisdiction_id", "bc") != "bc"
     with store:
         existing = store.load()
         if publishing and existing is None:
@@ -237,6 +241,21 @@ def _run_programme(args, catalog, store, rights, *, publishing=False, remote=Fal
                 "max_candidates": args.max_candidates, "max_retries": args.max_retries,
             }.items() if value is not None
         }
+        if candidate_pack:
+            baseline = ProgrammeLimits().to_dict()
+            if existing is None and any(value > baseline[key] for key, value in overrides.items()):
+                raise AcquisitionError("Candidate pack cannot relax programme budget ceilings")
+            namespace = args.run_prefix if remote else str(store.path.parent.resolve())
+            resources = {"jurisdictionId": policy.jurisdiction_id, "indexName": args.index_name,
+                         "store": args.programme_store, "namespace": namespace,
+                         "account": args.blob_account_url if remote else None,
+                         "searchEndpoint": args.search_endpoint or os.environ.get("AZURE_SEARCH_ENDPOINT")}
+            previous = existing.get("resourceIdentity") if existing else None
+            if previous is not None:
+                bound = {**previous, "searchEndpoint": previous.get("searchEndpoint") or resources["searchEndpoint"]}
+                if bound != resources:
+                    raise AcquisitionError("Resume/publication cannot replace the run's isolated resource identity")
+            policy.target = {"indexName": args.index_name, "searchEndpoint": args.search_endpoint or os.environ.get("AZURE_SEARCH_ENDPOINT")}
         limits = ProgrammeLimits(**{
             **(existing["limits"] if existing else ProgrammeLimits().to_dict()), **overrides,
         }) if overrides else None
@@ -244,7 +263,12 @@ def _run_programme(args, catalog, store, rights, *, publishing=False, remote=Fal
         runner = ProgrammeRun(
             policy, store, limits=limits, seeds=[url for _, url in selected] if selected else None,
             response_store=store.objects if remote else LocalResponseStore(store.path.parent / "responses"),
+            allow_pack_review_binding=candidate_pack and (args.acquire or publishing),
         )
+        if candidate_pack and runner.state.get("resourceIdentity") != resources:
+            runner.state["resourceIdentity"] = resources
+            runner.state["events"].append({"type": "resource-identity-bound", "identity": resources})
+            runner._save()
 
         def artifact(name, value):
             if remote:
@@ -301,6 +325,7 @@ def _run_programme(args, catalog, store, rights, *, publishing=False, remote=Fal
             result["publication"] = publish(
                 plan, execute=args.execute if publishing else False, approved=args.approved,
                 create_index=args.create_index, stage_blob=args.stage_blob, credential_mode=args.credential,
+                **({"programme_policy": policy} if candidate_pack else {}),
             )
             if result["publication"]["mode"] == "published":
                 runner.ledger.acknowledge(plan)
@@ -311,9 +336,110 @@ def _run_programme(args, catalog, store, rights, *, publishing=False, remote=Fal
         return {
             **result, **coverage, "programmeStore": args.programme_store,
             "reviewCandidates": review_candidates_path, "coverage": coverage_path,
+            **({"networkRequests": runner.state["budget"]["requests"],
+                "liveInventoryAvailable": bool(coverage.get("lifecycle", {}).get("fetched")
+                                              or coverage.get("states", {}).get("candidate"))}
+               if candidate_pack else {}),
             **({"manifest": store.container.url.rstrip("/") + "/" + store.prefix + "/manifest.json",
                 "storage": dict(store.metrics)} if remote else {}),
         }
+
+
+def _candidate_pack(args, pack):
+    from .pack_policy import CandidateProgrammePolicy, source_policy_report
+    from .programme import ProgrammeRun
+    if args.catalog.resolve() != pack.catalog_path or args.programme.resolve() != pack.programme_path:
+        raise AcquisitionError("Candidate pack inputs cannot use another jurisdiction's catalogue/programme")
+    pack.output(args.output)
+    if args.command in {"rights-status", "programme", "publish"} and pack.operation_review_path is not None:
+        if args.rights_review and args.rights_review.resolve() != pack.operation_review_path:
+            raise AcquisitionError("Reviewed packs must use their configured operationReview.path")
+        pin = os.environ.get("OPERATION_RIGHTS_REVIEW_SHA256")
+        if args.rights_sha256 and pin and args.rights_sha256 != pin:
+            raise AcquisitionError("CLI rights pin must match the independent reviewed-pack environment pin")
+        args.rights_review = args.rights_review or pack.operation_review_path
+        args.rights_sha256 = args.rights_sha256 or pin
+    if args.command == "rights-status":
+        from .operation_rights import OperationRightsProvider
+        if not args.rights_review or not args.rights_sha256 or any((
+            args.acquire, args.resume, args.execute, args.approved, args.create_index,
+            args.stage_blob, args.review_manifest, args.initialize, args.pause,
+            args.programme_store != "local", args.blob_account_url, args.candidate_container,
+            args.run_prefix, args.rights_container, args.rights_blob, args.rights_file,
+            args.from_ledger, args.response_file, args.programme_manifest, args.url,
+        )):
+            raise AcquisitionError("Offline rights-status requires only local --rights-review and exact --rights-sha256; it never acquires or publishes")
+        programme = json.loads(pack.programme_path.read_text(encoding="utf-8"))
+        return OperationRightsProvider(args.rights_review, args.rights_sha256, pack, programme).report()
+    programme = json.loads(pack.programme_path.read_text(encoding="utf-8"))
+    report = source_policy_report(pack, programme)
+    if args.command in {"source-policy", "dry-run", "validate"}:
+        if any((args.pause, args.programme_manifest, args.url, args.acquire, args.resume, args.execute,
+                args.approved, args.create_index, args.stage_blob, args.initialize, args.rights_review,
+                args.rights_sha256, args.programme_store != "local", args.blob_account_url,
+                args.candidate_container, args.run_prefix, args.rights_container, args.rights_blob,
+                args.rights_file, args.from_ledger, args.response_file)):
+            raise AcquisitionError("Offline source-policy describes configured scope, not supplied or live inventory")
+        return report
+    if args.command not in {"programme", "publish", "index-schema"}:
+        pack.assert_operation("BC-only command " + args.command)
+    if not args.index_name.startswith(pack.id + "-"):
+        raise AcquisitionError("Search index must use the selected jurisdiction namespace")
+    if args.command == "index-schema":
+        if args.execute or args.acquire:
+            raise AcquisitionError("Index-schema is offline and never acquires or deploys")
+        from .azure_publish import build_index
+        return build_index(args.index_name, args.vector_dimensions, jurisdiction_id=pack.id).serialize()
+    if args.max_pages != 25:
+        raise AcquisitionError("Candidate programme retains the manual sample cap; use bounded programme limits")
+    publishing = args.command == "publish"
+    if not publishing and any((args.execute, args.approved, args.create_index, args.stage_blob)):
+        raise AcquisitionError("Programme acquisition never publishes")
+    from .operation_rights import OperationRightsProvider
+    if bool(args.rights_review) != bool(args.rights_sha256):
+        raise AcquisitionError("Local v3 rights require --rights-review and independently pinned --rights-sha256")
+    provider = (OperationRightsProvider(args.rights_review, args.rights_sha256, pack, programme)
+                if args.rights_review else None)
+    if (args.acquire or args.resume or publishing or args.review_manifest or args.programme_store == "azure-blob") and provider is None:
+        pack.assert_operation("acquisition/model publication")
+    policy = CandidateProgrammePolicy(programme, pack, rights_provider=provider)
+    catalog = policy.publication_catalog()
+    if args.rights_file or args.from_ledger or args.response_file:
+        raise AcquisitionError("Candidate acquisition uses explicit programme routes, not BC offline adapters")
+    if args.programme_store == "azure-blob":
+        if args.programme_manifest or not args.run_prefix or not args.run_prefix.startswith(pack.id + "/"):
+            raise AcquisitionError("Blob runs require an isolated jurisdiction-prefixed run namespace")
+        if not all((args.blob_account_url, args.candidate_container, args.rights_container, args.rights_blob)):
+            raise AcquisitionError("Blob runs require the existing private candidate and separate pinned read-only rights inputs")
+        if args.initialize and (args.resume or args.pause or publishing):
+            raise AcquisitionError("Initialize cannot reset, resume or publish an existing run")
+        for grant in provider.grants.values():
+            document_format = next((f for f in grant["formats"] if f in {"html", "pdf"}), None)
+            if document_format is None:
+                raise AcquisitionError("Blob candidate storage requires an explicit HTML or PDF storage grant")
+            provider.authorize("storage", f"https://{grant['host']}{grant['pathPrefixes'][0]}",
+                               format=document_format)
+        from .azure_blob import blob_runtime
+        with blob_runtime(
+            args.blob_account_url, args.candidate_container, args.run_prefix,
+            credential_mode=args.credential, initialize=args.initialize,
+            rights_container=args.rights_container, rights_blob=args.rights_blob,
+            rights_sha256=args.rights_sha256,
+        ) as (store, remote_rights):
+            if remote_rights != provider.review:
+                raise AcquisitionError("Remote read-only rights must match the independently pinned local v3 evidence review")
+            return _run_programme(args, catalog, store, remote_rights, policy=policy,
+                                  publishing=publishing, remote=True)
+    if any((args.blob_account_url, args.candidate_container, args.run_prefix, args.initialize,
+            args.rights_container, args.rights_blob)):
+        raise AcquisitionError("Blob arguments require explicit azure-blob programme mode")
+    manifest = args.programme_manifest or args.output / "programme" / "manifest.json"
+    pack.output(manifest)
+    if manifest.name != "manifest.json":
+        raise AcquisitionError("Candidate state must retain its separate manifest.json")
+    result = _run_programme(args, catalog, JsonManifestStore(manifest),
+                            provider.review if provider else None, policy=policy, publishing=publishing)
+    return {**result, "sourcePolicy": report, "manifest": display_path(manifest)}
 
 
 def main(argv=None) -> int:
@@ -321,6 +447,37 @@ def main(argv=None) -> int:
         argv = ["blob-inspect"]
     args = parser().parse_args(argv)
     try:
+        if args.credential == "azure-developer-cli" and (
+            args.command != "publish" or args.programme_store != "local" or args.stage_blob
+        ):
+            raise AcquisitionError("Azure Developer CLI authentication is supported only for local Search publication")
+        from .jurisdiction import load_pack
+        pack = load_pack(args.jurisdiction)
+        if args.jurisdiction is not None and "JURISDICTION" in os.environ and os.environ["JURISDICTION"] != pack.id:
+            raise AcquisitionError("--jurisdiction and JURISDICTION must agree")
+        args.catalog = args.catalog or pack.catalog_path
+        args.programme = args.programme or pack.programme_path
+        args.output = args.output or pack.output_path
+        args.index_name = args.index_name or (
+            os.environ.get("AZURE_SEARCH_INDEX", pack.id + "-pilot-public") if pack.id != "bc"
+            else "bc-pilot-public"
+        )
+        if pack.id != "bc":
+            print(json.dumps(_candidate_pack(args, pack), indent=2))
+            return 0
+        if args.command == "rights-status":
+            raise AcquisitionError("The v3 offline operation provider applies to candidate packs; legacy BC rights remain unchanged")
+        if args.command == "source-policy":
+            from .programme_policy import ProgrammePolicy
+            programme = json.loads(args.programme.read_text(encoding="utf-8"))
+            policy = ProgrammePolicy(programme, load_catalog(args.catalog))
+            print(json.dumps({
+                "mode": "offline-source-policy", "jurisdictionId": pack.id, "networkRequests": 0,
+                "programmeHash": policy.programme_hash,
+                "status": "existing-per-source-rights-and-exact-snapshot-review-required",
+                "coverageTargetMet": False,
+            }, indent=2))
+            return 0
         if args.command == "adapt-source":
             print(json.dumps(_adapt_source(args), indent=2))
             return 0

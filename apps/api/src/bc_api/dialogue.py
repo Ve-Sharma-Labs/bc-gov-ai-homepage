@@ -7,6 +7,7 @@ from typing import Literal
 from ag_ui.core import RunAgentInput
 
 from bc_api.catalog import CatalogRepository
+from bc_api.jurisdiction import JurisdictionPack, current_pack
 
 GREETING_ONLY = re.compile(
     r"(?i)^(?:(?:hi|hello|hey|hiya|howdy)(?:\s+there)?|greetings|"
@@ -19,11 +20,7 @@ HELP_ONLY = re.compile(
     r"(?i)^(?:help(?: me)?|i need help|can you help(?: me)?|"
     r"what can you (?:do|help (?:me )?with))[!,.?]*$"
 )
-MODEL_CLARIFICATIONS = (
-    "Which B.C. government service or programme would you like help with?",
-    "What would you like to know about that service?",
-    "Are you looking for general information, application guidance, or an official contact?",
-)
+MODEL_CLARIFICATIONS = tuple(current_pack().prompt("dialogue").splitlines()[1:])
 DRIVER_LICENCE = r"\bdriver(?:['\u2019]?s)?\s+licen[cs](?:e|ing)\b"
 SOURCE_TOPICS = (
     (
@@ -66,24 +63,25 @@ class ApplicationReply:
     kind: Literal["dialogue", "handoff"] = "dialogue"
 
 
-def dialogue_reply(text: str) -> ApplicationReply | None:
+def dialogue_reply(text: str, pack: JurisdictionPack | None = None) -> ApplicationReply | None:
+    lines = (pack or current_pack()).prompt("dialogue").splitlines()
     normalized = " ".join(text.strip().split())
     if GREETING_ONLY.fullmatch(normalized):
-        return ApplicationReply(
-            "Hi! What would you like help figuring out about B.C. government services?"
-        )
+        return ApplicationReply(lines[0])
     if THANKS_ONLY.fullmatch(normalized):
         return ApplicationReply("You're welcome. We can take the next step whenever you're ready.")
     if HELP_ONLY.fullmatch(normalized):
-        return ApplicationReply(MODEL_CLARIFICATIONS[0])
+        return ApplicationReply(lines[1])
     return None
 
 
 def is_model_clarification(text: str) -> bool:
-    return " ".join(text.split()) in MODEL_CLARIFICATIONS
+    return " ".join(text.split()) in current_pack().prompt("dialogue").splitlines()[1:]
 
 
 def source_topics(text: str) -> list[str]:
+    if not current_pack().guided_journeys:
+        return []
     topics = [key for key, pattern in SOURCE_TOPICS if re.search(pattern, text, re.I)]
     if (
         "icbc" in topics
@@ -110,6 +108,21 @@ def search_query_for(
 
 
 def source_handoff(query: str, catalog: CatalogRepository) -> ApplicationReply:
+    if not catalog.pack.guided_journeys:
+        help_channel = catalog.pack.manifest["helpChannel"]
+        limitation = (
+            "Source grounding is unavailable while publisher RAG permission is pending. "
+            if catalog.pack.rag_pending
+            else "Current approved source evidence is unavailable for this answer. "
+        )
+        return ApplicationReply(
+            f"I don't have current, reviewed {catalog.pack.manifest['shortName']} "
+            "source information to answer "
+            "that reliably. " + limitation + "You can continue at "
+            f"[{help_channel['name']}]({help_channel['url']}). "
+            "This assistant cannot determine eligibility or complete transactions.",
+            "handoff",
+        )
     if re.search(r"\brenew(?:al|ing)?\b", query, re.I) and re.search(
         rf"{DRIVER_LICENCE}|\bbcid\b", query, re.I
     ):

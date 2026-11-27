@@ -24,7 +24,7 @@ test("serves the real catalogue and honest native-AI capability status", async (
   const response = await page.request.get("/api/catalog");
   expect(response.ok()).toBeTruthy();
   const served = await response.json();
-  expect(served).toEqual(catalogue);
+  expect(served).toEqual({ ...catalogue, jurisdiction: "bc" });
   const capabilities = await (await page.request.get("/api/capabilities")).json();
   expect(capabilities.aiConfigured).toBe(false);
   expect(capabilities.generalChatConfigured).toBe(false);

@@ -1,5 +1,6 @@
 import { journeyIds } from "./contract";
 import { internalHeaders } from "./internal-auth";
+import { jurisdiction } from "./jurisdiction";
 
 const READ_PATHS = new Set([
   "/healthz",
@@ -35,7 +36,7 @@ export function allowedApiRequest(method: string, pathname: string, query: URLSe
 }
 
 function failure(status: number, code: string, message: string) {
-  return Response.json({ error: { code, message } }, { status, headers: { "Cache-Control": "no-store" } });
+  return Response.json({ error: { code, message } }, { status, headers: { "Cache-Control": "no-store", "X-Jurisdiction": jurisdiction.id } });
 }
 
 function loopbackHost(host: string): boolean {
@@ -60,6 +61,9 @@ function localEvaluationRequest(request: Request, incoming: URL, base: URL): boo
 
 export async function proxyRequest(request: Request): Promise<Response> {
   const incoming = new URL(request.url);
+  if (request.headers.has("x-jurisdiction")) {
+    return failure(400, "JURISDICTION_SELECTION_FORBIDDEN", "The government is fixed by this deployment.");
+  }
   if (!allowedApiRequest(request.method, incoming.pathname, incoming.searchParams)) {
     return failure(404, "UNSUPPORTED_ENDPOINT", "That service endpoint is not available.");
   }
@@ -141,6 +145,7 @@ export async function proxyRequest(request: Request): Promise<Response> {
     }
     const serviceHeaders = await internalHeaders(request);
     serviceHeaders.forEach((value, name) => headers.set(name, value));
+    headers.set("X-Expected-Jurisdiction", jurisdiction.id);
     if (localEvaluation) headers.set("X-BC-Evaluation-Scope", "local-noncommercial");
     const response = await fetch(new URL(incoming.pathname + incoming.search, base), {
       method: request.method,
@@ -150,6 +155,14 @@ export async function proxyRequest(request: Request): Promise<Response> {
       redirect: "manual",
       signal: controller.signal,
     });
+    const upstreamJurisdiction = response.headers.get("x-jurisdiction");
+    if ((upstreamJurisdiction && upstreamJurisdiction !== jurisdiction.id)
+      || (!upstreamJurisdiction && jurisdiction.id !== "bc")) {
+      abort();
+      await response.body?.cancel().catch(() => undefined);
+      cleanup();
+      return failure(502, "JURISDICTION_MISMATCH", "The connected service does not match this government pilot. Official service links remain available.");
+    }
     if (response.status >= 300 && response.status < 400) {
       await response.body?.cancel();
       cleanup();
@@ -167,6 +180,7 @@ export async function proxyRequest(request: Request): Promise<Response> {
       "Cache-Control": "no-store, no-transform",
       "X-Accel-Buffering": "no",
     });
+    if (upstreamJurisdiction) outputHeaders.set("X-Jurisdiction", upstreamJurisdiction);
     if (releaseCommit) outputHeaders.set("X-BC-Web-Release", releaseCommit);
     if (apiRelease) outputHeaders.set("X-BC-API-Release", apiRelease);
     if (releaseId) outputHeaders.set("X-BC-Web-Deployment", releaseId);

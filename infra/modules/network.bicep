@@ -6,6 +6,8 @@ param tags object
 param addressPrefix string
 param appsSubnetPrefix string
 param privateSubnetPrefix string
+param appsSubnetNetworkSecurityGroupId string = ''
+param privateSubnetNetworkSecurityGroupId string = ''
 
 resource network 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: 'vnet-${name}'
@@ -16,7 +18,7 @@ resource network 'Microsoft.Network/virtualNetworks@2024-05-01' = {
     subnets: [
       {
         name: 'apps'
-        properties: {
+        properties: union({
           addressPrefix: appsSubnetPrefix
           delegations: [
             {
@@ -24,14 +26,18 @@ resource network 'Microsoft.Network/virtualNetworks@2024-05-01' = {
               properties: { serviceName: 'Microsoft.App/environments' }
             }
           ]
-        }
+        }, empty(appsSubnetNetworkSecurityGroupId) ? {} : {
+          networkSecurityGroup: { id: appsSubnetNetworkSecurityGroupId }
+        })
       }
       {
         name: 'private-endpoints'
-        properties: {
+        properties: union({
           addressPrefix: privateSubnetPrefix
           privateEndpointNetworkPolicies: 'Disabled'
-        }
+        }, empty(privateSubnetNetworkSecurityGroupId) ? {} : {
+          networkSecurityGroup: { id: privateSubnetNetworkSecurityGroupId }
+        })
       }
     ]
   }

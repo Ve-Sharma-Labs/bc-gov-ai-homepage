@@ -7,8 +7,8 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
-from bc_api.config import default_catalog_path
 from bc_api.conversation_grounding import PROGRAMMES, AnswerTopic, ProgrammeId
+from bc_api.jurisdiction import current_pack
 from bc_api.models import Identifier, OfficialUrl, WireModel, require_unique
 
 
@@ -52,13 +52,18 @@ class GroundingPack(WireModel):
 
 class GroundingPacks(WireModel):
     version: Literal[1]
+    jurisdiction: Identifier = "bc"
     purpose: Literal["grounded-conversation"]
     publication_policy: Literal["exact-hash-human-review"]
     contains_source_content: Literal[False]
-    packs: list[GroundingPack] = Field(min_length=4, max_length=4)
+    packs: list[GroundingPack] = Field(max_length=4)
 
     @model_validator(mode="after")
     def complete_programme_inventory(self) -> Self:
+        if self.jurisdiction != "bc":
+            if self.packs:
+                raise ValueError("No grounding programmes are registered for this jurisdiction.")
+            return self
         require_unique([pack.id for pack in self.packs], "Pack IDs")
         programmes = [programme for pack in self.packs for programme in pack.programmes]
         require_unique(programmes, "Programme ownership")
@@ -93,10 +98,16 @@ class GroundingPacks(WireModel):
 
 
 def load_grounding_packs(path: Path | None = None) -> GroundingPacks:
-    selected = path or default_catalog_path().parent / "conversation-grounding-packs.json"
+    pack = current_pack()
+    selected = path or pack.path("groundingPacks")
+    if pack.id != "bc" and selected.resolve() != pack.path("groundingPacks"):
+        raise ValueError("Grounding blueprint path must match the selected jurisdiction.")
     if selected.stat().st_size > 100_000:
         raise ValueError("Grounding blueprint exceeds the metadata size limit.")
-    return GroundingPacks.model_validate_json(selected.read_bytes())
+    inventory = GroundingPacks.model_validate_json(selected.read_bytes())
+    if inventory.jurisdiction != pack.id:
+        raise ValueError("Grounding blueprint jurisdiction mismatch.")
+    return inventory
 
 
 def main() -> None:

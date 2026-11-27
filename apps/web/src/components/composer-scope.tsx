@@ -5,6 +5,7 @@ import { Popover } from "@base-ui/react/popover";
 import { Check, X } from "lucide-react";
 import { useAssistant } from "./assistant-provider";
 import { Button } from "./ui/button";
+import { jurisdiction, presentation } from "@/lib/jurisdiction";
 
 export function ComposerScope() {
   const { catalog, catalogError, loading, load, selected, selectedId, selectJourney, clearJourney, busy, contextActive } = useAssistant();
@@ -16,8 +17,8 @@ export function ComposerScope() {
       ? <>Conversation: <strong>Contextual demo</strong></>
       : selectedId
         ? <>Pathway: <strong>{selected?.title ?? "Selected guided pathway"}</strong></>
-        : "General B.C. chat"}</span>
-    {!contextActive && <>
+        : presentation.chatLabel}</span>
+    {jurisdiction.features.guidedJourneys && !contextActive && <>
     <div className="composer-scope-actions">
       <Popover.Root open={open && !busy} onOpenChange={setOpen}>
         <Popover.Trigger
@@ -33,10 +34,10 @@ export function ComposerScope() {
                 <Popover.Title>Choose a pathway</Popover.Title>
                 <Popover.Close render={<Button variant="ghost" size="icon" />} aria-label="Close pathway choices"><X size={18} aria-hidden="true" /></Popover.Close>
               </div>
-              <Popover.Description>Optional: focus your questions on a service, or keep asking about B.C. government in general.</Popover.Description>
+              <Popover.Description>{presentation.scopeDescription}</Popover.Description>
               <div className="scope-options" role="group" aria-label="Available conversation scopes">
                 <Button variant="ghost" aria-pressed={!selectedId} onClick={() => { clearJourney(); setOpen(false); }}>
-                  <span>General B.C. chat</span>{!selectedId && <Check size={16} aria-hidden="true" />}
+                  <span>{presentation.chatLabel}</span>{!selectedId && <Check size={16} aria-hidden="true" />}
                 </Button>
                 {catalog?.journeys.map((journey) => <Button key={journey.id} variant="ghost" aria-pressed={selectedId === journey.id} onClick={() => { selectJourney(journey); setOpen(false); }}>
                   <span>{journey.title}</span>{selectedId === journey.id && <Check size={16} aria-hidden="true" />}
@@ -48,7 +49,7 @@ export function ComposerScope() {
           </Popover.Positioner>
         </Popover.Portal>
       </Popover.Root>
-      {selectedId && <Button variant="ghost" className="composer-scope-action" disabled={busy} aria-label="Clear pathway and use general B.C. chat" onClick={() => {
+      {selectedId && <Button variant="ghost" className="composer-scope-action" disabled={busy} aria-label={presentation.clearScopeLabel} onClick={() => {
         clearJourney();
         trigger.current?.focus();
       }}>Clear</Button>}

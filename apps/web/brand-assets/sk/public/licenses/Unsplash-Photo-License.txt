@@ -1,0 +1,18 @@
+Unsplash Photo License
+Source: https://unsplash.com/license
+
+These locally stored responsive photographs are listed by Unsplash as free to
+use under the Unsplash License. The license permits downloading, copying,
+modifying, distributing, performing and using images, including commercially,
+without requiring photographer attribution. This project provides credits
+anyway; original photo pages and photographer profiles are linked on /credits
+and recorded in jurisdictions/sk/brand/attribution.json.
+
+The license does not permit selling an image without significant modification
+or compiling Unsplash images to replicate a similar or competing service.
+Copyright remains with the photographers. The photos are not public domain.
+
+This copyright licence does not provide model, property, trademark, privacy,
+publicity, access or other third-party permissions. It does not establish
+government endorsement or approve public release of this pilot. See
+https://help.unsplash.com/en/articles/2612329-releases-and-trademarks.

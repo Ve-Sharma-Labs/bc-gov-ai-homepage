@@ -20,6 +20,7 @@ from bc_api.grounded_quotes import SENTENCE_BOUNDARY, normalize_quote
 from bc_api.models import ContextArtifact, Evidence, ResponseKind
 from bc_api.protocol import ContextArtifactValidator, validate_artifact
 from bc_api.retrieval import EvidenceLedger
+from bc_api.source_conflicts import contains_money, inconsistent_sgi_renewal
 from bc_api.tools import TOOL_NAMES
 from bc_api.urls import official_url
 
@@ -123,6 +124,49 @@ NEUTRAL_ATTRIBUTION = re.compile(
     r"(?:the|this) (?:regulation|source|guide|page|schedule) (?:says|states|lists|shows):",
     re.I,
 )
+
+
+def incomplete_options_list(text: str) -> bool:
+    lines = text.splitlines()
+    counts = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    }
+    for index, line in enumerate(lines):
+        prose = re.sub(r"\[[^\]]*\]\(https?://[^)\s]+\)|https?://[^\s<>\])\"']+", "", line)
+        intro = re.search(
+            r"\bfollowing\b(?P<description>[^:\n]{0,100})\boptions?\b[^:\n]*:\s*$",
+            prose, re.I,
+        )
+        if not intro:
+            continue
+        count = re.match(
+            r"\s*(one|two|three|four|five|six|seven|eight|nine|ten|[1-9]|10)\b",
+            intro["description"], re.I,
+        )
+        expected = counts.get(count.group(1).lower()) if count else None
+        if count and expected is None:
+            expected = int(count.group(1))
+        listed = 0
+        indentation = None
+        for following in lines[index + 1:]:
+            if not following.strip():
+                continue
+            item = re.match(r"(?P<indent>[ \t]*)(?:[-*]|\d+[.)])[ \t]+(?=\S)", following)
+            if item is not None:
+                if indentation is None:
+                    indentation = item["indent"]
+                if item["indent"] == indentation:
+                    listed += 1
+                    continue
+                if item["indent"].startswith(indentation):
+                    continue
+            elif indentation is not None and following.startswith(indentation + " "):
+                continue
+            break
+        if listed < (expected or 1):
+            return True
+    return False
 
 
 def verified_attributions(text: str, evidence: dict[str, list[Evidence]]) -> set[str]:
@@ -268,6 +312,10 @@ class OutputGate:
                 section = text[offset:boundary]
                 if not section.strip():
                     continue
+                if incomplete_options_list(section) and (
+                    boundary < len(text) or message_id not in ended
+                ):
+                    continue
                 probe = OutputGate(
                     self.catalog,
                     self.ledger,
@@ -307,6 +355,8 @@ class OutputGate:
         text = "\n".join(self.text.values())
         if not text.strip():
             raise ApiError(502, "EMPTY_ANSWER", "The AI service did not return a sourced answer.")
+        if incomplete_options_list(text):
+            raise ApiError(502, "INCOMPLETE_LIST", "Incomplete options were withheld.")
         if re.search(r"</?[a-z][a-z0-9]*(?:\s|/?>)|```|!\[", text, re.I):
             raise ApiError(502, "OUTPUT_INVALID", "Unsafe answer formatting was withheld.")
         if TRANSACTION_CLAIMS.search(text):
@@ -426,6 +476,15 @@ class OutputGate:
                 502, "CITATION_REQUIRED", "The answer did not include verifiable source citations."
             )
         self.response_kind = "dialogue" if dialogue else "grounded"
+
+        if contains_money(text) and any(
+            inconsistent_sgi_renewal(item) for url in cited for item in evidence[url]
+        ):
+            raise ApiError(
+                502,
+                "CRITICAL_CLAIM_UNVERIFIED",
+                "Inconsistent source payment amounts were withheld. Consult the official source.",
+            )
 
         quotes = {
             normalize_quote(sentence)

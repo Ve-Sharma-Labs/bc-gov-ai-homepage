@@ -7,10 +7,11 @@ import { useScenePlayback } from "@/lib/use-scene-playback";
 import { useAssistant } from "./assistant-provider";
 import { Button } from "./ui/button";
 import { BlurFade } from "./ui/blur-fade";
+import { presentation } from "@/lib/jurisdiction";
 
 type SceneKind = "sources" | "checklist" | "locations" | "handoff";
 const copy: Record<SceneKind, { title: string; description: string }> = {
-  sources: { title: "Straight from the source.", description: "Find information from official B.C. services, with sources you can open and check for yourself." },
+  sources: { title: "Straight from the source.", description: presentation.sourceScene },
   checklist: { title: "A plan, not another search.", description: "Break your next step into a useful checklist. Know what to read, what to prepare, and where to go." },
   locations: { title: "The right place for your next step.", description: "Match the service you need to published office information. See what is offered before you travel." },
   handoff: { title: "You're in control.", description: "When you're ready, continue with the official service. Nothing is booked, paid or submitted by this pilot." },
@@ -51,7 +52,7 @@ function LocationArtwork({ step }: { step: number }) {
     <svg className="map-contours" viewBox="0 0 688 453" preserveAspectRatio="xMidYMid slice"><path d="M-80 95Q85 220 210 78T470 155T780 52M-80 175Q85 300 210 158T470 235T780 132M-80 255Q85 380 210 238T470 315T780 212M-80 335Q85 460 210 318T470 395T780 292" /></svg>
     <div className="map-dot dot-one"><MapPin size={25} /></div><div className="map-dot dot-two"><MapPin size={20} /></div>
     <motion.div className="illustrated-offices" animate={{ y: step % 2 ? 0 : 5 }} transition={{ duration: 0.65 }}>
-      <div className="illustrated-label"><MapPin size={16} />ICBC driver licensing</div>
+      <div className="illustrated-label"><MapPin size={16} />{presentation.serviceLabels["icbc-licensing" as keyof typeof presentation.serviceLabels] || "Official service locations"}</div>
       {offices.map((office) => {
         const offers = office.services.includes("icbc-licensing") && !office.excludedServices.includes("icbc-licensing");
         return <div className="illustrated-office" key={office.id}><strong>{office.municipality}</strong><span className={offers ? "office-offers" : ""}>{offers ? "Listed at this office" : "Not listed at this office"}{offers && <Check size={14} />}</span></div>;
@@ -67,7 +68,7 @@ function HandoffArtwork({ step }: { step: number }) {
     <motion.div className="handoff-letter" animate={{ rotate: step % 2 ? -5 : -8 }} transition={{ duration: 0.8 }}><span className="letter-sun" /><span>Your next step<br />starts with you.</span><div className="letter-rule" /><div className="letter-rule short" /></motion.div>
     <motion.div className="illustrated-browser" animate={{ y: step % 2 ? -4 : 4 }} transition={{ duration: 0.8 }}>
       <div className="browser-address"><span /><span /><span /><strong>icbc.com</strong><ShieldCheck size={13} /></div>
-      <div className="browser-content"><ArrowUpRight size={35} strokeWidth={1.3} /><h4>Ready when you are.</h4><p>Continue on the official website.</p><div className="illustrated-action">Go to ICBC <ArrowRight size={16} /></div><span className="illustration-disclaimer">Handoff illustration. Nothing submitted.</span></div>
+      <div className="browser-content"><ArrowUpRight size={35} strokeWidth={1.3} /><h4>Ready when you are.</h4><p>Continue on the official website.</p><div className="illustrated-action">{presentation.handoffIllustration} <ArrowRight size={16} /></div><span className="illustration-disclaimer">Handoff illustration. Nothing submitted.</span></div>
     </motion.div>
   </div>;
 }

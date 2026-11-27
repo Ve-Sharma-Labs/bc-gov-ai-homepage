@@ -28,6 +28,7 @@ from bc_api.dialogue import MODEL_CLARIFICATIONS, dialogue_reply, search_query_f
 from bc_api.errors import ApiError
 from bc_api.foundry import FoundryRuntime, local_credential_timeout_error
 from bc_api.main import create_app
+from bc_api.model_budget import ModelBudget
 from bc_api.models import AgentBinding
 from bc_api.retrieval import AzureRetriever
 from bc_api.security import SESSION_COOKIE, Run
@@ -340,3 +341,100 @@ def test_local_cli_timeout_mapping_is_specific_and_development_only(settings):
         local_credential_timeout_error(settings.model_copy(update={"app_env": "production"}), error)
         is None
     )
+
+
+@pytest.mark.parametrize("second_valid", [True, False])
+async def test_sk_retries_only_uncommitted_invalid_output_with_the_same_budget(
+    configured, repository, evidence, run_input, second_valid
+):
+    settings = general_settings(configured).model_copy(update={"jurisdiction": "sk"})
+    url = evidence.evidence[0].reference.url
+    rejected = f"You must have an invented condition. [Source]({url})\n\n"
+    accepted = f"Read the official application guidance. [Source]({url})\n\n"
+
+    class RetryRuntime(FoundryRuntime):
+        def __init__(self):
+            super().__init__(settings, repository)
+            self.inputs = []
+            self.budgets = []
+            self.search_queries = []
+
+        async def _events(self, request, context, **kwargs):
+            context.model_budget = context.model_budget or ModelBudget(settings, context, 100)
+            context.model_budget.reserve(len(request.messages[-1].content.encode()))
+            self.budgets.append(context.model_budget)
+            self.inputs.append(request.messages[-1].content)
+            self.search_queries.append(context.public_query)
+            context.ledger.add(evidence)
+            yield RunStartedEvent(run_id=request.run_id, thread_id=request.thread_id)
+            yield TextMessageStartEvent(message_id="answer", role="assistant")
+            yield TextMessageContentEvent(
+                message_id="answer",
+                delta=accepted if len(self.inputs) == 2 and second_valid else rejected,
+            )
+            yield TextMessageEndEvent(message_id="answer")
+            yield CustomEvent(name="usage", value={"total_token_count": 10})
+            yield RunFinishedEvent(run_id=request.run_id, thread_id=request.thread_id)
+
+    run_input["messages"][-1]["content"] = "How do I apply for Saskatchewan Income Support?"
+    request = general_request(run_input)
+    runtime = RetryRuntime()
+    run = Run(request.run_id, request.thread_id, "owner")
+    run.finish = AsyncMock(return_value="finished")
+    events = decode(
+        [
+            frame
+            async for frame in stream_run(request, run, runtime, repository, settings)
+        ]
+    )
+    text = "".join(event.get("delta", "") for event in events)
+    assert "invented condition" not in text
+    assert len(runtime.inputs) == 2 and runtime.budgets[0] is runtime.budgets[1]
+    assert "A previous draft was withheld" in runtime.inputs[1]
+    assert runtime.search_queries[1] == run_input["messages"][-1]["content"]
+    assert len([event for event in events if event["type"] == "RUN_STARTED"]) == 1
+    if second_valid:
+        assert text == accepted and events[-1]["type"] == "RUN_FINISHED"
+        assert not run.usage_valid
+        run.finish.assert_awaited_once_with("finished", None)
+    else:
+        assert not text and events[-1]["code"] == "CRITICAL_CLAIM_UNVERIFIED"
+        run.finish.assert_awaited_once_with("failed", None)
+
+
+async def test_sk_valid_first_section_still_streams_before_the_model_finishes(
+    configured, repository, evidence, run_input
+):
+    settings = general_settings(configured).model_copy(update={"jurisdiction": "sk"})
+    resume = asyncio.Event()
+    url = evidence.evidence[0].reference.url
+
+    class IncrementalRuntime(FoundryRuntime):
+        async def _events(self, request, context, **kwargs):
+            context.model_work_started = True
+            context.ledger.add(evidence)
+            yield RunStartedEvent(run_id=request.run_id, thread_id=request.thread_id)
+            yield TextMessageStartEvent(message_id="answer", role="assistant")
+            yield TextMessageContentEvent(
+                message_id="answer", delta=f"Read the guidance. [Source]({url})\n\n"
+            )
+            await resume.wait()
+            yield TextMessageEndEvent(message_id="answer")
+            yield RunFinishedEvent(run_id=request.run_id, thread_id=request.thread_id)
+
+    request = general_request(run_input)
+    run = Run(request.run_id, request.thread_id, "owner")
+    stream = stream_run(
+        request, run, IncrementalRuntime(settings, repository), repository, settings
+    )
+    events = []
+    try:
+        async with asyncio.timeout(5):
+            while not any(event["type"] == "TEXT_MESSAGE_CONTENT" for event in events):
+                events.extend(decode([await anext(stream)]))
+        assert not resume.is_set() and run.status == "running"
+        resume.set()
+        events.extend(decode([frame async for frame in stream]))
+        assert events[-1]["type"] == "RUN_FINISHED"
+    finally:
+        await stream.aclose()

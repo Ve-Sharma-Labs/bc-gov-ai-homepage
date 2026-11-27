@@ -8,6 +8,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from bc_api.catalog import CatalogRepository
 from bc_api.errors import ApiError
+from bc_api.jurisdiction import current_pack
 from bc_api.models import (
     Artifact,
     ContextArtifact,
@@ -73,7 +74,12 @@ def response_context_event(
 def progress_event(phase: str) -> CustomEvent:
     if not isinstance(phase, str) or phase not in PROGRESS:
         raise ApiError(502, "OUTPUT_INVALID", "Unsupported assistant progress was withheld.")
-    value = ProgressUpdate.model_validate({"phase": phase, "message": PROGRESS[phase]})
+    message = PROGRESS[phase]
+    if phase == "retrieving":
+        pack = current_pack()
+        if pack.id != "bc":
+            message = f"Checking official {pack.manifest['shortName']} sources..."
+    value = ProgressUpdate.model_validate({"phase": phase, "message": message})
     return CustomEvent(name="status", value=value.model_dump(by_alias=True))
 
 

@@ -3,13 +3,15 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      args:
+        JURISDICTION: "${JURISDICTION:-bc}"
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     environment:
       APP_ENV: development
+      JURISDICTION: "${JURISDICTION:-bc}"
       API_ALLOWED_ORIGINS: "http://127.0.0.1:${WEB_PORT:-3000},http://localhost:${WEB_PORT:-3000}"
       API_ALLOWED_HOSTS: "localhost,127.0.0.1,::1,api"
-      CONTENT_CATALOG_PATH: /app/data/pilot-catalog.json
       FOUNDRY_PROJECT_ENDPOINT: "${FOUNDRY_PROJECT_ENDPOINT:-}"
       FOUNDRY_AGENT_NAME: "${FOUNDRY_AGENT_NAME:-}"
       FOUNDRY_AGENT_VERSION: "${FOUNDRY_AGENT_VERSION:-}"
@@ -26,10 +28,13 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        JURISDICTION: "${JURISDICTION:-bc}"
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
     environment:
       NODE_ENV: production
+      JURISDICTION: "${JURISDICTION:-bc}"
       NEXT_TELEMETRY_DISABLED: "1"
       API_BASE_URL: http://api:8000
     depends_on:

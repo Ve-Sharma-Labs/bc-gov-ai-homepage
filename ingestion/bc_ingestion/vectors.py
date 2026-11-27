@@ -30,7 +30,9 @@ def validate_vectors(values: list, count: int, dimensions: int) -> list[list[flo
     return result
 
 
-def enrich_documents(documents: list[dict], embed, dimensions: int) -> list[dict]:
+def enrich_documents(documents: list[dict], embed, dimensions: int, *, programme_policy=None) -> list[dict]:
+    from .jurisdiction import assert_model_operation
+    assert_model_operation("embedding", documents, programme_policy=programme_policy)
     validate_dimensions(dimensions)
     enriched = []
     for start in range(0, len(documents), 16):
@@ -50,12 +52,17 @@ def enrich_documents(documents: list[dict], embed, dimensions: int) -> list[dict
     return enriched
 
 
-def azure_embedder(endpoint: str, deployment: str, dimensions: int, credential, session):
+def azure_embedder(endpoint: str, deployment: str, dimensions: int, credential, session, *, programme_policy=None):
     validate_dimensions(dimensions)
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}", deployment):
         raise AcquisitionError("A reviewed embedding deployment name is required")
 
     def embed(texts: list[str]) -> list[list[float]]:
+        from .jurisdiction import assert_model_operation
+        if programme_policy is not None:
+            programme_policy.assert_embedding_texts(texts)
+        else:
+            assert_model_operation("embedding")
         import requests
         token = credential.get_token("https://cognitiveservices.azure.com/.default").token
         try:

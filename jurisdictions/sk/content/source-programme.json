@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 2,
+  "jurisdictionId": "sk",
+  "programmeId": "sk-public-corpus",
+  "coverageTarget": "all-permitted-public-pages",
+  "publicationPolicy": "exact-hash-automated-review",
+  "permissionStatus": "pending-rag-permission",
+  "scopeNotice": "Offline proposed broad public-site and linked-PDF scope, not a live inventory or permission grant. No acquired, extracted, reviewed or indexed Saskatchewan snapshots exist in this pack.",
+  "sources": [
+    {
+      "id": "sk-public-content",
+      "publisher": "Government of Saskatchewan",
+      "host": "www.saskatchewan.ca",
+      "seedUrl": "https://www.saskatchewan.ca/",
+      "targetPathPrefixes": [
+        "/"
+      ],
+      "topics": [
+        "resident",
+        "business",
+        "government"
+      ],
+      "formats": [
+        "html",
+        "pdf"
+      ]
+    },
+    {
+      "id": "sk-sgi-content",
+      "publisher": "Saskatchewan Government Insurance",
+      "host": "sgi.sk.ca",
+      "seedUrl": "https://sgi.sk.ca/renew-licence",
+      "targetPathPrefixes": [
+        "/"
+      ],
+      "topics": [
+        "driving",
+        "transportation"
+      ],
+      "formats": [
+        "html",
+        "pdf"
+      ]
+    },
+    {
+      "id": "sk-ehealth-content",
+      "publisher": "eHealth Saskatchewan",
+      "host": "www.ehealthsask.ca",
+      "seedUrl": "https://www.ehealthsask.ca/residents/health-cards",
+      "targetPathPrefixes": [
+        "/"
+      ],
+      "topics": [
+        "health",
+        "vital-records"
+      ],
+      "formats": [
+        "html",
+        "pdf"
+      ]
+    }
+  ],
+  "accessObservations": [
+    {
+      "host": "www.saskatchewan.ca",
+      "robotsUrl": "https://www.saskatchewan.ca/robots.txt",
+      "sitemaps": [
+        "https://www.saskatchewan.ca/sitemap-xml"
+      ],
+      "evidenceKind": "agent-observed-prior-tool-result",
+      "observedDate": "2026-11-23",
+      "fetchedAt": null,
+      "responseSha256": null,
+      "contentSignals": {
+        "search": "yes",
+        "ai-train": "no",
+        "use": "reference",
+        "ai-input": null
+      },
+      "searchExcludesAiGeneratedSummaries": true,
+      "accessState": "pending-rag-permission",
+      "notice": "Attributed to the parent assistant's prior web_fetch tool result in this session, not a user report. Exact response bytes, hash and timestamp are unavailable here. Search is not AI-input, embedding or generated-summary permission. Named training-crawler exclusions must be respected; no impersonation or access bypass."
+    },
+    {
+      "host": "sgi.sk.ca",
+      "robotsUrl": "https://sgi.sk.ca/robots.txt",
+      "sitemaps": [],
+      "evidenceKind": "agent-observed-prior-tool-result",
+      "observedDate": "2026-11-24",
+      "fetchedAt": null,
+      "responseSha256": null,
+      "contentSignals": {
+        "search": null,
+        "ai-train": null,
+        "use": null,
+        "ai-input": null
+      },
+      "searchExcludesAiGeneratedSummaries": null,
+      "accessState": "pending-rag-permission",
+      "notice": "Public robots snapshot separately pinned in the operation review; missing content signals are unknown and do not grant any operation."
+    },
+    {
+      "host": "www.ehealthsask.ca",
+      "robotsUrl": "https://www.ehealthsask.ca/robots.txt",
+      "sitemaps": [],
+      "evidenceKind": "agent-observed-prior-tool-result",
+      "observedDate": "2026-11-24",
+      "fetchedAt": null,
+      "responseSha256": null,
+      "contentSignals": {
+        "search": null,
+        "ai-train": null,
+        "use": null,
+        "ai-input": null
+      },
+      "searchExcludesAiGeneratedSummaries": null,
+      "accessState": "pending-rag-permission",
+      "notice": "Public robots snapshot separately pinned in the operation review; missing content signals are unknown and do not grant any operation."
+    }
+  ],
+  "exclusions": {
+    "robotsPrefixes": [
+      "/sitecore",
+      "/search",
+      "/sitecore_files/",
+      "/temp/",
+      "/upload/",
+      "/xsl/"
+    ],
+    "categories": [
+      "authenticated-flows",
+      "account-flows",
+      "form-submission-flows",
+      "payment-flows",
+      "booking-flows",
+      "transaction-flows",
+      "personal-records",
+      "upload-flows",
+      "third-party-content-without-permission",
+      "training",
+      "fine-tuning",
+      "unapproved-publishers",
+      "unsupported-document-formats"
+    ]
+  },
+  "externalCandidatePublishers": "jurisdictions/sk/ingestion/external-publisher-candidates.json"
+}

@@ -20,6 +20,8 @@ permissions:
   pull-requests: read
   copilot-requests: none
 engine: copilot
+imports:
+  - shared/coding-agent-policy.md
 timeout-minutes: 25
 max-turns: 60
 max-ai-credits: 300

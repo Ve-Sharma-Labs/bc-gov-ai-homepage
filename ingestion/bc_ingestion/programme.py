@@ -1,6 +1,7 @@
 """Resumable candidate acquisition using the existing Fetcher, extractor and Ledger."""
 
 from collections import Counter
+from copy import deepcopy
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import time
@@ -64,13 +65,16 @@ def retry_at(value: str | None, now: float, attempt: int) -> float:
 class ProgrammeRun:
     def __init__(self, policy: ProgrammePolicy, store: ManifestStore, *,
                  limits: ProgrammeLimits | None = None, response_store: ResponseStore | None = None,
-                 seeds: list[str] | None = None, clock=time.time, sleep=time.sleep, request=None):
+                 seeds: list[str] | None = None, clock=time.time, sleep=time.sleep, request=None,
+                 allow_pack_review_binding=False):
         self.policy, self.store, self.response_store = policy, store, response_store
         if getattr(store, "requires_response_store", False) and response_store is None:
             raise CheckpointError("Remote acquisition requires a durable candidate response store")
         self.clock, self.sleep, self.request = clock, sleep, request
         self.state = store.load()
+        identity = getattr(policy, "identity", None)
         catalog_hash = digest(policy.catalog)
+        bind_pack = False
         if self.state is None:
             self.limits = limits or ProgrammeLimits()
             self.state = {
@@ -86,6 +90,8 @@ class ProgrammeRun:
                     "chargedBytes": 0, "responseBytes": 0, "hosts": {},
                 },
             }
+            if identity is not None:
+                self.state["packIdentity"] = identity
             initial = [{"url": url, "kind": "document"} for url in (
                 seeds if seeds is not None else [s["seedUrl"] for s in policy.programme["sources"]]
             )]
@@ -97,6 +103,32 @@ class ProgrammeRun:
             self.state["seedCursor"] = 0
             self._save()
         else:
+            if self.state.get("packIdentity") != identity:
+                pack = getattr(policy, "pack", None)
+                provider = getattr(policy, "rights_provider", None)
+                unbound = (
+                    self.state.get("rightsReviewHash") is None
+                    and not self.state["ledger"]["documents"]
+                    and self.state["budget"]["responseBytes"] == 0
+                )
+                same_attestation = bool(
+                    pack is not None and pack.id == "sk" and provider is not None
+                    and provider.review["reviewId"].startswith("user-attestation:")
+                    and provider.review["packIdentity"] == pack.pending_identity
+                    and self.state.get("rightsReviewHash") == policy.rights_hash
+                    and self.state.get("rightsReview") == provider.review
+                )
+                bind_pack = bool(
+                    allow_pack_review_binding and pack is not None
+                    and pack.pending_identity is not None
+                    and pack.approval_status == "reviewed-operation-grants"
+                    and provider is not None
+                    and self.state.get("packIdentity") == pack.pending_identity
+                    and (unbound or same_attestation)
+                )
+                if not bind_pack:
+                    raise AcquisitionError("Manifest jurisdiction/pack identity changed; do not reuse another pack's durable state")
+                policy.assert_current_rights()
             if (
                 self.state.get("schemaVersion") != 1 or self.state.get("mode") != "full-programme"
                 or self.state.get("programmeHash") != policy.programme_hash
@@ -124,6 +156,14 @@ class ProgrammeRun:
         if self.state["rightsReviewHash"] and policy.rights_hash and self.state["rightsReviewHash"] != policy.rights_hash:
             raise AcquisitionError("Resume cannot replace the exact rights review bound to this run")
         self.ledger = Ledger(self.state["ledger"])
+        if bind_pack:
+            previous = self.state["packIdentity"]
+            self.state["packIdentity"] = deepcopy(identity)
+            self.state["events"].append({
+                "type": "reviewed-pack-identity-bound", "previousIdentity": previous,
+                "identity": identity, "rightsFileSha256": policy.rights_provider.expected_sha256,
+            })
+            self._save()
 
     def _save(self):
         self.state["updatedAt"] = utc_now()
@@ -158,6 +198,8 @@ class ProgrammeRun:
             "reason": reason, "discoveredFrom": [parent["id"]] if parent else [],
             "links": [], "discoveryCursor": 0, "discoveryComplete": False,
         }
+        if getattr(self.policy, "identity", None) is not None:
+            candidate["discoveryEvidence"] = "fetched-parent-link" if parent else "configured-seed"
         self.state["candidates"][key] = candidate
         return self.state["candidates"][key]
 
@@ -203,7 +245,7 @@ class ProgrammeRun:
             if candidate["state"] == "blocked" and (candidate["reason"] or "").startswith((
                 "rights-",
                 "source-access-hold:",
-            )):
+            ) + (("pending-rag-permission:",) if getattr(self.policy, "jurisdiction_id", "bc") != "bc" else ())):
                 try:
                     self.policy.validate_url(candidate["url"], kind=candidate["kind"])
                     candidate["state"], candidate["reason"] = "pending", None
@@ -286,6 +328,9 @@ class ProgrammeRun:
                 kind=candidate["kind"],
             )
             candidate.update(checkedAt=response.checked_at, httpStatus=response.status, responseHash=response.digest)
+            extraction_options = None
+            if source and response.status == 200 and hasattr(self.policy, "response_options"):
+                extraction_options = self.policy.response_options(response)
             if self.response_store is not None and response.status == 200:
                 candidate["responseObject"] = self.response_store.put(response.body)
             if response.status in RETRYABLE_STATUS:
@@ -299,11 +344,16 @@ class ProgrammeRun:
             else:
                 document = None
                 if response.status == 200:
+                    if extraction_options is None:
+                        extraction_options = {
+                            "metadata": self.policy.metadata(response.url),
+                            "quality_flags": self.policy.extraction_flags(response.url),
+                        }
                     document = adapt_programme_html(
                         response, url_validator=self.policy.validate_url,
+                        jurisdiction_id=getattr(self.policy, "jurisdiction_id", "bc"),
                         canonical_validator=lambda target: fetcher.validate_canonical(target, origin=response.url),
-                        metadata=self.policy.metadata(response.url),
-                        quality_flags=self.policy.extraction_flags(response.url),
+                        **extraction_options,
                     )
                     candidate = self._canonical_candidate(candidate, document, response)
                     source = self.policy.matches(document.url)[0]
@@ -344,7 +394,10 @@ class ProgrammeRun:
         except AcquisitionError as exc:
             if source:
                 self.ledger.fail(url, source["id"], str(exc))
-            candidate["state"] = "unsupported" if str(exc).startswith("unsupported-format") else "blocked"
+            candidate["state"] = (
+                "quarantined" if str(exc).startswith("pdf-quarantine:")
+                else "unsupported" if str(exc).startswith("unsupported-format") else "blocked"
+            )
             candidate["reason"] = str(exc)
         finally:
             self.ledger.state["robots"].update(fetcher.robots_observations)
@@ -437,6 +490,14 @@ class ProgrammeRun:
                 "exactReviewedCurrentDocuments": stats["exactReviewedCurrentDocuments"],
                 "publishedDocuments": stats["publishedDocuments"],
                 "publicationScope": "This manifest only; the existing pilot publication ledger is separate",
+                **({"lifecycle": {
+                    "unit": "canonical-documents; stages overlap; superseded means any superseded snapshot",
+                    **(stats.get("lifecycle") or {key: None for key in (
+                        "discovered", "eligible", "fetched", "extracted", "withheld", "failed", "superseded",
+                    )}),
+                    "stageCountsAvailable": "lifecycle" in stats,
+                    "reviewed": stats["exactReviewedCurrentDocuments"], "indexed": stats["publishedDocuments"],
+                }} if getattr(self.policy, "jurisdiction_id", "bc") != "bc" else {}),
             }
         candidates = list(self.state["candidates"].values())
         sources = {}
@@ -481,4 +542,36 @@ class ProgrammeRun:
             "reviewRequired": len([c for c in candidates if c["state"] == "candidate"]),
             "exactReviewedCurrentDocuments": reviewed_current, "publishedDocuments": published,
             "publicationScope": "This manifest only; the existing pilot publication ledger is separate",
+            "lifecycle": lifecycle_counts(self.state),
         }
+
+
+def lifecycle_counts(state):
+    """Overlapping document-stage counts; configured seeds are not discovered pages."""
+    documents = state["ledger"]["documents"]
+    candidates = [c for c in state["candidates"].values() if c["kind"] == "document"]
+    observed = [c for c in candidates if c["discoveredFrom"] or c.get("responseHash")]
+    approved = {v for p in state["reviewPlans"] for v in p.get("approvedVersions", [])}
+    current = [e["versions"][-1] for e in documents.values() if e["versions"]]
+    return {
+        "unit": "canonical-documents; stages overlap; superseded means any superseded snapshot",
+        "configuredSeeds": sum(c.get("discoveryEvidence") == "configured-seed" for c in candidates),
+        "proposedWithheldSeeds": sum(c.get("discoveryEvidence") == "configured-seed"
+                                    and not c["discoveredFrom"] and not c.get("responseHash")
+                                    and c["state"] in {"blocked", "unsupported"} for c in candidates),
+        "discovered": sum(bool(c["discoveredFrom"]) or bool(c.get("responseHash")) for c in candidates),
+        "eligible": sum(c["state"] in {"pending", "retry-wait", "candidate"} for c in candidates),
+        "fetched": sum(bool(c.get("responseHash")) for c in candidates),
+        "extracted": len(current),
+        "reviewed": sum(v["documentVersion"] in approved and not v.get("reviewRevoked")
+                        and v["status"] in {"active", "review-required"} for v in current),
+        "indexed": sum(bool(e.get("activeVersion")) for e in documents.values()),
+        "withheld": sum(c["state"] in {"blocked", "unsupported", "quarantined", "withdrawn"} for c in observed),
+        "failed": sum(c["attempts"] > 0 and (
+            c["state"] in {"blocked", "retry-wait", "unsupported"}
+            or (c["state"] == "quarantined" and (c["reason"] or "").startswith("pdf-quarantine:")))
+                      for c in candidates),
+        "superseded": sum(any(v["status"] == "superseded" for v in e["versions"]) for e in documents.values()),
+        "exclusions": dict(Counter(c["reason"] for c in candidates
+                                  if c["state"] in {"blocked", "unsupported"} and c["reason"])),
+    }

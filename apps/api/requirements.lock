@@ -1,4 +1,4 @@
-# Runtime resolution verified on CPython 3.14.0 / Windows and Linux amd64.
+# Runtime resolution verified on CPython 3.14.0 / Windows and 3.14.10 / Linux amd64.
 # Linux's uvicorn-standard uvloop wheel pin is explicit.
 ag-ui-protocol==0.1.22
 agent-framework-ag-ui==1.6.0
@@ -43,10 +43,10 @@ msrest==0.7.1
 msgspec==0.22.0
 multidict==7.1.0
 openai==3.35.0
-oauthlib==4.0.0
-opentelemetry-api==1.45.1
-opentelemetry-sdk==1.45.1
-opentelemetry-semantic-conventions==0.66b1
+oauthlib==4.0.1
+opentelemetry-api==1.45.2
+opentelemetry-sdk==1.45.2
+opentelemetry-semantic-conventions==0.66b2
 packaging==26.3
 propcache==0.5.4
 psutil==7.2.2
@@ -63,7 +63,7 @@ requests-oauthlib==2.0.0
 redis==8.1.0
 redis-entraid==1.2.2
 sniffio==1.3.1
-soupsieve==3.0.4
+soupsieve==4.0
 sse-starlette==3.5.0
 starlette==1.8.0
 truststore==0.10.5

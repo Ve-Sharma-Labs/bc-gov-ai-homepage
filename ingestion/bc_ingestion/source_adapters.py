@@ -127,6 +127,38 @@ class WorkBcFeedResult:
     excluded: list[dict]
 
 
+def extract_sgi_rendered_html(response: Response, *, programme_policy) -> Document:
+    """Extract SGI's rendered article while retaining the full capture hash."""
+    normalized = programme_policy.validate_url(response.url, media_type="text/html")
+    if urlsplit(normalized).hostname != "sgi.sk.ca" or response.status != 200:
+        raise AcquisitionError("SGI rendering requires a successful exact-publisher capture")
+    soup = BeautifulSoup(response.body, "html.parser")
+    article = soup.select_one("article.eight.columns")
+    headings = [
+        heading for heading in soup.find_all("h1")
+        if heading.get_text(" ", strip=True)
+        and not heading.find_parent("nav")
+        and not heading.get_text(" ", strip=True).startswith("SGI |")
+    ]
+    if article is None or len(headings) != 1:
+        raise AcquisitionError("SGI rendering requires the service heading and complete article")
+    title = headings[0].get_text(" ", strip=True)
+    language = soup.html.get("lang", "en") if soup.html else "en"
+    body = (
+        f'<html lang="{escape(language)}"><head><title>{escape(title)}</title></head>'
+        f"<body><main><h1>{escape(title)}</h1>{article}</main></body></html>"
+    ).encode("utf-8")
+    document = extract(
+        Response(normalized, 200, {"content-type": "text/html"}, body, response.checked_at),
+        url_validator=programme_policy.validate_url,
+        metadata=programme_policy.metadata(normalized, media_type="text/html"),
+    )
+    document.response_hash = response.digest
+    document.extraction_method = RENDERED_HTML_EXTRACTION_METHOD
+    document.extraction_hash = extraction_digest(document)
+    return document
+
+
 def _beneath(path: str, prefix: str) -> bool:
     return path == prefix or path.startswith(prefix.rstrip("/") + "/")
 
@@ -622,9 +654,14 @@ def adapt_workbc_publisher_feed(
     return WorkBcFeedResult(documents, excluded)
 
 
-def adapt_programme_html(response: Response, **kwargs) -> Document:
+def adapt_programme_html(response: Response, *, jurisdiction_id="bc", **kwargs) -> Document:
     """Registry hook for ordinary programme HTML without changing default extraction."""
     host = urlsplit(canonicalize(response.url)).hostname
+    if jurisdiction_id != "bc":
+        from .policy import PUBLISHERS
+        if host in PUBLISHERS:
+            raise AcquisitionError("BC publisher adapters are registered for the BC pack only")
+        return extract(response, **kwargs)
     if host == "www2.gov.bc.ca":
         return adapt_province_html(response, **kwargs)
     if host == "www.bchousing.org":

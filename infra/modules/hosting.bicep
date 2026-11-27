@@ -1,10 +1,12 @@
 targetScope = 'resourceGroup'
 
 param name string
+param jurisdiction string = 'bc'
 param location string
 param tags object
 param releaseCommit string = ''
 param releaseId string = ''
+param releaseProbeEnabled bool = false
 param foundryProjectEndpoint string
 param foundryAgentsJson string
 param foundryGeneralAgentJson string
@@ -17,6 +19,7 @@ param aiConversationPrivacyReviewed string
 param syntheticContextEnabled string
 param searchEndpoint string
 param searchIndex string
+param searchSemanticConfig string = '${jurisdiction}-public-guidance'
 param searchMetadataEnabled string
 param searchMetadataReviewed string
 param publicOrigin string
@@ -43,6 +46,7 @@ param clientHashKey string
 
 var apiName = 'ca-${name}-api'
 var webName = 'ca-${name}-web'
+var apiAuthCallersJson = string([webPrincipalId])
 var research = union({
   foundryResearchAgent: ''
   dailyRunLimit: 0
@@ -72,6 +76,7 @@ var research = union({
   webIqPerRunCostMicrousd: 0
   webIqDailyCostLimitMicrousd: 0
 }, researchConfig)
+var webIqSourcesJson = string(research.webIqSources)
 
 module logs 'br/public:avm/res/operational-insights/workspace:0.16.1' = {
   name: 'logs'
@@ -139,10 +144,11 @@ module api 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
     containerMemory: '1Gi'
     enableTelemetry: false
     env: [
+      { name: 'JURISDICTION', value: jurisdiction }
       { name: 'APP_ENV', value: 'production' }
       { name: 'RELEASE_COMMIT', value: releaseCommit }
       { name: 'RELEASE_ID', value: releaseId }
-      { name: 'CONTENT_CATALOG_PATH', value: '/app/data/pilot-catalog.json' }
+      { name: 'CONTENT_CATALOG_PATH', value: jurisdiction == 'bc' ? '/app/data/pilot-catalog.json' : '/app/jurisdictions/${jurisdiction}/content/pilot-catalog.json' }
       { name: 'API_ALLOWED_ORIGINS', value: publicOrigin }
       { name: 'API_ALLOWED_HOSTS', value: 'localhost,127.0.0.1,api,${apiName},${apiName}.internal.${stack.outputs.defaultDomain}' }
       { name: 'FOUNDRY_PROJECT_ENDPOINT', value: foundryProjectEndpoint }
@@ -165,7 +171,7 @@ module api 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
       { name: 'AZURE_SEARCH_INDEX', value: searchIndex }
       { name: 'AZURE_SEARCH_METADATA_ENABLED', value: searchMetadataEnabled }
       { name: 'AZURE_SEARCH_METADATA_REVIEWED', value: searchMetadataReviewed }
-      { name: 'AZURE_SEARCH_SEMANTIC_CONFIG', value: 'bc-public-guidance' }
+      { name: 'AZURE_SEARCH_SEMANTIC_CONFIG', value: searchSemanticConfig }
       { name: 'AZURE_SEARCH_VECTOR_ENABLED', value: string(embeddingDimensions > 0) }
       { name: 'AZURE_OPENAI_ENDPOINT', value: modelEndpoint }
       { name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT', value: embeddingDeployment }
@@ -175,7 +181,8 @@ module api 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
       { name: 'API_CONTROL_NAMESPACE', value: name }
       { name: 'API_AUTH_TENANT_ID', value: tenant().tenantId }
       { name: 'API_AUTH_AUDIENCE', value: apiApplicationClientId }
-      { name: 'API_AUTH_CALLERS', value: string([webPrincipalId]) }
+      // Prefix JSON arrays so nested ARM deployments do not interpret them as expressions.
+      { name: 'API_AUTH_CALLERS', value: jurisdiction == 'sk' ? ' ${apiAuthCallersJson}' : apiAuthCallersJson }
       { name: 'API_DAILY_RUN_LIMIT', value: string(controls.runLimit) }
       { name: 'API_DAILY_TOKEN_LIMIT', value: string(controls.tokenLimit) }
       { name: 'API_DAILY_COST_LIMIT_MICROUSD', value: string(controls.costLimitMicrousd) }
@@ -201,7 +208,7 @@ module api 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
       { name: 'WEBIQ_TERMS_APPROVAL_ID', value: research.webIqTermsApprovalId }
       { name: 'WEBIQ_RELEASE_APPROVAL_ID', value: research.webIqReleaseApprovalId }
       { name: 'WEBIQ_SOURCE_APPROVAL_ID', value: research.webIqSourceApprovalId }
-      { name: 'WEBIQ_SOURCES', value: string(research.webIqSources) }
+      { name: 'WEBIQ_SOURCES', value: jurisdiction == 'sk' ? ' ${webIqSourcesJson}' : webIqSourcesJson }
       { name: 'WEBIQ_EGRESS_APPROVED', value: string(research.webIqEgressApproved) }
       { name: 'WEBIQ_ZERO_QUERY_LOGGING_APPROVED', value: string(research.webIqZeroQueryLoggingApproved) }
       { name: 'WEBIQ_PUBLIC_QUERY_LOGGING_APPROVED', value: string(research.webIqPublicQueryLoggingApproved) }
@@ -235,7 +242,8 @@ module web 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
     containerMemory: '1Gi'
     enableTelemetry: false
     secrets: [{ name: 'client-hash-key', value: clientHashKey }]
-    env: [
+    env: concat([
+      { name: 'JURISDICTION', value: jurisdiction }
       { name: 'NODE_ENV', value: 'production' }
       { name: 'RELEASE_COMMIT', value: releaseCommit }
       { name: 'RELEASE_ID', value: releaseId }
@@ -248,7 +256,24 @@ module web 'br/public:avm/ptn/azd/acr-container-app:0.5.0' = {
       { name: 'AZURE_CLIENT_ID', value: webClientId }
       { name: 'FRONT_DOOR_ID', value: frontDoorId }
       { name: 'CLIENT_HASH_KEY', secretRef: 'client-hash-key' }
-    ]
+    ], jurisdiction == 'sk' ? [{ name: 'SITE_URL', value: publicOrigin }] : [])
+  }
+}
+
+module releaseProbe '../release-probe.bicep' = if (releaseProbeEnabled) {
+  name: 'release-probe'
+  params: {
+    name: 'job-${name}-release-check'
+    location: location
+    tags: tags
+    environmentId: stack.outputs.environmentResourceId
+    webIdentityId: webIdentityId
+    webClientId: webClientId
+    registryHost: stack.outputs.registryLoginServer
+    webImage: webImageName
+    apiUrl: api.outputs.uri
+    apiAuthScope: 'api://${apiApplicationClientId}/.default'
+    publicOrigin: publicOrigin
   }
 }
 
@@ -275,3 +300,4 @@ output apiIdentity string = api.outputs.identityPrincipalId
 output webUrl string = web.outputs.uri
 output insightsResourceId string = insights.outputs.resourceId
 output logsResourceId string = logs.outputs.resourceId
+output releaseProbeId string = releaseProbeEnabled ? releaseProbe!.outputs.probeJobId : ''

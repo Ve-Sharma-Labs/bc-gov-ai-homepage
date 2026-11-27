@@ -2,7 +2,7 @@
 
 from ag_ui.core import RunAgentInput
 
-from bc_api.agent_policy import GENERAL_INSTRUCTIONS, instructions_for
+from bc_api.agent_policy import general_instructions, instructions_for
 from bc_api.catalog import CatalogRepository
 from bc_api.config import Settings
 from bc_api.context_agent_policy import CONTEXTUAL_INSTRUCTIONS
@@ -11,6 +11,7 @@ from bc_api.conversation_policy import CONVERSATION_INSTRUCTIONS, decision_schem
 from bc_api.errors import ApiError
 from bc_api.grounded_policy import GROUNDED_ANSWER_INSTRUCTIONS, GROUNDED_PLANNER_INSTRUCTIONS
 from bc_api.input import parse_options
+from bc_api.jurisdiction import current_pack
 from bc_api.models import JOURNEY_IDS, AgentBinding
 from bc_api.research_output import RESEARCH_INSTRUCTIONS
 from bc_api.retrieval import EvidenceLedger, journey_matches
@@ -120,9 +121,21 @@ def binding_for(settings: Settings, journey_id: str | None) -> AgentBinding:
     )
 
 
+def require_agent_pack(catalog: CatalogRepository | None = None, *, legacy: bool = False) -> None:
+    pack = catalog.pack if catalog is not None else current_pack()
+    if pack.rag_pending:
+        raise ValueError(
+            "pending-rag-permission: agent definitions cannot be activated until "
+            "publisher RAG/embedding rights are recorded."
+        )
+    if legacy and pack.id != "bc":
+        raise ValueError("Legacy planner, pathway and synthetic agents are registered only for BC.")
+
+
 def agent_definitions(
     catalog: CatalogRepository, *, prefix: str, model_deployment: str
 ) -> list[dict]:
+    require_agent_pack(catalog, legacy=True)
     result = []
     for journey_id in sorted(JOURNEY_IDS):
         binding = AgentBinding(
@@ -139,7 +152,7 @@ def agent_definitions(
                 "definition": {
                     "kind": "prompt",
                     "model": model_deployment,
-                    "instructions": instructions_for(journey_id),
+                    "instructions": instructions_for(journey_id, catalog.pack),
                     "tools": function_declarations(create_tools(context)),
                 },
             }
@@ -150,6 +163,7 @@ def agent_definitions(
 def general_agent_definition(
     catalog: CatalogRepository, *, prefix: str, model_deployment: str
 ) -> dict:
+    require_agent_pack(catalog)
     binding = AgentBinding(name=f"{prefix}-general", version="1", model_deployment=model_deployment)
     context = ToolContext(catalog, EvidenceLedger())
     return {
@@ -158,13 +172,14 @@ def general_agent_definition(
         "definition": {
             "kind": "prompt",
             "model": model_deployment,
-            "instructions": GENERAL_INSTRUCTIONS,
+            "instructions": general_instructions(catalog.pack),
             "tools": function_declarations(create_tools(context)),
         },
     }
 
 
 def conversation_agent_definition(*, prefix: str, model_deployment: str) -> dict:
+    require_agent_pack(legacy=True)
     return {
         "journeyId": None,
         "mode": "conversation",
@@ -180,6 +195,7 @@ def conversation_agent_definition(*, prefix: str, model_deployment: str) -> dict
 
 
 def research_agent_definition(*, prefix: str, model_deployment: str) -> dict:
+    require_agent_pack()
     return {
         "journeyId": None,
         "mode": "research",
@@ -194,6 +210,7 @@ def research_agent_definition(*, prefix: str, model_deployment: str) -> dict:
 def grounded_agent_definition(
     catalog: CatalogRepository, *, prefix: str, model_deployment: str, planner: bool
 ) -> dict:
+    require_agent_pack(catalog, legacy=True)
     context = ToolContext(catalog, EvidenceLedger(), grounded_conversation=True)
     return {
         "journeyId": None,
@@ -219,6 +236,7 @@ def contextual_agent_definition(
     prefix: str,
     model_deployment: str,
 ) -> dict:
+    require_agent_pack(catalog, legacy=True)
     binding = AgentBinding(
         name=f"{prefix}-contextual-demo",
         version="1",

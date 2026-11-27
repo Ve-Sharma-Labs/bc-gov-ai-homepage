@@ -412,11 +412,28 @@ class Ledger:
 def build_publish_plan(ledger: Ledger, catalog: dict, review: dict | None = None, *,
                        programme_policy=None) -> dict:
     """A review file authorizes exact direct-source content hashes, not whole hosts."""
+    from .jurisdiction import assert_model_operation
+    candidate_pack = getattr(programme_policy, "jurisdiction_id", "bc") != "bc"
+    if candidate_pack:
+        assert_model_operation("publication", programme_policy=programme_policy)
+    else:
+        assert_model_operation("publication plan", ledger.state["documents"].values())
     sources = {s["id"]: s for s in catalog["sources"]}
     approvals = {}
     if review is not None:
+        automated = candidate_pack and (
+            programme_policy.programme["publicationPolicy"] == "exact-hash-automated-review"
+        )
+        if automated and (
+            review.get("reviewKind") != "automated-source-review"
+            or review.get("humanReviewed") is not False
+            or not review.get("authorizationReference")
+        ):
+            raise AcquisitionError("Automated source review requires explicit provenance, not a human approval")
+        if not automated and review.get("reviewKind") == "automated-source-review":
+            raise AcquisitionError("Automated source review cannot authorize a human-review programme")
         if review.get("publisherPermissionConfirmed") is not True or not review.get("reviewer"):
-            raise AcquisitionError("Publisher permission and accountable human review are required")
+            raise AcquisitionError("Publisher permission and accountable source review are required")
         from .catalog import _date
         _date(review.get("reviewedAt"), nullable=False)
         for approval in review.get("documents", []):
@@ -428,6 +445,8 @@ def build_publish_plan(ledger: Ledger, catalog: dict, review: dict | None = None
     for entry in ledger.state["documents"].values():
         source = sources.get(entry["sourceId"])
         origin = entry.get("origin", "direct-publisher")
+        if candidate_pack and (origin != "direct-publisher" or entry.get("acquisitionMode") != "full-programme"):
+            raise AcquisitionError("Candidate packs cannot use BC adapters, sample or legacy publication fallbacks")
         if not source or origin not in {"direct-publisher", "source-adapter"}:
             raise AcquisitionError("Only registered publisher/source-adapter candidates can be reviewed")
         gate_reason = None
@@ -466,10 +485,15 @@ def build_publish_plan(ledger: Ledger, catalog: dict, review: dict | None = None
             doc = restore_document(version["document"])
             metadata = validate_metadata(doc.metadata)
             rendered = "\n".join(s.heading + "\n" + s.text for s in doc.sections)
+            content_hash = (
+                doc.response_hash if metadata.get("schemaVersion") == 2
+                and metadata.get("contentHashBasis") == "original-response-bytes"
+                else hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+            )
             if (
                 doc.url != entry["url"]
                 or document_id(doc.url) != entry["documentId"]
-                or hashlib.sha256(rendered.encode("utf-8")).hexdigest() != doc.content_hash
+                or content_hash != doc.content_hash
                 or doc.extraction_method not in EXTRACTION_METHODS
             ):
                 raise AcquisitionError("Document integrity/provenance check failed")
@@ -488,6 +512,14 @@ def build_publish_plan(ledger: Ledger, catalog: dict, review: dict | None = None
                 or version.get("reviewHash") != review_identity(entry, version)
             ):
                 raise AcquisitionError("Extraction/metadata/review integrity check failed")
+            if candidate_pack:
+                try:
+                    for operation in ("publication", "storage", "rag", "generated-summary"):
+                        programme_policy.assert_operation(
+                            operation, doc.url, format=programme_policy.document_format(doc.url, metadata.get("mediaType")),
+                        )
+                except AcquisitionError as exc:
+                    gate_reason = str(exc)
             was_published = version.get("wasPublished", False) or version["status"] == "active"
             if version["status"] in ("superseded", "withdrawn", "quarantined", "duplicate"):
                 if was_published:
@@ -505,18 +537,24 @@ def build_publish_plan(ledger: Ledger, catalog: dict, review: dict | None = None
                 continue
             if origin == "direct-publisher" and entry.get("acquisitionMode") == "full-programme":
                 rights = metadata.get("rights") or {}
-                if rights != programme_policy.metadata(doc.url)["rights"]:
+                expected_metadata = (
+                    programme_policy.metadata(doc.url, media_type=metadata.get("mediaType"))
+                    if candidate_pack else programme_policy.metadata(doc.url)
+                )
+                if rights != expected_metadata["rights"]:
                     raise AcquisitionError("Candidate rights metadata does not match its acquisition review")
                 expected_ids, expected_topics = programme_policy.tags(doc.url)
                 if not set(expected_ids) <= set(metadata.get("sourceIds", [])) or not set(expected_topics) <= set(metadata.get("topics", [])):
                     raise AcquisitionError("Candidate canonical source/topic provenance is incomplete")
-                if programme_policy.extraction_flags(doc.url):
+                flags = (programme_policy.extraction_flags(doc.url, media_type=metadata.get("mediaType"))
+                         if candidate_pack else programme_policy.extraction_flags(doc.url))
+                if flags:
                     if was_published:
                         deletes.extend(published_ids(version))
                     withheld.append({"url": doc.url, "reason": "Publisher extraction/freshness hold"})
                     continue
             try:
-                chunks = chunk_document(doc)
+                chunks = chunk_document(doc, max_chars=4000 if candidate_pack else MAX_CHUNK_CHARS)
             except ChunkingError as exc:
                 withheld.append({
                     "url": doc.url, "reason": exc.reason, "retainedPublishedSnapshot": was_published,
@@ -547,6 +585,8 @@ def build_publish_plan(ledger: Ledger, catalog: dict, review: dict | None = None
                     "containsExceptions": chunk["containsExceptions"],
                     "chunkPart": chunk.get("partIndex", 1), "chunkParts": chunk.get("partCount", 1),
                     "reviewHash": review_identity(entry, version) if not legacy else None,
+                    **({"pageCount": metadata["pageCount"], "contentHashBasis": metadata["contentHashBasis"]}
+                       if candidate_pack and metadata.get("schemaVersion") == 2 else {}),
                 })
             replacement = version.get("derivedFromSnapshot") or {}
             if replacement.get("publishedChunkIds"):
@@ -564,11 +604,19 @@ def build_publish_plan(ledger: Ledger, catalog: dict, review: dict | None = None
                 # Re-extraction alone never withdraws the live snapshot. Retire old keys
                 # only when its exact replacement has passed the separate review gate.
                 deletes.extend(key for key in keys if key not in identifiers)
-    return {
+    plan = {
         "uploads": uploads, "deleteIds": sorted(set(deletes)), "withheld": withheld,
         "reviewManifestHash": digest(review) if review is not None else None,
-        "maxChunkChars": MAX_CHUNK_CHARS,
+        "maxChunkChars": 4000 if candidate_pack else MAX_CHUNK_CHARS,
     }
+    if candidate_pack:
+        plan.update({
+            "jurisdictionIdentity": programme_policy.pack.identity,
+            "programmeHash": programme_policy.programme_hash, "rightsReviewHash": programme_policy.rights_hash,
+            "target": getattr(programme_policy, "target", None),
+        })
+        programme_policy._register_plan(plan)
+    return plan
 
 
 def reextract_snapshot(ledger_path: Path, key: str, response_path: Path, catalog: dict,

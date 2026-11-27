@@ -10,7 +10,9 @@ not manufacture eligibility results or replace the API.
 The [official-source watchdog](../docs/agentic-workflows.md) separately checks
 metadata and permits bounded refreshes only with valid rights and durable
 accounting. `python -m bc_ingestion.freshness` is offline by default; it never
-approves or publishes replacement evidence.
+approves or publishes replacement evidence. If a freshness checkpoint write
+fails, the monitor stops without retrying that uncertain write or dispatching
+the reserved request.
 
 The initial public release published 12 chunks from four approved snapshots:
 Service BC, Health Connect Registry, MSP and Fair PharmaCare. Eleven acquired
@@ -40,6 +42,295 @@ also needs its own explicit review; do not silently drop metadata to fit an old
 schema or publish competing active versions.
 
 ## Install and verify locally
+
+### Offline PDF extraction primitive
+
+`bc_ingestion.pdf.extract_pdf(response, *, metadata=None, quality_flags=(),
+limits=PDFLimits()) -> Document` parses an already acquired `Response` using
+`pypdf`; it performs **no network, OCR, index, Azure, or form submission calls**.
+The generic `bc_ingestion.extract.extract(response, ...)` dispatches a validated
+`application/pdf` response to this primitive. Fetching retains the existing
+source, robots, redirect, byte, request and cost gates; PDF support does not grant
+permission to acquire a linked document. Programme/source-policy reporting and
+pack-specific PDF rights remain separate integration/review requirements.
+
+The parser requires a PDF media type and signature and defaults to 4 MB original
+bytes, 100 pages, one million extracted characters, 4 MB per decoded content/font
+stream and 16 MB total decoded streams. `PDFLimits` can tighten these bounds
+(original-byte limit can increase only to the Fetcher's existing 8 MB ceiling).
+Content/Form/font streams support unfiltered and Flate-compressed data; other
+filters or decode parameters fail explicitly instead of silently losing text.
+Resource depth/complexity is also bounded. Images are not decoded or OCR'd.
+
+Each section preserves a page's primary printed text, a `page=N` citation locator
+(use `canonicalUrl#page=N` when displaying a PDF citation), and the first printed
+line as its heading—not an inferred semantic heading hierarchy. Reading order,
+tables and layout still require candidate review. Entirely empty/image-only
+documents, encryption (even an empty-password PDF), malformed input and exceeded
+limits raise `PDFExtractionError` with a stable `.reason` and `pdf-quarantine`
+message; no partial successful document is returned on a limit failure. A mixed
+document with textless pages is quarantined with page-specific OCR-unsupported
+flags; omitted pages never get fabricated text.
+
+PDF provenance explicitly uses **schema v2**, `mediaType: application/pdf`,
+`pageCount`, and `contentHashBasis: original-response-bytes`. Both `content_hash`
+and `response_hash` are SHA-256 of the original bytes; `extraction_hash` separately
+binds those bytes to extracted sections and provenance. HTML extraction and its
+v1 metadata/hash contract are unchanged, and v1 still rejects PDF media types.
+No legacy approved snapshot is widened to include PDFs.
+
+Public blank forms/download instructions are not categorically excluded:
+printed instructions and empty labels remain literal source text. AcroForm
+widget values, attachments, scripts and submissions are not extracted or executed;
+blank fields are never transformed into citizen facts. Run the focused offline
+fixtures from `ingestion` with `python -m unittest discover -s tests -p test_pdf.py`.
+
+### Jurisdiction selection and Saskatchewan source policy
+
+`JURISDICTION` selects a validated `jurisdictions\<id>\jurisdiction.json`
+pack; absence defaults to `bc`. `--jurisdiction` can select the pack explicitly,
+but must agree with the environment when both are set. BC retains its existing
+`data\pilot-catalog.json`, `data\source-programme.json`, manual sample cap,
+full-programme limits, exact-snapshot review and `.generated` paths.
+BC publisher adapters and watchdog remain BC-only; the publisher registries are
+never merged.
+The ingestion image includes the pack files but still starts in BC mode by
+default; no workflow, BC catalogue schema or deployed chunk contract is changed.
+
+```powershell
+.\ingestion\.venv\Scripts\python.exe -m bc_ingestion source-policy --jurisdiction sk
+.\ingestion\.venv\Scripts\python.exe -m bc_ingestion dry-run --jurisdiction sk
+.\ingestion\.venv\Scripts\python.exe -m bc_ingestion programme --jurisdiction sk
+```
+
+The first two commands are read-only offline policy reports; `programme` writes
+an isolated durable review-only manifest and coverage report beneath
+`ingestion\.generated\sk\programme`. Proposed homepage/sitemap seeds are not
+discovered or fetched pages. The primary proposed sitemap is
+`https://www.saskatchewan.ca/sitemap-xml`; the broad public-site scope includes
+resident, business and government sections and linked PDFs, not just curated
+journeys. SGI and eHealth now have their own exact-host programme entries,
+catalogue sources and user-attested operation grants; this does not merge them
+with the BC publisher set.
+
+SGI's direct HTML responses were client-rendered shells and remain quarantined.
+A controlled browser capture supplies the rendered service article to
+`extract_sgi_rendered_html`, which retains the complete capture's response hash
+and uses `controlled-rendered-html/section-aware-v1`. A shell, missing service
+heading, unsupported article layout or instruction-like text cannot silently
+become usable evidence. Browser collection excludes account and transaction
+routes and paces document requests using SGI's ten-second crawl delay.
+
+The SK programme explicitly selects `exact-hash-automated-review` under the
+user's authorization. Each review must identify `automated-source-review`,
+`humanReviewed: false`, and its authorization reference. It still needs exact
+content, extraction and review hashes, current publisher grants and clean quality
+checks. BC and other human-review programmes cannot accept this review kind.
+
+For the angling, hunting and income-support pages, separately reviewed excerpts
+retain complete non-table sections while the original complex fee/rate tables
+stay quarantined. `complete_section_excerpt` refuses missing headings, table
+sections and unrelated quality holds. It retains the original response hash,
+computes a new content/extraction identity, and labels the limited scope in the
+title. It never flattens or truncates a table. SGI's inconsistent renewal-fee
+totals must be checked with SGI, not silently corrected.
+
+SK model use and publication remain blocked while the pack is
+`pending-rag-permission`; scoped acquisition can use the user-attested review
+described below. The attributed prior
+robots observation (`search=yes,ai-train=no,use=reference`, no affirmative
+`ai-input`) is not a captured snapshot or a RAG grant: search explicitly excludes
+AI-generated summaries. The observation came from the parent assistant's prior
+`web_fetch` tool result in this session, **not a user report**. Unavailable exact
+response bytes/hash/timestamp remain null. Recorded robots exclusions retain
+prefix semantics.
+Changing a manifest flag, setting an execution environment switch, supplying
+legacy/internal-blanket rights or approving a content hash cannot bypass this
+hold. Before execution, collect exact-host terms and robots evidence plus
+publisher permission evidence or the Saskatchewan user attestation described
+below, resolve each intended use, supply a pinned operation-specific review,
+agree acquisition limits, and separately approve exact snapshots.
+
+**Reusable local execution interfaces are implemented.** A separately reviewed
+non-BC pack can acquire/resume HTML and bounded text PDFs, build exact-review
+publication plans, optionally embed reviewed chunks and use the existing Azure
+Search/Blob interfaces without further shared-code changes. Completion tests use
+synthetic Fetcher/provider/HTTP/SDK fakes, including an installed `zz` fixture;
+they are not publisher permission or live SK inventory.
+
+The first pinned v3 review re-evaluates permission-pending candidates in the
+existing manifest. It does not replace the ledger, reset reservations, loosen
+budgets or re-fetch completed candidates. Resume still explicitly requires both
+`--acquire --resume`. Once bound, rights identity, programme, limits and resource
+namespace remain immutable. A previously unset Search endpoint may be bound
+once; an existing endpoint/index cannot be switched to another target.
+For the first pending-to-reviewed transition only, `--acquire` can bind the full
+new manifest identity when a valid pinned review covers it, the previous full
+identity matches exactly the same manifest with only pending status/no review
+locator, and no rights or received snapshots were previously bound. Charged
+attempts, byte reservations, limits, seeds, programme/catalogue and ledger are
+preserved. Other pack changes and already-bound reviews still fail closed.
+For Saskatchewan user-attested runs, the same transition can also preserve an
+already-bound, byte-identical attestation and its acquired snapshots. Publication
+still requires the separate exact-snapshot review; neither the rights review nor
+any acquired content is replaced.
+Legacy Blob checkpoints without materialized lifecycle counters report unavailable
+stages as null rather than fabricate counts; new non-BC runs durably track them.
+
+An initial bounded Saskatchewan acquisition published twelve user-approved
+snapshots as eighteen lexical chunks. The expansion adds government, SGI and
+eHealth guidance to the isolated `sk-pilot-public` index; the child-care provider
+directory remains withheld. Original acquisition ledgers, budgets, responses and
+approvals remain unchanged. The new publication ledger retains snapshot origins
+and replaces the earlier chunk keys without losing provenance. User attestation
+is not independently verified publisher evidence. The local pilot connects using
+its own Search/Foundry configuration and operational byte pin; this is not a
+production deployment. Scanned-PDF
+OCR and arbitrary non-HTML/PDF document extraction remain unsupported local
+capabilities. Offline commands authorize none of these operations.
+
+### Local executable operation-rights review
+
+```powershell
+.\ingestion\.venv\Scripts\python.exe -m bc_ingestion rights-status --jurisdiction sk `
+  --rights-review .\ingestion\.generated\sk\rights\review.json `
+  --rights-sha256 <independently-reviewed-exact-file-sha256>
+```
+
+This read-only command validates existing local evidence and reports individual
+operation decisions; it does not acquire, embed, index, approve content or write
+state. There is no shipped affirmative SK grant. Review files and their evidence
+must stay within the selected pack's `content`/`ingestion` directories or isolated
+generated directory. Evidence files remain inside the review's own directory.
+Reviewed packs specifically use their configured pack `content`/`ingestion`
+locator; the CLI derives it and the independent `OPERATION_RIGHTS_REVIEW_SHA256`
+pin when explicit rights arguments are omitted. Explicit arguments must agree.
+Accepted pack statuses match API/preflight: BC `existing-reviewed-snapshots-only`;
+non-BC `pending-rag-permission` or `reviewed-operation-grants`. Unknown statuses
+are rejected. Pending status never enables embedding/RAG/publication even if a
+diagnostic/acquisition review contains grants; reviewed status alone also grants nothing.
+
+`packIdentity` is `{jurisdictionId, manifestHash}`, where `manifestHash` is
+SHA-256 of the **entire** manifest serialized with sorted keys, compact separators
+and UTF-8 (`ensure_ascii=False`). `programmeHash` uses the same canonical digest.
+The independent pin hashes the review's **original bytes**; `rightsReviewHash`
+hashes its parsed canonical JSON. These hashes have different purposes.
+For API packaging, configure `sourcePolicy.approvalStatus=reviewed-operation-grants`
+and `operationReview.path` before computing pack identity, and supply
+`OPERATION_RIGHTS_REVIEW_SHA256` independently at build/runtime. Do not embed that
+pin in the same manifest: it would create a manifest/review hash cycle.
+The API directly reuses the pure `OperationRightsProvider`; importing it does not
+import acquisition, HTTP or Azure SDK modules.
+
+For an independently approved pack, the reusable CLI interfaces are:
+
+```powershell
+# Examples only: zz is a synthetic test fixture, not a shipped approved pack.
+$env:JURISDICTION = "zz"
+$rights = ".\jurisdictions\zz\content\rights\review.json"
+$pin = "<independently-approved-exact-review-byte-sha256>"
+.\ingestion\.venv\Scripts\python.exe -m bc_ingestion programme --acquire --rights-review $rights --rights-sha256 $pin
+.\ingestion\.venv\Scripts\python.exe -m bc_ingestion programme --acquire --resume --rights-review $rights --rights-sha256 $pin
+.\ingestion\.venv\Scripts\python.exe -m bc_ingestion publish --rights-review $rights --rights-sha256 $pin --review-manifest .\ingestion\.generated\zz\programme\exact-reviewed.json
+```
+
+The last command only builds a dry-run plan. Actual publication additionally needs
+`--execute --approved`, `INGESTION_PUBLISH_ENABLED=true` and explicit
+`AZURE_SEARCH_ENDPOINT`/`AZURE_SEARCH_INDEX` matching the unchanged plan target;
+the index name must start with the selected jurisdiction prefix.
+Publication requires scoped publication/storage/RAG/generated-summary grants.
+Vectors independently require embedding grants. Mutated plans/chunks and
+unreviewed embedding texts fail before credentials or SDK/model calls.
+Non-BC plans partition complete source text into at most 4000-character,
+embedding/API-compatible chunks without truncation; BC retains its 8000-character
+contract. Unsplittable oversized structures remain withheld for re-extraction.
+SDK acknowledgements must cover every upload/withdrawal before the ledger marks
+versions active. Non-BC schemas use jurisdiction-specific semantic/vector names
+and additive PDF fields; BC's default names/schema remain unchanged.
+Non-BC date-only publisher updates remain `publisherUpdatedDate` calendar strings,
+with the instant field null; the adapter does not invent a midnight UTC update time.
+
+`--programme-store azure-blob` uses the existing lease/CAS/immutable-object runner.
+It requires a jurisdiction-prefixed `--run-prefix`, explicit account/candidate
+container and a **separate read-only** `--rights-container/--rights-blob` whose
+exact pinned JSON matches the local v3 review and captured evidence.
+Reviewed publication Blob objects use `<jurisdiction>/reviewed/<chunk-id>.json`.
+Neither staging nor index-schema planning grants rights or initializes/reset budgets.
+
+The strict review schema is `schemaVersion: 3`, with `jurisdictionId`,
+`programmeHash`, `packIdentity`, `reviewId`, `reviewer`, `reviewedAt`, `expiresAt`,
+`revocation`, `evidence` and `grants`. Lifetime is at most 30 days; review expiry,
+revocation, original review-file bytes and all evidence hashes are rechecked
+when a provider is used. Changed evidence fails closed; a review cannot silently
+replace the rights identity already bound to a run.
+
+Each evidence record has `id`, `kind`, `host`, `url`, `file`, `sha256`,
+`capturedAt`, `mediaType`, `publisherReference` and `permittedOperations`.
+Files are bounded, hashed, review-directory-contained bytes. Each grant needs
+captured exact-host terms and robots plus an accountable interpretation of
+`publisher-licence` or `publisher-written-permission` evidence. Private written
+permission may have a null URL, but never an invented public URL. Captured
+robots are parsed for the existing ingestion crawler, without impersonation.
+Hashes validate byte identity, **not legal truth or publisher authorship**:
+the accountable reviewer must verify the evidence and its scoped interpretation.
+
+Each host grant has `host`, canonical `pathPrefixes`, `formats` and `decisions`.
+All ten operations must explicitly be `granted`, `denied` or `pending`, with
+`evidenceIds`: discovery, acquisition, extraction, storage, embedding, RAG,
+generated-summary, publication, training and fine-tuning. A grant must reference
+matching explicit publisher permission for that operation; terms/robots presence,
+search permission and an internal/project approval cannot supply it.
+Training/fine-tuning stay denied. Formats are explicit HTML, robots, sitemap XML
+or PDF rights; **a format permission is not itself an extraction capability**.
+Host/path/format scope cannot expand the programme or include excluded flows.
+Only exact programme sitemap/robots endpoints receive infrastructure-route checks.
+
+For Saskatchewan only, an independently pinned review may instead cite a
+`user-attestation` evidence file for explicitly authorized operations. The
+record must use `user-attestation:` review and reference identifiers, a private
+null URL, and text/plain evidence containing the user's authorization. This is
+user-reported permission, not independently verified publisher evidence; its
+attestation-prefixed review ID remains in document provenance. Exact-host
+terms, robots, scoped decisions, budgets and exact-snapshot review still apply.
+
+`CandidateProgrammePolicy(..., rights_provider=provider)` can enforce the v3
+provider locally and generate acquisition-only rights provenance for HTML and
+bounded text PDFs.
+Acquisition/storage/extraction checks are independent of embedding/RAG/publication
+decisions. Existing metadata and exact-snapshot review contracts are not replaced.
+Live CLI/model/cloud integration remains a separate local requirement as above.
+
+Generic main-content HTML extraction is reused, with quality quarantine intact.
+The SK policy/programme now routes rights-approved text PDFs to the bounded
+parser described above. Acquisition, storage and extraction must each cover the
+PDF format; an HTML grant is not sufficient. The returned media type is checked
+before candidate bytes are persisted, including extensionless PDF responses.
+Extensionless URLs also need their initial request's inferred HTML permission;
+no response is reclassified to avoid a missing grant.
+Original PDF bytes/hash, v2 metadata and `page=N` citations are preserved. Empty
+or image-only PDFs fail explicitly; mixed PDFs with textless pages are
+quarantined with OCR-unsupported flags. Scanned-PDF OCR remains unsupported.
+None of these capabilities enables the still-unwired non-BC live CLI/model/cloud
+paths or clears the current publisher-rights hold.
+Arbitrary Office/archive/image
+documents are not enabled. There are no SK publisher response hashes or fabricated
+fetch/review timestamps. Offline provenance contains empty document/snapshot lists.
+
+Public informational form pages and blank downloadable forms **remain proposed
+scope**, including linked PDFs. Exclusions concern submission, authenticated
+account, upload, payment and transaction **flows**, not all pages with `/forms`,
+registration or appointment information. Generic HTML extraction discards form
+controls; blank fields and labels are non-facts, not evidence about an applicant.
+Downloadable form PDFs still require rights and a supported parser. The BC
+sensitive-path policy is unchanged.
+
+SK manifests bind jurisdiction/pack identity, programme and catalogue hashes,
+and preserve the existing cumulative request/byte/retry accounting and CAS lock.
+Resume cannot replace a ledger, enlarge limits or cross jurisdiction output paths.
+Local coverage adds overlapping lifecycle counts for discovered, eligible,
+fetched, extracted, exact-reviewed, indexed, withheld, failed and superseded
+documents, plus exclusion reasons. Configured seeds are separately counted;
+these bounded counts never establish complete publisher coverage.
 
 Run from the repository root; Python 3.11+ is supported and Python 3.14 was tested.
 
@@ -786,7 +1077,8 @@ For an authorized publishing operation, configure the existing resources:
 
 Authentication defaults to **ManagedIdentityCredential**, optionally selected
 with `AZURE_CLIENT_ID`. A reviewed operator/CI execution may explicitly choose
-`--credential azure-cli`; this is not an automatic fallback and does not change
+`--credential azure-cli`, or `--credential azure-developer-cli` for local Search
+publication; these are not automatic fallbacks and do not change
 the production API's managed-identity-only inference policy. There is no key,
 connection string or interactive login in this tool. Grant the chosen identity
 Search Index Data Contributor for documents, Search Service Contributor only if

@@ -63,7 +63,15 @@ def validate_run(raw: Any, settings: Settings) -> RunAgentInput:
             "CLIENT_CONTEXT_DENIED",
             "Client instructions, tools, state and resume controls are not allowed.",
         )
-    parse_options(raw.get("forwardedProps"))
+    options = parse_options(raw.get("forwardedProps"))
+    if settings.jurisdiction != "bc" and (
+        options.version != 2 or options.mode != "general" or options.journey_id
+    ):
+        raise ApiError(
+            503, "JURISDICTION_CAPABILITY_UNAVAILABLE",
+            "This jurisdiction supports only general navigation (request version 2); "
+            "guided journeys and synthetic context are unavailable.",
+        )
     for key in ("threadId", "runId"):
         if not isinstance(raw.get(key), str) or not RUN_ID.fullmatch(raw[key]):
             raise ApiError(422, "INVALID_ID", "Provide valid thread and run identifiers.")

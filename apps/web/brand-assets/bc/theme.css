@@ -1,0 +1,19 @@
+:root {
+  --page: light-dark(#ffffff, #0b0d12);
+  --hero: light-dark(#f1f2f0, #171c24);
+  --surface: light-dark(#ffffff, #1a202b);
+  --surface-soft: light-dark(#f5f6f4, #171c24);
+  --surface-hover: light-dark(#e9eceb, #29313d);
+  --text: light-dark(#161c27, #f4f5f7);
+  --muted: light-dark(#555d68, #b9c0ca);
+  --faint: light-dark(#626a74, #adb8c5);
+  --line: light-dark(#dde1e4, #313946);
+  --line-strong: light-dark(#8b929a, #8c95a2);
+  --link: light-dark(#174979, #b3d4ff);
+  --action: light-dark(#013366, #d8e8ff);
+  --action-text: light-dark(#ffffff, #132d51);
+  --action-hover: light-dark(#164b7a, #edf4ff);
+  --gold: #fcba19;
+  --gold-text: light-dark(#785900, #f5ce74);
+  --focus: light-dark(#2767ac, #f8d176);
+}

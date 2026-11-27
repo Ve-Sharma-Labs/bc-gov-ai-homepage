@@ -1,0 +1,456 @@
+{
+  "schemaVersion": 1,
+  "jurisdictionId": "sk",
+  "status": "discovery-only-not-executable",
+  "notice": "Public discovery record only. It grants no acquisition, storage, embedding, RAG, generated-summary or publication right, is not an operation-rights review, and must not be loaded as executable policy. Body hashes are of curl responses captured 2026-11-24 with user agent 'bc-gov-ai-homepage-sk-pilot-discovery/0.1'; raw bodies are retained outside the repository.",
+  "observedAt": "2026-11-24T06:37:59Z",
+  "evidence": [
+    {
+      "url": "https://www.saskatchewan.ca/robots.txt",
+      "http": 200,
+      "bytes": 2864,
+      "sha256": "4bed4026cdd93617c82037fe89aa372ea0f3e6415eb36293eca5e2a9adef3901",
+      "observed": "Content-Signal for User-agent * is search=yes, ai-train=no, use=reference; no ai-input signal; 'search' excludes AI-generated summaries; named AI training crawlers disallowed; /sitecore, /search, /temp/, /upload/, /xsl/ disallowed."
+    },
+    {
+      "url": "https://www.saskatchewan.ca/sitemap-xml",
+      "http": 200,
+      "bytes": 659,
+      "sha256": "f97d3658c492adbe7e56c4c2bd30c70abf47faf978dd6af11e0d5f3fc38ce02b",
+      "observed": "Sitemap index (default, news, news-archive, fr, gtds, mds)."
+    },
+    {
+      "url": "https://www.saskatchewan.ca/default-sitemap-xml",
+      "http": 200,
+      "bytes": 747810,
+      "sha256": "b0c6f58fa734d96bc90c4b319a106cb45c3661e7fe2993fc63575740c2ae7920",
+      "observed": "3576 URLs: business 1511, residents 1310, government 736, services 5, other 14."
+    },
+    {
+      "url": "https://www.saskatchewan.ca/",
+      "http": 200,
+      "bytes": 51526,
+      "sha256": "66dad75ee771bb0a073e888019a8c1d089f7a7fc164a8c58a217293f2bba8fd2",
+      "observed": "Popular links listed in popularFlows; driver's licence is not a homepage link."
+    },
+    {
+      "url": "https://www.saskatchewan.ca/terms-of-use",
+      "http": 200,
+      "bytes": 53955,
+      "sha256": "0d4dbb0876b7df54e612ff9caa3f497721c267f50203f42db27661e245c8f536",
+      "observed": "Last modified 2025-12-31; applies to saskatchewan.ca and services.saskatchewan.ca only; 'Contact us if you want to reproduce any piece of content'; endorsement claims need permission."
+    },
+    {
+      "url": "https://www.saskatchewan.ca/copyright",
+      "http": 200,
+      "bytes": 47785,
+      "sha256": "1700028f7035c9cebe09b9ee94d20f5393aaba9a24d7997079b1f2e92eada659",
+      "observed": "Crown copyright; accurate non-commercial reproduction allowed if not represented as official; logos, Coat of Arms and wheat sheaf need written permission from Brand Management, Executive Council; no AI/RAG permission stated."
+    },
+    {
+      "url": "https://www.saskatchewan.ca/services/directory",
+      "http": 200,
+      "bytes": 154597,
+      "sha256": "f405bd699336af7822a2212be56202a8f36f11f909ee59ea1e6408e64ba1611d",
+      "observed": "Services directory captured; not parsed into flows."
+    },
+    {
+      "url": "https://www.saskatchewan.ca/residents/transportation/driving-and-road-safety",
+      "http": 200,
+      "bytes": 45903,
+      "sha256": "a2b68f3b7e2d61d005d1e1ed4e4e51d9eb7f535137639819a82fc963eef98814",
+      "observed": "Links driver licensing, registration and insurance to sgi.sk.ca."
+    },
+    {
+      "url": "https://www.sgi.sk.ca/robots.txt",
+      "http": 200,
+      "bytes": 18807,
+      "sha256": "e6239139044997863c07dd45e185406bc6cb8a9e3500ccd86b571080e8e50ecb",
+      "observed": "Redirects to sgi.sk.ca; Crawl-Delay 10; disallows /portal/c/login, /images, /lcgi, /wp-admin/."
+    },
+    {
+      "url": "https://www.sgi.sk.ca/sitemap.xml",
+      "http": 200,
+      "bytes": 47268,
+      "sha256": "8c3638dc67f839bfcb651635f417b613a0c4424e7ccd6814e6c2aac67e784e22",
+      "observed": "Sitemap index of 287 sub-sitemaps."
+    },
+    {
+      "url": "https://sgi.sk.ca/renew-licence",
+      "http": 200,
+      "bytes": 34104,
+      "sha256": "4a1e5871968248825948d1618f45947b080e265a4248cf575a42b167dbb9075d",
+      "observed": "Title 'Renew replace or change your licence - SGI'; body is client-rendered, so content was not extracted."
+    },
+    {
+      "url": "https://sgi.sk.ca/terms",
+      "http": 200,
+      "bytes": 33269,
+      "sha256": "13b6c147104a4e83be04102b4798ed75550349366538c085804b13a60399eb81",
+      "observed": "Client-rendered; reuse terms not extractable without a browser. Separate publisher (SGI)."
+    },
+    {
+      "url": "https://www.ehealthsask.ca/robots.txt",
+      "http": 200,
+      "bytes": 235,
+      "sha256": "c967b4e368308281ed51af8396b453f97a53d52c4cc70d074ae5ea129ac5eb7d",
+      "observed": "Allows * except /api/ and preview parameters; sitemap https://www.ehealthsask.ca/sitemap.xml."
+    },
+    {
+      "url": "https://www.ehealthsask.ca/about-us/publications/privacy-statement-and-terms-of-use",
+      "http": 200,
+      "bytes": 95675,
+      "sha256": "ffb319fe55df31ea8cd06e35aeb836527729666bf22bc68d11f479c0720d8d86",
+      "observed": "Content is subject to copyright protection; 'Contact us if you want to reproduce or re-use any piece of content.'"
+    },
+    {
+      "url": "https://publications.saskatchewan.ca/robots.txt",
+      "http": 404,
+      "bytes": 131,
+      "sha256": "83ec3a3199cedcc2b2e377fef201dbca03b7c0e0f184c08ff0962c31edadce15",
+      "observed": "No robots file."
+    },
+    {
+      "url": "https://patientsfirst.saskatchewan.ca/robots.txt",
+      "http": 404,
+      "bytes": 12033,
+      "sha256": "341b1508eabefd3a21211ba6ef5b9ce8909c723269125e48727e9bf81f87f5d9",
+      "observed": "No robots file."
+    }
+  ],
+  "publishers": [
+    {
+      "name": "Government of Saskatchewan (saskatchewan.ca)",
+      "hosts": [
+        "www.saskatchewan.ca"
+      ],
+      "status": "user-attested-limited-reviewed-publication",
+      "permissionContact": "Digital Citizen Experience Branch, Ministry of SaskBuilds and Procurement (content); Brand Management, Executive Council (logos)"
+    },
+    {
+      "name": "Saskatchewan Government Insurance (SGI)",
+      "hosts": [
+        "sgi.sk.ca"
+      ],
+      "status": "user-attested-acquired-extraction-quarantined",
+      "permissionContact": "SGI (terms at https://sgi.sk.ca/terms)"
+    },
+    {
+      "name": "eHealth Saskatchewan",
+      "hosts": [
+        "www.ehealthsask.ca"
+      ],
+      "status": "user-attested-acquired-awaiting-exact-review",
+      "permissionContact": "eHealth Saskatchewan (terms at privacy-statement-and-terms-of-use)"
+    }
+  ],
+  "flows": [
+    {
+      "task": "Renew, replace or change a driver's licence",
+      "provider": "SGI",
+      "url": "https://sgi.sk.ca/renew-licence",
+      "entry": "https://www.saskatchewan.ca/residents/transportation/driving-and-road-safety",
+      "verified": "fetched-200"
+    },
+    {
+      "task": "Get a driver's licence",
+      "provider": "SGI",
+      "url": "https://sgi.sk.ca/licensing",
+      "entry": "https://www.saskatchewan.ca/residents/transportation/driving-and-road-safety",
+      "verified": "linked-from-entry"
+    },
+    {
+      "task": "Vehicle registration and auto insurance",
+      "provider": "SGI",
+      "url": "https://sgi.sk.ca/registration",
+      "entry": "https://www.saskatchewan.ca/residents/transportation/driving-and-road-safety",
+      "verified": "linked-from-entry"
+    },
+    {
+      "task": "Get or update a health card",
+      "provider": "eHealth Saskatchewan",
+      "url": "https://www.ehealthsask.ca/residents/health-cards",
+      "entry": "https://www.saskatchewan.ca/residents/health/health-card",
+      "verified": "entry-in-sitemap"
+    },
+    {
+      "task": "Birth, marriage and death certificates; name change",
+      "provider": "eHealth Saskatchewan (Vital Statistics)",
+      "url": "https://www.ehealthsask.ca/residents/birth-marriage-death-certificates",
+      "entry": "https://www.saskatchewan.ca/residents/births-deaths-marriages-and-divorces",
+      "verified": "linked-from-entry"
+    },
+    {
+      "task": "Order a marriage certificate",
+      "provider": "eHealth Saskatchewan (Vital Statistics)",
+      "url": "https://www.saskatchewan.ca/residents/births-deaths-marriages-and-divorces/marriages/order-a-marriage-certificate",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Request a death certificate",
+      "provider": "eHealth Saskatchewan (Vital Statistics)",
+      "url": "https://www.saskatchewan.ca/residents/births-deaths-marriages-and-divorces/dealing-with-death/request-a-death-certificate",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Order a certificate of divorce",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/births-deaths-marriages-and-divorces/separation-or-divorce/order-a-certificate-of-divorce",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Check road conditions",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/transportation/highways/highway-hotline",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "Buy an angling licence",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/parks-culture-heritage-and-sport/hunting-trapping-and-angling/angling/buy-an-angling-licence",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Buy a hunting licence",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/parks-culture-heritage-and-sport/hunting-trapping-and-angling/hunting/buy-a-hunting-licence",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Apply for the big game draw",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/parks-culture-heritage-and-sport/hunting-trapping-and-angling/hunting/apply-for-the-big-game-draw",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Apply for student aid",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/education-and-learning/saskatchewan-student-aid",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "Graduate Retention Program",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/education-and-learning/graduate-retention-program",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "Scholarships, bursaries and grants",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/education-and-learning/scholarships-bursaries-grants",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "Get high school transcripts",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/education-and-learning/credits-degrees-and-transcripts",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "Find regulated child care",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/family-and-social-support/child-care/find-a-child-care-provider-in-my-community",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "Saskatchewan Income Support",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/family-and-social-support/financial-help/saskatchewan-income-support-sis",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Seniors Income Plan",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/family-and-social-support/seniors-services/seniors-income-plan",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Tenancy agreements",
+      "provider": "Government of Saskatchewan (Office of Residential Tenancies)",
+      "url": "https://www.saskatchewan.ca/residents/housing-and-renting/renting-and-leasing/tenancy-agreements",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Current wildfire activity",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/environment-public-health-and-safety/wildfire-in-saskatchewan/current-wildfire-activity",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Employment standards, wages and pay",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/business/employment-standards",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "Start a business",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/business/entrepreneurs-start-or-exit-a-business/start-a-business",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "Find and apply for jobs",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/jobs-working-and-training",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "HealthLine 811",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/emergency/healthline",
+      "verified": "in-sitemap-and-homepage"
+    },
+    {
+      "task": "Immunization services",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/health/accessing-health-care-services/immunization-services",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Property taxes",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/housing-and-renting/property-taxes",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Low-income tax credit",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/residents/taxes-and-investments/tax-credits/low-income-tax-credit",
+      "verified": "in-sitemap"
+    },
+    {
+      "task": "Saskatchewan Account help",
+      "provider": "Government of Saskatchewan",
+      "url": "https://www.saskatchewan.ca/government/doing-business-with-government/saskatchewan-account-help",
+      "verified": "in-sitemap"
+    }
+  ],
+  "coverage": {
+    "sitemapUrlsDiscovered": 3576,
+    "acquired": 36,
+    "embedded": 0,
+    "indexed": 12,
+    "indexedChunks": 18,
+    "searchIndex": "sk-pilot-public",
+    "flowCoverage": {
+      "discoveredFlows": 29,
+      "exactIndexedFlowUrls": 6,
+      "exactMatches": [
+        "Check road conditions",
+        "Apply for student aid",
+        "Graduate Retention Program",
+        "Scholarships, bursaries and grants",
+        "Employment standards, wages and pay",
+        "Start a business"
+      ],
+      "notice": "Exact URL matches are not a complete coverage assessment: other indexed pages may address a flow, and matching search results do not prove an answer is supported. SGI and eHealth are not indexed."
+    },
+    "searchServiceObservations": [
+      {
+        "observedAt": "2026-11-24",
+        "subscription": "O365 Griffin Reporting Production (CLI default)",
+        "query": "az resource list --resource-type Microsoft.Search/searchServices",
+        "count": 0,
+        "subscriptionId": "bfd07ed7-7ac8-4e10-b47d-cbcc398782b4"
+      },
+      {
+        "observedAt": "2026-11-24",
+        "subscription": "ME-MngEnvMCAP744360-sharmave-1",
+        "query": "az resource list --subscription ME-MngEnvMCAP744360-sharmave-1 --resource-type Microsoft.Search/searchServices",
+        "count": 3,
+        "services": [
+          {
+            "name": "srch-bcassist-xufhsendpx",
+            "azdEnv": "bc-pilot",
+            "jurisdiction": "bc"
+          },
+          {
+            "name": "srch-bcassist-jrxx4g4iwu",
+            "azdEnv": "bc-pyrit-staging",
+            "jurisdiction": "bc"
+          },
+          {
+            "name": "srch-permit-readiness-agentfirst-dev-w3-4wgtan",
+            "azdEnv": "agentfirst-dev-w3",
+            "jurisdiction": "unrelated"
+          }
+        ],
+        "subscriptionId": "ad92e163-a85e-40cc-bb50-054b0b8197a8"
+      }
+    ],
+    "searchTarget": {
+      "observedAt": "2026-11-24",
+      "subscriptionId": "ad92e163-a85e-40cc-bb50-054b0b8197a8",
+      "resourceGroup": "rg-skassist-rywtikimq4",
+      "serviceName": "srch-skassist-rywtikimq4",
+      "endpoint": "https://srch-skassist-rywtikimq4.search.windows.net",
+      "location": "canadacentral",
+      "sku": "basic",
+      "replicas": 1,
+      "partitions": 1,
+      "provisioningState": "succeeded",
+      "status": "running",
+      "localAuthenticationDisabled": true,
+      "publicNetworkAccess": "enabled",
+      "indexObservation": "On 2026-11-24, Search queries verified 18 active chunks from exactly 12 user-approved document snapshots in sk-pilot-public. An isolated runtime probe reported all 12 as usable; licence-renewal and birth-certificate queries returned unrelated results.",
+      "roleObservation": "Search Service Contributor and Search Index Data Contributor were assigned to the publishing identity at this Search service scope."
+    },
+    "publishedRun": {
+      "id": "attested-20261124",
+      "authorizationBasis": "user-attested",
+      "host": "www.saskatchewan.ca",
+      "requests": 15,
+      "chargedBytes": 1390763,
+      "extracted": 13,
+      "reviewed": 12,
+      "indexed": 12,
+      "indexedChunks": 18,
+      "status": "published-limited-scope-acquisition-paused-at-request-limit",
+      "notice": "Twelve exact snapshots were user-approved and published; the child-care provider directory was withheld. SGI and eHealth are not included. Acquisition remains paused at its original request limit."
+    },
+    "followupRuns": [
+      {
+        "id": "common-flows-20261124",
+        "hosts": ["www.saskatchewan.ca"],
+        "requests": 15,
+        "chargedBytes": 698804,
+        "extracted": 11,
+        "reviewRequired": 8,
+        "quarantined": 3,
+        "indexed": 0
+      },
+      {
+        "id": "external-flows-20261124",
+        "hosts": ["sgi.sk.ca", "www.ehealthsask.ca"],
+        "requests": 12,
+        "chargedBytes": 885144,
+        "extracted": 9,
+        "reviewRequired": 6,
+        "quarantined": 3,
+        "indexed": 0
+      },
+      {
+        "id": "vital-records-20261124",
+        "hosts": ["www.ehealthsask.ca"],
+        "requests": 4,
+        "chargedBytes": 316510,
+        "extracted": 3,
+        "reviewRequired": 3,
+        "quarantined": 0,
+        "indexed": 0
+      }
+    ],
+    "acquisitionAccounting": {
+      "requests": 46,
+      "chargedBytes": 3291221,
+      "notice": "Sum of the published run and three separate follow-up runs. The separate synthetic reservation is excluded. No run's original limits or rights identity was reset."
+    },
+    "tenantWideSearchCheck": "not performed",
+    "blockers": [
+      "The operation review is based on user attestation, not independently verified publisher evidence; new or changed snapshots require separate exact-snapshot review.",
+      "The separate follow-up runs hold 17 snapshots awaiting exact-hash human review; SGI's three client-rendered pages lack extractable guidance and remain quarantined.",
+      "SGI and eHealth are scoped only in a separate session-owned acquisition workspace, not the default pack, and neither publisher has been indexed.",
+      "The Saskatchewan application is not connected to this index; an isolated read-only probe is not a deployment. Vector embeddings were not generated."
+    ]
+  }
+}
